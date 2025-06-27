@@ -10,7 +10,7 @@ class CoinGeckoService
 {
     private $baseUrl;
     private $apiKey;
-    private $cacheTime = 300; // 5 minutes
+    private $cacheTime = 900; // 15 minutes
 
     public function __construct()
     {
@@ -184,17 +184,34 @@ class CoinGeckoService
     {
         $cacheKey = 'global';
         
-        return Cache::remember($cacheKey, $this->cacheTime, function () {
+        return Cache::remember($cacheKey, $this->cacheTime, function () use ($cacheKey) {
             try {
                 $response = Http::timeout(30)->get("{$this->baseUrl}/global");
 
                 if ($response->successful()) {
-                    return $response->json();
+                    $data = $response->json();
+                    // Store backup cache for rate limit scenarios
+                    Cache::put($cacheKey . '_backup', $data, 86400); // 24 hours
+                    return $data;
+                }
+                
+                if ($response->status() === 429) {
+                    Log::warning('CoinGecko rate limit exceeded for global data');
+                    // Return cached data if available
+                    $cached = Cache::get($cacheKey . '_backup');
+                    if ($cached) {
+                        return $cached;
+                    }
                 }
 
                 return [];
             } catch (\Exception $e) {
                 Log::error('CoinGecko global API exception', ['error' => $e->getMessage()]);
+                // Return cached data if available
+                $cached = Cache::get($cacheKey . '_backup');
+                if ($cached) {
+                    return $cached;
+                }
                 return [];
             }
         });

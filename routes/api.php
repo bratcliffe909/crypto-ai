@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\MarketDataController;
 use App\Http\Controllers\Api\ChartController;
 use App\Http\Controllers\Api\IndicatorController;
+use App\Http\Controllers\Api\MarketMetricsController;
 use Illuminate\Support\Facades\Route;
 
 // Apply web middleware group to enable sessions and CSRF
@@ -21,6 +22,17 @@ Route::prefix('crypto')->group(function () {
     
     // Indicator endpoints
     Route::get('/fear-greed', [IndicatorController::class, 'fearGreed']);
+    Route::get('/indicators/{symbol}', [IndicatorController::class, 'getIndicators']);
+    Route::get('/economic-calendar', [IndicatorController::class, 'economicCalendar']);
+    Route::get('/news-feed', [IndicatorController::class, 'newsFeed']);
+    
+    // Market metrics endpoints
+    Route::get('/market-metrics/global', [MarketMetricsController::class, 'globalMetrics']);
+    Route::get('/market-metrics/breadth', [MarketMetricsController::class, 'marketBreadth']);
+    Route::get('/market-metrics/volatility', [MarketMetricsController::class, 'volatilityMetrics']);
+    
+    // Exchange rates
+    Route::get('/exchange-rates', [MarketDataController::class, 'exchangeRates']);
 });
 
 // Test route

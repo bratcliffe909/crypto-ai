@@ -57,8 +57,7 @@ const Wallet = () => {
   // Fetch exchange rate
   const fetchExchangeRate = async () => {
     try {
-      // Using exchangerate-api.com free tier
-      const response = await axios.get('https://api.exchangerate-api.com/v4/latest/USD');
+      const response = await axios.get('/api/crypto/exchange-rates?base=USD&symbols=GBP');
       if (response.data && response.data.rates && response.data.rates.GBP) {
         setGbpRate(response.data.rates.GBP);
       }
