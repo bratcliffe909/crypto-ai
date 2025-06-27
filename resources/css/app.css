@@ -1,0 +1,41 @@
+/* Dark theme styles */
+[data-bs-theme="dark"] {
+    --bs-body-bg: #1a1d29;
+    --bs-body-color: #e1e1e1;
+    --bs-card-bg: #22252f;
+    --bs-border-color: #2c2f3a;
+}
+
+body {
+    background-color: var(--bs-body-bg);
+    color: var(--bs-body-color);
+}
+
+.card {
+    background-color: var(--bs-card-bg);
+    border-color: var(--bs-border-color);
+}
+
+.card-header {
+    background-color: rgba(255, 255, 255, 0.03);
+    border-bottom-color: var(--bs-border-color);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}

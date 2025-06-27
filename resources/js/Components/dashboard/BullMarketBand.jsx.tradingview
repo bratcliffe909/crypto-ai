@@ -1,0 +1,178 @@
+import React, { useEffect, useRef } from 'react';
+import { createChart } from 'lightweight-charts';
+import useApi from '../../hooks/useApi';
+import LoadingSpinner from '../common/LoadingSpinner';
+
+const BullMarketBand = () => {
+  const { data, loading, error } = useApi('/api/crypto/bull-market-band');
+  const chartContainerRef = useRef(null);
+  const chartRef = useRef(null);
+  const candlestickSeriesRef = useRef(null);
+  const smaSeriesRef = useRef(null);
+  const emaSeriesRef = useRef(null);
+
+  useEffect(() => {
+    if (!chartContainerRef.current || !data || data.length === 0) return;
+
+    // Create chart if it doesn't exist
+    if (!chartRef.current) {
+      const chart = createChart(chartContainerRef.current, {
+        width: chartContainerRef.current.clientWidth,
+        height: 400,
+        layout: {
+          background: { color: 'transparent' },
+          textColor: '#999',
+        },
+        grid: {
+          vertLines: { color: '#333' },
+          horzLines: { color: '#333' },
+        },
+        crosshair: {
+          mode: 1, // Magnet mode
+        },
+        rightPriceScale: {
+          borderColor: '#666',
+        },
+        timeScale: {
+          borderColor: '#666',
+          timeVisible: true,
+          secondsVisible: false,
+        },
+      });
+
+      // Create candlestick series
+      const candlestickSeries = chart.addCandlestickSeries({
+        upColor: '#26A69A',
+        downColor: '#EF5350',
+        borderVisible: false,
+        wickUpColor: '#26A69A',
+        wickDownColor: '#EF5350',
+      });
+
+      // Create SMA line series
+      const smaSeries = chart.addLineSeries({
+        color: '#52C41A',
+        lineWidth: 2,
+        title: '20W SMA',
+      });
+
+      // Create EMA line series
+      const emaSeries = chart.addLineSeries({
+        color: '#FF4757',
+        lineWidth: 2,
+        title: '21W EMA',
+      });
+
+      chartRef.current = chart;
+      candlestickSeriesRef.current = candlestickSeries;
+      smaSeriesRef.current = smaSeries;
+      emaSeriesRef.current = emaSeries;
+
+      // Handle resize
+      const handleResize = () => {
+        if (chartContainerRef.current) {
+          chart.applyOptions({ 
+            width: chartContainerRef.current.clientWidth 
+          });
+        }
+      };
+      window.addEventListener('resize', handleResize);
+
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        chart.remove();
+      };
+    }
+
+    // Update data
+    if (candlestickSeriesRef.current && data) {
+      // Prepare candlestick data
+      const candlestickData = data.map(item => ({
+        time: item.date,
+        open: item.open,
+        high: item.high,
+        low: item.low,
+        close: item.close,
+      }));
+
+      // Prepare SMA data
+      const smaData = data
+        .filter(item => item.sma20 !== null)
+        .map(item => ({
+          time: item.date,
+          value: item.sma20,
+        }));
+
+      // Prepare EMA data
+      const emaData = data
+        .filter(item => item.ema21 !== null)
+        .map(item => ({
+          time: item.date,
+          value: item.ema21,
+        }));
+
+      // Set the data
+      candlestickSeriesRef.current.setData(candlestickData);
+      smaSeriesRef.current.setData(smaData);
+      emaSeriesRef.current.setData(emaData);
+
+      // Fit content
+      chartRef.current.timeScale().fitContent();
+    }
+  }, [data]);
+
+  if (error) {
+    return (
+      <div className="card mb-4">
+        <div className="card-header">
+          <h5 className="mb-0">Bitcoin Bull Market Support Band</h5>
+        </div>
+        <div className="card-body text-center text-muted py-5">
+          <p className="mb-2">Unable to load Bull Market Band data</p>
+          <small>{error}</small>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card mb-4">
+      <div className="card-header d-flex justify-content-between align-items-center">
+        <h5 className="mb-0">Bitcoin Bull Market Support Band (6 Months)</h5>
+        {loading && data && (
+          <div className="spinner-border spinner-border-sm text-primary" role="status">
+            <span className="visually-hidden">Updating...</span>
+          </div>
+        )}
+      </div>
+      <div className="card-body p-0">
+        {loading && !data ? (
+          <div style={{ height: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <LoadingSpinner />
+          </div>
+        ) : data && data.length === 0 ? (
+          <div className="text-center text-muted py-5">
+            <p className="mb-2">No Bull Market Band data available</p>
+            <small>Please check your connection and try again</small>
+          </div>
+        ) : (
+          <div ref={chartContainerRef} style={{ position: 'relative' }} />
+        )}
+      </div>
+      <div className="card-footer text-muted small">
+        <div className="d-flex justify-content-between align-items-center">
+          <div>
+            <span className="text-success">● 20W SMA</span>
+            <span className="text-danger ms-3">● 21W EMA</span>
+          </div>
+          <div>
+            <span>Weekly candles: Monday open to Sunday close</span>
+            <span className="ms-3">Updates every 30 seconds</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default BullMarketBand;
