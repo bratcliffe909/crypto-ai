@@ -24,8 +24,9 @@ const Wallet = () => {
     }
   }, []);
 
-  // Listen for changes to favorites in localStorage
+  // Listen for changes to favorites
   useEffect(() => {
+    // Handle storage changes from other tabs
     const handleStorageChange = () => {
       const savedFavorites = localStorage.getItem('favorites');
       if (savedFavorites) {
@@ -33,8 +34,20 @@ const Wallet = () => {
       }
     };
 
+    // Handle custom event from same tab
+    const handleFavoritesUpdate = (event) => {
+      if (event.detail && event.detail.favorites) {
+        setFavorites(event.detail.favorites);
+      }
+    };
+
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    window.addEventListener('favoritesUpdated', handleFavoritesUpdate);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('favoritesUpdated', handleFavoritesUpdate);
+    };
   }, []);
 
   // Fetch wallet data
@@ -121,6 +134,11 @@ const Wallet = () => {
     const newFavorites = favorites.filter(id => id !== coinId);
     setFavorites(newFavorites);
     localStorage.setItem('favorites', JSON.stringify(newFavorites));
+    
+    // Dispatch custom event for same-tab updates
+    window.dispatchEvent(new CustomEvent('favoritesUpdated', { 
+      detail: { favorites: newFavorites } 
+    }));
     
     // Also remove from portfolio
     const newPortfolio = { ...portfolio };

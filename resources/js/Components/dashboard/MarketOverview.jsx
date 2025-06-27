@@ -20,6 +20,21 @@ const MarketOverview = () => {
     }
   }, []);
 
+  // Listen for favorites updates from wallet
+  useEffect(() => {
+    const handleFavoritesUpdate = (event) => {
+      if (event.detail && event.detail.favorites) {
+        setFavorites(event.detail.favorites);
+      }
+    };
+
+    window.addEventListener('favoritesUpdated', handleFavoritesUpdate);
+    
+    return () => {
+      window.removeEventListener('favoritesUpdated', handleFavoritesUpdate);
+    };
+  }, []);
+
   // Toggle favorite status
   const toggleFavorite = (coinId) => {
     const newFavorites = favorites.includes(coinId)
@@ -28,6 +43,11 @@ const MarketOverview = () => {
     
     setFavorites(newFavorites);
     localStorage.setItem('favorites', JSON.stringify(newFavorites));
+    
+    // Dispatch custom event for same-tab updates
+    window.dispatchEvent(new CustomEvent('favoritesUpdated', { 
+      detail: { favorites: newFavorites } 
+    }));
   };
 
   // Filter data based on search term
