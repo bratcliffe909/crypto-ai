@@ -1,16 +1,16 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Card, Table, Form, InputGroup, Pagination, Button } from 'react-bootstrap';
-import { BsExclamationTriangle, BsSearch, BsStar, BsStarFill } from 'react-icons/bs';
+import { BsExclamationTriangle, BsSearch, BsStar, BsStarFill, BsClock } from 'react-icons/bs';
 import useApi from '../../hooks/useApi';
 import LoadingSpinner from '../common/LoadingSpinner';
 import { formatPrice, formatPercentage, formatMarketCap } from '../../utils/formatters';
 
 const MarketOverview = () => {
-  const { data, loading, error } = useApi('/api/crypto/markets');
+  const { data, loading, error, lastFetch } = useApi('/api/crypto/markets?per_page=250');
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [favorites, setFavorites] = useState([]);
-  const itemsPerPage = 20; // Increased to show more coins per page
+  const [itemsPerPage, setItemsPerPage] = useState(10); // Default to 10 items per page
 
   // Load favorites from localStorage on mount
   useEffect(() => {
@@ -76,16 +76,58 @@ const MarketOverview = () => {
     setCurrentPage(page);
   };
 
+  const handlePageSizeChange = (e) => {
+    const newSize = parseInt(e.target.value);
+    setItemsPerPage(newSize);
+    setCurrentPage(1); // Reset to first page when changing page size
+  };
+
+  // Format time ago
+  const getTimeAgo = (date) => {
+    if (!date) return '';
+    
+    const seconds = Math.floor((new Date() - date) / 1000);
+    
+    if (seconds < 60) return 'just now';
+    if (seconds < 120) return '1 minute ago';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
+    if (seconds < 7200) return '1 hour ago';
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
+    
+    return 'over a day ago';
+  };
+
   if (loading && !data) return <LoadingSpinner />;
 
   return (
     <Card className="mb-4">
       <Card.Header>
         <div className="d-flex justify-content-between align-items-center mb-3">
-          <h5 className="mb-0">Market Overview</h5>
-          {error && (
-            <BsExclamationTriangle className="text-warning" title="Failed to update" />
-          )}
+          <div className="d-flex align-items-center gap-2">
+            <h5 className="mb-0">Market Overview</h5>
+            {lastFetch && (
+              <small className="text-muted d-flex align-items-center">
+                <BsClock size={12} className="me-1" />
+                {getTimeAgo(lastFetch)}
+              </small>
+            )}
+          </div>
+          <div className="d-flex align-items-center gap-2">
+            <Form.Select 
+              size="sm" 
+              value={itemsPerPage} 
+              onChange={handlePageSizeChange}
+              style={{ width: 'auto' }}
+            >
+              <option value="10">10 per page</option>
+              <option value="20">20 per page</option>
+              <option value="50">50 per page</option>
+              <option value="100">100 per page</option>
+            </Form.Select>
+            {error && (
+              <BsExclamationTriangle className="text-warning" title="Failed to update" />
+            )}
+          </div>
         </div>
         <InputGroup>
           <InputGroup.Text>
@@ -161,7 +203,9 @@ const MarketOverview = () => {
         <Card.Footer>
           <div className="d-flex justify-content-between align-items-center">
             <div className="text-muted small">
-              Showing {startIndex + 1}-{Math.min(endIndex, filteredData.length)} of {filteredData.length} coins
+              Showing {startIndex + 1}-{Math.min(endIndex, filteredData.length)} of {filteredData.length} 
+              {searchTerm && ` filtered`} coins
+              {!searchTerm && data && ` (Top ${data.length} by market cap)`}
             </div>
             <Pagination className="mb-0" size="sm">
               <Pagination.First 

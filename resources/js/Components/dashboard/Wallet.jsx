@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Form, Button, ListGroup, InputGroup, Badge } from 'react-bootstrap';
-import { BsX, BsExclamationTriangle, BsWallet2, BsCurrencyDollar } from 'react-icons/bs';
+import { BsX, BsExclamationTriangle, BsWallet2, BsCurrencyDollar, BsClock } from 'react-icons/bs';
 import useLocalStorage from '../../hooks/useLocalStorage';
 import LoadingSpinner from '../common/LoadingSpinner';
 import { formatPrice, formatPercentage } from '../../utils/formatters';
@@ -15,6 +15,10 @@ const Wallet = () => {
   const [error, setError] = useState(null);
   const [totalValue, setTotalValue] = useState(0);
   const [totalChange, setTotalChange] = useState(0);
+  const [btcPrice, setBtcPrice] = useState(0);
+  const [gbpRate, setGbpRate] = useState(0.79); // Default fallback rate
+  const [selectedCurrency, setSelectedCurrency] = useState(0); // 0=USD, 1=GBP, 2=BTC
+  const [lastUpdated, setLastUpdated] = useState(null);
   
   // Load favorites from localStorage
   useEffect(() => {
@@ -50,6 +54,20 @@ const Wallet = () => {
     };
   }, []);
 
+  // Fetch exchange rate
+  const fetchExchangeRate = async () => {
+    try {
+      // Using exchangerate-api.com free tier
+      const response = await axios.get('https://api.exchangerate-api.com/v4/latest/USD');
+      if (response.data && response.data.rates && response.data.rates.GBP) {
+        setGbpRate(response.data.rates.GBP);
+      }
+    } catch (err) {
+      console.error('Failed to fetch exchange rate:', err);
+      // Keep default rate on error
+    }
+  };
+
   // Fetch wallet data
   const fetchWalletData = async () => {
     if (!favorites.length) {
@@ -67,34 +85,44 @@ const Wallet = () => {
       const csrfResponse = await axios.get('/api/csrf-token');
       axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfResponse.data.csrf_token;
       
-      const favoriteIds = favorites.join(',');
-      const response = await axios.get(`/api/crypto/markets?ids=${favoriteIds}`);
+      // Always include bitcoin in the request to get BTC price
+      const requestIds = favorites.includes('bitcoin') ? favorites : [...favorites, 'bitcoin'];
+      const response = await axios.get(`/api/crypto/markets?ids=${requestIds.join(',')}`);
       const data = response.data;
+      
+      // Find Bitcoin price
+      const bitcoinData = data.find(coin => coin.id === 'bitcoin');
+      if (bitcoinData) {
+        setBtcPrice(bitcoinData.current_price);
+      }
       
       // Calculate portfolio values
       let total = 0;
       let totalPrevious = 0;
       
-      const enrichedData = data.map(coin => {
-        const balance = portfolio[coin.id]?.balance || 0;
-        const value = balance * coin.current_price;
-        const previousPrice = coin.current_price / (1 + coin.price_change_percentage_24h / 100);
-        const previousValue = balance * previousPrice;
-        
-        total += value;
-        totalPrevious += previousValue;
-        
-        return {
-          ...coin,
-          balance,
-          value,
-          previousValue
-        };
-      });
+      const enrichedData = data
+        .filter(coin => favorites.includes(coin.id)) // Only show coins that are actually in favorites
+        .map(coin => {
+          const balance = portfolio[coin.id]?.balance || 0;
+          const value = balance * coin.current_price;
+          const previousPrice = coin.current_price / (1 + coin.price_change_percentage_24h / 100);
+          const previousValue = balance * previousPrice;
+          
+          total += value;
+          totalPrevious += previousValue;
+          
+          return {
+            ...coin,
+            balance,
+            value,
+            previousValue
+          };
+        });
       
       setWalletData(enrichedData);
       setTotalValue(total);
       setTotalChange(total - totalPrevious);
+      setLastUpdated(new Date());
     } catch (err) {
       console.error('Wallet fetch error:', err);
       setError('Failed to update wallet');
@@ -102,6 +130,11 @@ const Wallet = () => {
       setLoading(false);
     }
   };
+
+  // Fetch exchange rate on mount
+  useEffect(() => {
+    fetchExchangeRate();
+  }, []);
 
   // Fetch data on mount and when favorites or portfolio changes
   useEffect(() => {
@@ -112,8 +145,16 @@ const Wallet = () => {
   useInterval(() => {
     if (favorites.length > 0) {
       fetchWalletData();
+      fetchExchangeRate(); // Also refresh exchange rate
     }
   }, 30000);
+
+  // Auto-slide currency display every 10 seconds
+  useInterval(() => {
+    if (totalValue > 0) {
+      setSelectedCurrency(prev => (prev + 1) % 3);
+    }
+  }, 10000);
   
   // Update coin balance
   const updateBalance = (coinId, balance) => {
@@ -146,27 +187,66 @@ const Wallet = () => {
     setPortfolio(newPortfolio);
   };
 
-  // Format large numbers
-  const formatLargeNumber = (num) => {
-    if (num >= 1000000) {
-      return `$${(num / 1000000).toFixed(2)}M`;
-    } else if (num >= 1000) {
-      return `$${(num / 1000).toFixed(2)}K`;
+  // Format time ago
+  const getTimeAgo = (date) => {
+    if (!date) return '';
+    
+    const seconds = Math.floor((new Date() - date) / 1000);
+    
+    if (seconds < 60) return 'just now';
+    if (seconds < 120) return '1 minute ago';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
+    if (seconds < 7200) return '1 hour ago';
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
+    
+    return 'over a day ago';
+  };
+
+  // Get display values based on selected currency
+  const getDisplayValue = () => {
+    switch (selectedCurrency) {
+      case 0: // USD
+        return {
+          value: `$${totalValue.toFixed(2)}`,
+          change: `${totalChange >= 0 ? '+' : ''}$${Math.abs(totalChange).toFixed(2)}`,
+          changePercent: `(${totalChange >= 0 ? '+' : ''}${((totalChange / (totalValue - totalChange)) * 100).toFixed(2)}%)`,
+          symbol: '$'
+        };
+      case 1: // GBP
+        const gbpValue = totalValue * gbpRate;
+        const gbpChange = totalChange * gbpRate;
+        return {
+          value: `£${gbpValue.toFixed(2)}`,
+          change: `${gbpChange >= 0 ? '+' : ''}£${Math.abs(gbpChange).toFixed(2)}`,
+          changePercent: `(${totalChange >= 0 ? '+' : ''}${((totalChange / (totalValue - totalChange)) * 100).toFixed(2)}%)`,
+          symbol: '£'
+        };
+      case 2: // BTC
+        const btcValue = btcPrice > 0 ? totalValue / btcPrice : 0;
+        const btcChange = btcPrice > 0 ? totalChange / btcPrice : 0;
+        return {
+          value: `${btcValue.toFixed(6)} BTC`,
+          change: `${btcChange >= 0 ? '+' : ''}${Math.abs(btcChange).toFixed(6)} BTC`,
+          changePercent: `(${totalChange >= 0 ? '+' : ''}${((totalChange / (totalValue - totalChange)) * 100).toFixed(2)}%)`,
+          symbol: '₿'
+        };
     }
-    return formatPrice(num);
   };
 
   return (
     <Card className="mb-4">
-      <Card.Header>
+      <Card.Header className="pb-3">
         <div className="d-flex justify-content-between align-items-center mb-2">
           <h5 className="mb-0 d-flex align-items-center">
             <BsWallet2 className="me-2" />
             Wallet
           </h5>
-          <div className="d-flex align-items-center">
-            {favorites.length > 0 && (
-              <Badge bg="secondary" className="me-2">{favorites.length}</Badge>
+          <div className="d-flex align-items-center gap-2">
+            {lastUpdated && (
+              <small className="text-muted d-flex align-items-center">
+                <BsClock size={12} className="me-1" />
+                {getTimeAgo(lastUpdated)}
+              </small>
             )}
             {error && (
               <BsExclamationTriangle className="text-warning" title={error} />
@@ -174,12 +254,68 @@ const Wallet = () => {
           </div>
         </div>
         {totalValue > 0 && (
-          <div className="text-center mt-3">
-            <div className="h3 mb-1">{formatLargeNumber(totalValue)}</div>
-            <div className={totalChange >= 0 ? 'text-success' : 'text-danger'}>
-              {totalChange >= 0 ? '+' : ''}{formatPrice(totalChange)} ({totalChange >= 0 ? '+' : ''}{((totalChange / (totalValue - totalChange)) * 100).toFixed(2)}%)
+          <div className="text-center mt-2" style={{ overflow: 'hidden', position: 'relative', height: '60px' }}>
+            <div style={{ 
+              position: 'absolute',
+              width: '100%',
+              transform: `translateY(${selectedCurrency === 0 ? '0' : '-100%'})`,
+              transition: 'transform 0.5s ease-in-out',
+              opacity: selectedCurrency === 0 ? 1 : 0,
+              transitionProperty: 'transform, opacity'
+            }}>
+              <div className="h4 mb-0">${totalValue.toFixed(2)}</div>
+              <div className={`small ${totalChange >= 0 ? 'text-success' : 'text-danger'}`}>
+                {totalChange >= 0 ? '+' : ''}${Math.abs(totalChange).toFixed(2)} ({totalChange >= 0 ? '+' : ''}{((totalChange / (totalValue - totalChange)) * 100).toFixed(2)}%)
+              </div>
             </div>
-            <small className="text-muted">Total Portfolio Value</small>
+            <div style={{ 
+              position: 'absolute',
+              width: '100%',
+              transform: `translateY(${selectedCurrency === 1 ? '0' : selectedCurrency === 0 ? '100%' : '-100%'})`,
+              transition: 'transform 0.5s ease-in-out',
+              opacity: selectedCurrency === 1 ? 1 : 0,
+              transitionProperty: 'transform, opacity'
+            }}>
+              <div className="h4 mb-0">£{(totalValue * gbpRate).toFixed(2)}</div>
+              <div className={`small ${totalChange >= 0 ? 'text-success' : 'text-danger'}`}>
+                {totalChange >= 0 ? '+' : ''}£{Math.abs(totalChange * gbpRate).toFixed(2)} ({totalChange >= 0 ? '+' : ''}{((totalChange / (totalValue - totalChange)) * 100).toFixed(2)}%)
+              </div>
+            </div>
+            <div style={{ 
+              position: 'absolute',
+              width: '100%',
+              transform: `translateY(${selectedCurrency === 2 ? '0' : '100%'})`,
+              transition: 'transform 0.5s ease-in-out',
+              opacity: selectedCurrency === 2 ? 1 : 0,
+              transitionProperty: 'transform, opacity'
+            }}>
+              <div className="h4 mb-0">{btcPrice > 0 ? (totalValue / btcPrice).toFixed(6) : '0.000000'} BTC</div>
+              <div className={`small ${totalChange >= 0 ? 'text-success' : 'text-danger'}`}>
+                {totalChange >= 0 ? '+' : ''}{Math.abs(btcPrice > 0 ? totalChange / btcPrice : 0).toFixed(6)} BTC ({totalChange >= 0 ? '+' : ''}{((totalChange / (totalValue - totalChange)) * 100).toFixed(2)}%)
+              </div>
+            </div>
+          </div>
+        )}
+        {totalValue > 0 && (
+          <div className="d-flex justify-content-center gap-2 mt-2">
+              <button 
+                className={`btn btn-sm rounded-circle p-0 ${selectedCurrency === 0 ? 'btn-primary' : 'btn-outline-secondary'}`}
+                style={{ width: '8px', height: '8px', minWidth: '8px' }}
+                onClick={() => setSelectedCurrency(0)}
+                title="USD"
+              />
+              <button 
+                className={`btn btn-sm rounded-circle p-0 ${selectedCurrency === 1 ? 'btn-primary' : 'btn-outline-secondary'}`}
+                style={{ width: '8px', height: '8px', minWidth: '8px' }}
+                onClick={() => setSelectedCurrency(1)}
+                title="GBP"
+              />
+              <button 
+                className={`btn btn-sm rounded-circle p-0 ${selectedCurrency === 2 ? 'btn-primary' : 'btn-outline-secondary'}`}
+                style={{ width: '8px', height: '8px', minWidth: '8px' }}
+                onClick={() => setSelectedCurrency(2)}
+                title="BTC"
+              />
           </div>
         )}
       </Card.Header>
@@ -189,64 +325,76 @@ const Wallet = () => {
             <LoadingSpinner />
           </div>
         ) : walletData.length > 0 ? (
-          <ListGroup variant="flush">
+          <>
+            <div className="px-2 py-1 border-bottom small text-muted d-flex align-items-center">
+              <div className="flex-fill ps-5">Amount</div>
+              <div className="text-center" style={{ minWidth: '90px' }}>Price</div>
+              <div className="text-end" style={{ minWidth: '90px' }}>Value</div>
+            </div>
+            <ListGroup variant="flush">
             {walletData.map(coin => (
-              <ListGroup.Item key={coin.id} className="px-3 py-2">
-                <div className="d-flex align-items-center">
-                  <img 
-                    src={coin.image} 
-                    alt={coin.name} 
-                    width="32" 
-                    height="32" 
-                    className="me-3" 
-                  />
-                  <div className="flex-grow-1">
-                    <div className="d-flex justify-content-between align-items-start">
-                      <div>
-                        <div className="fw-medium">{coin.name}</div>
-                        <small className="text-muted">{coin.symbol.toUpperCase()}</small>
-                      </div>
-                      <Button
-                        variant="link"
-                        size="sm"
-                        className="p-0 text-muted"
-                        onClick={() => removeFromWallet(coin.id)}
-                      >
-                        <BsX size={20} />
-                      </Button>
+              <ListGroup.Item key={coin.id} className="px-2 py-1">
+                <div className="d-flex justify-content-between align-items-center mb-1">
+                  <div className="d-flex align-items-center">
+                    <img 
+                      src={coin.image} 
+                      alt={coin.name} 
+                      width="24" 
+                      height="24" 
+                      className="me-2" 
+                    />
+                    <div>
+                      <span className="fw-medium small">{coin.name}</span>
+                      <span className="text-muted small ms-1">{coin.symbol.toUpperCase()}</span>
                     </div>
-                    <div className="mt-2 row g-2">
-                      <div className="col-4">
-                        <InputGroup size="sm">
-                          <Form.Control
-                            type="number"
-                            placeholder="0.00"
-                            value={coin.balance || ''}
-                            onChange={(e) => updateBalance(coin.id, e.target.value)}
-                            step="0.00000001"
-                            min="0"
-                          />
-                        </InputGroup>
-                        <small className="text-muted">{coin.symbol.toUpperCase()}</small>
-                      </div>
-                      <div className="col-4 text-center">
-                        <div className="font-monospace small">{formatPrice(coin.current_price)}</div>
-                        <small className={coin.price_change_percentage_24h >= 0 ? 'text-success' : 'text-danger'}>
-                          {coin.price_change_percentage_24h >= 0 ? '+' : ''}{formatPercentage(coin.price_change_percentage_24h)}
-                        </small>
-                      </div>
-                      <div className="col-4 text-end">
-                        <div className="fw-medium">{formatPrice(coin.value || 0)}</div>
-                        <small className={coin.value > coin.previousValue ? 'text-success' : 'text-danger'}>
-                          {coin.value > coin.previousValue ? '+' : ''}{formatPrice((coin.value || 0) - (coin.previousValue || 0))}
-                        </small>
-                      </div>
+                  </div>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="p-0 text-muted"
+                    onClick={() => removeFromWallet(coin.id)}
+                  >
+                    <BsX size={18} />
+                  </Button>
+                </div>
+                <div className="d-flex align-items-center gap-2">
+                  <div className="flex-fill">
+                    <InputGroup size="sm">
+                      <Form.Control
+                        type="number"
+                        placeholder="0.00"
+                        value={coin.balance || ''}
+                        onChange={(e) => updateBalance(coin.id, e.target.value)}
+                        step="0.01"
+                        min="0"
+                        className="text-center"
+                        style={{ fontSize: '0.875rem' }}
+                      />
+                    </InputGroup>
+                  </div>
+                  <div className="text-center" style={{ minWidth: '90px' }}>
+                    <div className="font-monospace small">
+                      ${coin.current_price >= 10000 ? 
+                        (coin.current_price / 1000).toFixed(1) + 'K' : 
+                        coin.current_price >= 1 ? 
+                          coin.current_price.toFixed(2) : 
+                          coin.current_price.toFixed(4)}
                     </div>
+                    <small className={coin.price_change_percentage_24h >= 0 ? 'text-success' : 'text-danger'}>
+                      {coin.price_change_percentage_24h >= 0 ? '+' : ''}{coin.price_change_percentage_24h.toFixed(2)}%
+                    </small>
+                  </div>
+                  <div className="text-end" style={{ minWidth: '90px' }}>
+                    <div className="fw-medium small">${(coin.value || 0).toFixed(2)}</div>
+                    <small className={coin.value > coin.previousValue ? 'text-success' : 'text-danger'}>
+                      {coin.value > coin.previousValue ? '+' : ''}${Math.abs((coin.value || 0) - (coin.previousValue || 0)).toFixed(2)}
+                    </small>
                   </div>
                 </div>
               </ListGroup.Item>
             ))}
           </ListGroup>
+          </>
         ) : favorites.length === 0 ? (
           <div className="text-center text-muted py-5">
             <BsWallet2 size={48} className="mb-3" />

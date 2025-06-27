@@ -5,6 +5,7 @@ const useApi = (endpoint, interval = 30000) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [lastFetch, setLastFetch] = useState(null);
   const intervalRef = useRef(null);
 
   useEffect(() => {
@@ -26,6 +27,7 @@ const useApi = (endpoint, interval = 30000) => {
         // Fetch data
         const response = await axios.get(url);
         setData(response.data);
+        setLastFetch(new Date());
       } catch (err) {
         setError(err.message || 'Failed to fetch data');
         console.error('API Error:', err);
@@ -50,7 +52,7 @@ const useApi = (endpoint, interval = 30000) => {
     };
   }, [endpoint, interval]);
 
-  return { data, loading, error };
+  return { data, loading, error, lastFetch };
 };
 
 export default useApi;

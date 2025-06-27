@@ -1,6 +1,7 @@
 import React from 'react';
 import { format } from 'd3-format';
 import { timeFormat } from 'd3-time-format';
+import { BsClock } from 'react-icons/bs';
 import {
   ema,
   sma,
@@ -23,7 +24,22 @@ import useApi from '../../hooks/useApi';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const BullMarketBand = () => {
-  const { data: rawData, loading, error } = useApi('/api/crypto/bull-market-band');
+  const { data: rawData, loading, error, lastFetch } = useApi('/api/crypto/bull-market-band');
+
+  // Format time ago
+  const getTimeAgo = (date) => {
+    if (!date) return '';
+    
+    const seconds = Math.floor((new Date() - date) / 1000);
+    
+    if (seconds < 60) return 'just now';
+    if (seconds < 120) return '1 minute ago';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
+    if (seconds < 7200) return '1 hour ago';
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
+    
+    return 'over a day ago';
+  };
 
   // Configure SMA(20)
   const sma20 = sma()
@@ -94,7 +110,7 @@ const BullMarketBand = () => {
         <div className="card-header">
           <h5 className="mb-0">Bitcoin Bull Market Support Band</h5>
         </div>
-        <div className="card-body" style={{ height: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="card-body p-3" style={{ backgroundColor: '#1a1a1a', height: '446px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <LoadingSpinner />
         </div>
       </div>
@@ -116,14 +132,14 @@ const BullMarketBand = () => {
   }
 
   // Chart configuration
-  const margin = { left: 70, right: 70, top: 20, bottom: 30 };
+  const margin = { left: 60, right: 110, top: 20, bottom: 30 };
   const pricesDisplayFormat = format(",.0f");
   const dateTimeFormat = "%b %d";
   const timeDisplayFormat = timeFormat(dateTimeFormat);
 
   // Calculate chart dimensions
-  const chartHeight = 400 - margin.top - margin.bottom;
-  const chartWidth = 900; // Will be responsive
+  const chartHeight = 380 - margin.top - margin.bottom;
+  const chartWidth = 820; // Will be responsive
 
   // Y extent function
   const yExtents = (data) => {
@@ -133,17 +149,18 @@ const BullMarketBand = () => {
   return (
     <div className="card mb-4">
       <div className="card-header d-flex justify-content-between align-items-center">
-        <h5 className="mb-0">Bitcoin Bull Market Support Band ({data.length} weeks of data)</h5>
-        {loading && rawData && (
-          <div className="spinner-border spinner-border-sm text-primary" role="status">
-            <span className="visually-hidden">Updating...</span>
-          </div>
+        <h5 className="mb-0">Bitcoin Bull Market Support Band</h5>
+        {lastFetch && (
+          <small className="text-muted d-flex align-items-center">
+            <BsClock size={12} className="me-1" />
+            {getTimeAgo(lastFetch)}
+          </small>
         )}
       </div>
-      <div className="card-body p-2" style={{ backgroundColor: '#1a1a1a' }}>
-        <div style={{ width: '100%', height: '400px' }}>
+      <div className="card-body p-3" style={{ backgroundColor: '#1a1a1a' }}>
+        <div style={{ width: '100%', height: '400px', padding: '0 20px', overflow: 'hidden' }}>
           <ChartCanvas
-            height={400}
+            height={380}
             ratio={1}
             width={chartWidth}
             margin={margin}
@@ -318,18 +335,9 @@ const BullMarketBand = () => {
         </div>
       </div>
       <div className="card-footer text-muted small">
-        <div className="d-flex justify-content-between align-items-center">
-          <div>
-            <span className="text-success">● 20W SMA</span>
-            <span className="text-danger ms-3">● 21W EMA</span>
-          </div>
-          <div>
-            <span>Weekly candles: Monday open to Sunday close</span>
-            <span className="ms-3">Updates every 30 seconds</span>
-          </div>
-        </div>
-        <div className="mt-2 text-center">
-          <span className="text-info">📊 Pan: Click & drag | Zoom: Scroll wheel | Data range: {data.length > 0 ? `${Math.round(data.length / 52 * 10) / 10} year${data.length > 52 ? 's' : ''}` : '0 years'}</span>
+        <div>
+          <span className="text-success">● 20W SMA</span>
+          <span className="text-danger ms-3">● 21W EMA</span>
         </div>
       </div>
     </div>
