@@ -22,7 +22,7 @@ class MarketDataController extends Controller
     {
         $vsCurrency = $request->get('vs_currency', 'usd');
         $ids = $request->get('ids');
-        $perPage = $request->get('per_page', 100);
+        $perPage = $request->get('per_page', 250); // Maximum allowed by CoinGecko free tier
         
         $data = $this->coinGeckoService->getMarkets($vsCurrency, $ids, $perPage);
         

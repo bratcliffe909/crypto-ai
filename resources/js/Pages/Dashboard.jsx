@@ -3,7 +3,7 @@ import { usePage } from '@inertiajs/react';
 import { Container } from 'react-bootstrap';
 import Header from '../Components/layout/Header';
 import MarketOverview from '../Components/dashboard/MarketOverview';
-import Watchlist from '../Components/dashboard/Watchlist';
+import Wallet from '../Components/dashboard/Wallet';
 import BullMarketBand from '../Components/dashboard/BullMarketBand';
 import FearGreedIndex from '../Components/dashboard/FearGreedIndex';
 import TrendingCoins from '../Components/dashboard/TrendingCoins';
@@ -34,7 +34,7 @@ function Dashboard() {
         <div className="row g-4">
           {/* Left Column */}
           <div className="col-lg-3">
-            <Watchlist />
+            <Wallet />
             <FearGreedIndex />
             <TrendingCoins />
           </div>

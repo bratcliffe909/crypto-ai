@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
-import { Card, Table, Form, InputGroup, Pagination } from 'react-bootstrap';
-import { BsExclamationTriangle, BsSearch } from 'react-icons/bs';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Card, Table, Form, InputGroup, Pagination, Button } from 'react-bootstrap';
+import { BsExclamationTriangle, BsSearch, BsStar, BsStarFill } from 'react-icons/bs';
 import useApi from '../../hooks/useApi';
 import LoadingSpinner from '../common/LoadingSpinner';
 import { formatPrice, formatPercentage, formatMarketCap } from '../../utils/formatters';
@@ -9,7 +9,26 @@ const MarketOverview = () => {
   const { data, loading, error } = useApi('/api/crypto/markets');
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [favorites, setFavorites] = useState([]);
+  const itemsPerPage = 20; // Increased to show more coins per page
+
+  // Load favorites from localStorage on mount
+  useEffect(() => {
+    const savedFavorites = localStorage.getItem('favorites');
+    if (savedFavorites) {
+      setFavorites(JSON.parse(savedFavorites));
+    }
+  }, []);
+
+  // Toggle favorite status
+  const toggleFavorite = (coinId) => {
+    const newFavorites = favorites.includes(coinId)
+      ? favorites.filter(id => id !== coinId)
+      : [...favorites, coinId];
+    
+    setFavorites(newFavorites);
+    localStorage.setItem('favorites', JSON.stringify(newFavorites));
+  };
 
   // Filter data based on search term
   const filteredData = useMemo(() => {
@@ -64,6 +83,7 @@ const MarketOverview = () => {
         <Table responsive hover className="mb-0">
           <thead>
             <tr>
+              <th></th>
               <th>#</th>
               <th>Coin</th>
               <th>Price</th>
@@ -75,6 +95,16 @@ const MarketOverview = () => {
           <tbody>
             {currentData.map((coin, index) => (
               <tr key={coin.id}>
+                <td className="text-center">
+                  <Button
+                    variant="link"
+                    className="p-0 text-warning"
+                    onClick={() => toggleFavorite(coin.id)}
+                    title={favorites.includes(coin.id) ? "Remove from favorites" : "Add to favorites"}
+                  >
+                    {favorites.includes(coin.id) ? <BsStarFill /> : <BsStar />}
+                  </Button>
+                </td>
                 <td>{startIndex + index + 1}</td>
                 <td>
                   <div className="d-flex align-items-center">
@@ -90,8 +120,8 @@ const MarketOverview = () => {
                   </div>
                 </td>
                 <td className="font-monospace">{formatPrice(coin.current_price)}</td>
-                <td className={coin.price_change_percentage_24h > 0 ? 'price-up' : 'price-down'}>
-                  {formatPercentage(coin.price_change_percentage_24h)}
+                <td className={coin.price_change_percentage_24h >= 0 ? 'text-success' : 'text-danger'}>
+                  {coin.price_change_percentage_24h >= 0 ? '+' : ''}{formatPercentage(coin.price_change_percentage_24h)}
                 </td>
                 <td>{formatMarketCap(coin.market_cap)}</td>
                 <td>{formatMarketCap(coin.total_volume)}</td>
