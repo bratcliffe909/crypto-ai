@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Card, Row, Col, Badge, Spinner, Alert, ProgressBar, Form } from 'react-bootstrap';
-import { Line } from 'recharts';
-import { LineChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { Line, Area, ComposedChart } from 'recharts';
+import { LineChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ReferenceArea } from 'recharts';
 import useApi from '../../hooks/useApi';
 
 const TechnicalIndicators = () => {
@@ -64,7 +64,7 @@ const TechnicalIndicators = () => {
         <div className="d-flex justify-content-between align-items-center">
           <h5 className="mb-0">
             <i className="bi bi-graph-up me-2"></i>
-            Technical Indicators
+            RSI
           </h5>
           <div className="d-flex align-items-center gap-2">
             <Form.Select 
@@ -102,70 +102,118 @@ const TechnicalIndicators = () => {
         
         {data && !loading && !error && (
           <>
-            {/* Current Price Section */}
-            <Row className="mb-4">
-              <Col>
-                <div className="text-center">
-                  <h6 className="text-muted mb-1">{data.symbol}/USD</h6>
-                  <h3 className="mb-0">
-                    ${data.currentPrice?.toLocaleString() || 'N/A'}
-                  </h3>
-                  {data.priceChange24h && (
-                    <Badge bg={data.priceChange24h >= 0 ? 'success' : 'danger'}>
-                      {data.priceChange24h >= 0 ? '+' : ''}{data.priceChange24h.toFixed(2)}%
-                    </Badge>
-                  )}
-                </div>
-              </Col>
-            </Row>
             
             {/* RSI Section */}
             {data.indicators?.rsi && (
               <div className="mb-4">
-                <h6 className="mb-3">RSI (14)</h6>
-                <Row className="align-items-center mb-2">
-                  <Col xs={8}>
-                    <ProgressBar 
-                      now={data.indicators.rsi.value} 
-                      variant={getRSIColor(data.indicators.rsi.value)}
-                      label={`${data.indicators.rsi.value}`}
-                    />
-                  </Col>
-                  <Col xs={4} className="text-end">
+                <div className="text-center mb-3">
+                  <div className="d-flex align-items-center justify-content-center gap-3">
+                    <h6 className="mb-0">RSI (14-Period)</h6>
+                    <span className="h4 mb-0">{data.indicators.rsi.value}</span>
                     <Badge bg={getSignalBadgeVariant(data.indicators.rsi.interpretation.signal)}>
                       {data.indicators.rsi.interpretation.signal}
                     </Badge>
-                  </Col>
-                </Row>
-                <small className="text-muted">{data.indicators.rsi.interpretation.description}</small>
+                  </div>
+                </div>
                 
                 {/* RSI Chart */}
                 {data.history?.rsi && data.history.rsi.length > 0 && (
                   <div className="mt-3">
-                    <ResponsiveContainer width="100%" height={200}>
-                      <LineChart data={data.history.rsi}>
-                        <CartesianGrid strokeDasharray="3 3" />
+                    <ResponsiveContainer width="100%" height={250}>
+                      <ComposedChart data={data.history.rsi} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="rsiGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#dc3545" stopOpacity={0.3} />
+                            <stop offset="30%" stopColor="#dc3545" stopOpacity={0.1} />
+                            <stop offset="40%" stopColor="#6c757d" stopOpacity={0.05} />
+                            <stop offset="60%" stopColor="#6c757d" stopOpacity={0.05} />
+                            <stop offset="70%" stopColor="#198754" stopOpacity={0.1} />
+                            <stop offset="100%" stopColor="#198754" stopOpacity={0.3} />
+                          </linearGradient>
+                        </defs>
+                        
+                        {/* Colored zones */}
+                        <ReferenceArea y1={70} y2={100} fill="#dc3545" fillOpacity={0.1} />
+                        <ReferenceArea y1={30} y2={70} fill="#6c757d" fillOpacity={0.05} />
+                        <ReferenceArea y1={0} y2={30} fill="#198754" fillOpacity={0.1} />
+                        
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
                         <XAxis 
                           dataKey="date" 
                           tickFormatter={formatDate}
                           interval="preserveStartEnd"
+                          tick={{ fontSize: 12 }}
                         />
-                        <YAxis domain={[0, 100]} />
+                        <YAxis 
+                          domain={[0, 100]} 
+                          ticks={[0, 30, 50, 70, 100]}
+                          tick={{ fontSize: 12 }}
+                        />
                         <Tooltip 
-                          formatter={(value) => [`${typeof value === 'number' ? value : '0'}`, 'RSI']}
+                          formatter={(value) => [`${typeof value === 'number' ? value.toFixed(1) : '0'}`, 'RSI']}
                           labelFormatter={(label) => new Date(label).toLocaleDateString()}
+                          contentStyle={{ 
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                            border: '1px solid #ccc',
+                            borderRadius: '4px'
+                          }}
                         />
-                        <ReferenceLine y={70} stroke="#dc3545" strokeDasharray="5 5" label="Overbought" />
-                        <ReferenceLine y={30} stroke="#28a745" strokeDasharray="5 5" label="Oversold" />
+                        
+                        {/* Reference lines with labels */}
+                        <ReferenceLine 
+                          y={70} 
+                          stroke="#dc3545" 
+                          strokeDasharray="5 5" 
+                          strokeWidth={2}
+                        />
+                        <ReferenceLine 
+                          y={50} 
+                          stroke="#6c757d" 
+                          strokeDasharray="3 3" 
+                          strokeWidth={1}
+                        />
+                        <ReferenceLine 
+                          y={30} 
+                          stroke="#198754" 
+                          strokeDasharray="5 5" 
+                          strokeWidth={2}
+                        />
+                        
+                        {/* Area under the line for better visualization */}
+                        <Area 
+                          type="monotone" 
+                          dataKey="value" 
+                          fill="url(#rsiGradient)"
+                          stroke="none"
+                        />
+                        
+                        {/* Main RSI line */}
                         <Line 
                           type="monotone" 
                           dataKey="value" 
                           stroke="#0d6efd" 
-                          strokeWidth={2}
+                          strokeWidth={3}
                           dot={false}
+                          activeDot={{ r: 4 }}
                         />
-                      </LineChart>
+                      </ComposedChart>
                     </ResponsiveContainer>
+                    
+                    {/* Zone labels */}
+                    <div className="d-flex justify-content-between mt-2 small">
+                      <span className="text-danger">
+                        <i className="bi bi-circle-fill me-1" style={{ fontSize: '8px' }}></i>
+                        Overbought (70-100)
+                      </span>
+                      <span className="text-muted">
+                        <i className="bi bi-circle-fill me-1" style={{ fontSize: '8px' }}></i>
+                        Neutral (30-70)
+                      </span>
+                      <span className="text-success">
+                        <i className="bi bi-circle-fill me-1" style={{ fontSize: '8px' }}></i>
+                        Oversold (0-30)
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Card, Badge, Spinner, Alert, OverlayTrigger, Tooltip, ListGroup } from 'react-bootstrap';
+import { BsCalendar3 } from 'react-icons/bs';
 import useApi from '../../hooks/useApi';
 
 const EconomicCalendar = () => {
@@ -10,7 +11,7 @@ const EconomicCalendar = () => {
       case 'high':
         return <Badge bg="danger">High</Badge>;
       case 'medium':
-        return <Badge bg="warning">Medium</Badge>;
+        return <Badge bg="warning" text="dark">Medium</Badge>;
       case 'low':
         return <Badge bg="secondary">Low</Badge>;
       default:
@@ -111,29 +112,25 @@ const EconomicCalendar = () => {
               <ListGroup variant="flush">
                 {data.events.slice(0, 10).map((event, index) => (
                   <ListGroup.Item key={index} className="px-0 py-3">
-                    <div className="d-flex justify-content-between align-items-start">
+                    <div className="d-flex justify-content-between align-items-center">
                       <div className="flex-grow-1">
-                        <div className="d-flex align-items-center mb-1">
+                        <div className="mb-1">
                           <strong>
                             {event.event}
                           </strong>
                         </div>
                         <div className="d-flex align-items-center gap-2">
-                          {event.impact && (
-                            <span>
-                              <small className="text-muted me-1">Impact:</small>
-                              {getImpactBadge(event.impact)}
-                            </span>
-                          )}
+                          <small className="text-muted d-flex align-items-center">
+                            <BsCalendar3 size={12} className="me-1" />
+                            {formatDate(event.date)}
+                          </small>
+                          <small className="text-muted">
+                            • {getDaysUntil(event.date)}
+                          </small>
                         </div>
                       </div>
-                      <div className="text-end ms-2">
-                        <div className="text-muted">
-                          <strong>{formatDate(event.date)}</strong>
-                        </div>
-                        <small className="text-muted">
-                          {getDaysUntil(event.date)}
-                        </small>
+                      <div className="ms-2">
+                        {event.impact && getImpactBadge(event.impact)}
                       </div>
                     </div>
                   </ListGroup.Item>

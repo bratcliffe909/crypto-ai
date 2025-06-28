@@ -24,7 +24,8 @@ import useApi from '../../hooks/useApi';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const BullMarketBand = () => {
-  const { data: rawData, loading, error, lastFetch } = useApi('/api/crypto/bull-market-band');
+  // Refresh every 5 minutes to avoid rate limits
+  const { data: rawData, loading, error, lastFetch } = useApi('/api/crypto/bull-market-band', 300000);
 
   // Format time ago
   const getTimeAgo = (date) => {
@@ -98,7 +99,10 @@ const BullMarketBand = () => {
         </div>
         <div className="card-body text-center text-muted py-5">
           <p className="mb-2">Unable to load Bull Market Band data</p>
-          <small>{error}</small>
+          <small>{error && error.includes('rate limit') 
+            ? 'API rate limit reached. Data will refresh automatically in a few minutes.' 
+            : error}</small>
+          <p className="mt-3 small">This is usually due to API rate limits. Please wait a few minutes for the data to refresh.</p>
         </div>
       </div>
     );

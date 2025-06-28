@@ -19,6 +19,7 @@ Route::prefix('crypto')->group(function () {
     // Chart data endpoints
     Route::get('/ohlc/{id}', [ChartController::class, 'ohlc']);
     Route::get('/bull-market-band', [ChartController::class, 'bullMarketBand']);
+    Route::get('/pi-cycle-top', [ChartController::class, 'piCycleTop']);
     
     // Indicator endpoints
     Route::get('/fear-greed', [IndicatorController::class, 'fearGreed']);

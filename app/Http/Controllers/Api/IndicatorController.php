@@ -224,7 +224,10 @@ class IndicatorController extends Controller
                 return response()->json(['error' => 'No data available'], 503);
             }
             
-            return response()->json($data[0]);
+            // Return in the format expected by the frontend
+            return response()->json([
+                'data' => $data
+            ]);
             
         } catch (\Exception $e) {
             Log::error('Fear and Greed Index error', ['error' => $e->getMessage()]);

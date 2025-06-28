@@ -183,7 +183,7 @@ const MarketOverview = () => {
                 </td>
                 <td className="font-monospace">{formatPrice(coin.current_price)}</td>
                 <td className={coin.price_change_percentage_24h >= 0 ? 'text-success' : 'text-danger'}>
-                  {coin.price_change_percentage_24h >= 0 ? '+' : ''}{formatPercentage(coin.price_change_percentage_24h)}
+                  {formatPercentage(coin.price_change_percentage_24h)}
                 </td>
                 <td>{formatMarketCap(coin.market_cap)}</td>
                 <td>{formatMarketCap(coin.total_volume)}</td>

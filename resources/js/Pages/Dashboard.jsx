@@ -8,12 +8,10 @@ import BullMarketBand from '../Components/dashboard/BullMarketBand';
 import FearGreedIndex from '../Components/dashboard/FearGreedIndex';
 import TrendingCoins from '../Components/dashboard/TrendingCoins';
 import TechnicalIndicators from '../Components/dashboard/TechnicalIndicators';
+import PiCycleTop from '../Components/dashboard/PiCycleTop';
 import EconomicCalendar from '../Components/dashboard/EconomicCalendar';
 import NewsFeed from '../Components/dashboard/NewsFeed';
 import MarketStats from '../Components/dashboard/MarketStats';
-import MarketDominance from '../Components/dashboard/MarketDominance';
-import MarketBreadth from '../Components/dashboard/MarketBreadth';
-import VolatilityMeter from '../Components/dashboard/VolatilityMeter';
 
 function Dashboard() {
   const props = usePage().props;
@@ -41,6 +39,7 @@ function Dashboard() {
           <div className="col-lg-3">
             <Wallet />
             <FearGreedIndex />
+            <MarketStats />
             <TrendingCoins />
           </div>
           
@@ -48,6 +47,7 @@ function Dashboard() {
           <div className="col-lg-6">
             <MarketOverview />
             <BullMarketBand />
+            <PiCycleTop />
             <TechnicalIndicators />
           </div>
           
@@ -58,21 +58,7 @@ function Dashboard() {
           </div>
         </div>
         
-        {/* Bottom Row - Market Metrics */}
-        <div className="row g-4">
-          <div className="col-lg-3">
-            <MarketStats />
-          </div>
-          <div className="col-lg-3">
-            <MarketDominance />
-          </div>
-          <div className="col-lg-3">
-            <MarketBreadth />
-          </div>
-          <div className="col-lg-3">
-            <VolatilityMeter />
-          </div>
-        </div>
+
       </Container>
     </div>
   );
