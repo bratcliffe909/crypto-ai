@@ -9,6 +9,7 @@ import FearGreedIndex from '../Components/dashboard/FearGreedIndex';
 import TrendingCoins from '../Components/dashboard/TrendingCoins';
 import TechnicalIndicators from '../Components/dashboard/TechnicalIndicators';
 import PiCycleTop from '../Components/dashboard/PiCycleTop';
+import RainbowChart from '../Components/dashboard/RainbowChart';
 import EconomicCalendar from '../Components/dashboard/EconomicCalendar';
 import NewsFeed from '../Components/dashboard/NewsFeed';
 import MarketStats from '../Components/dashboard/MarketStats';
@@ -48,6 +49,7 @@ function Dashboard() {
             <MarketOverview />
             <BullMarketBand />
             <PiCycleTop />
+            <RainbowChart />
             <TechnicalIndicators />
           </div>
           

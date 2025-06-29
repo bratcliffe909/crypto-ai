@@ -6,17 +6,25 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Services\CoinGeckoService;
 use App\Services\AlphaVantageService;
+use App\Services\RainbowChartService;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 
 class ChartController extends Controller
 {
     private CoinGeckoService $coinGeckoService;
     private AlphaVantageService $alphaVantageService;
+    private RainbowChartService $rainbowChartService;
     
-    public function __construct(CoinGeckoService $coinGeckoService, AlphaVantageService $alphaVantageService)
+    public function __construct(
+        CoinGeckoService $coinGeckoService, 
+        AlphaVantageService $alphaVantageService,
+        RainbowChartService $rainbowChartService
+    )
     {
         $this->coinGeckoService = $coinGeckoService;
         $this->alphaVantageService = $alphaVantageService;
+        $this->rainbowChartService = $rainbowChartService;
     }
     
     /**
@@ -425,6 +433,50 @@ class ChartController extends Controller
         } catch (\Exception $e) {
             \Log::error('CryptoCompare API error: ' . $e->getMessage());
             return [];
+        }
+    }
+    
+    /**
+     * Get Bitcoin Rainbow Chart data
+     */
+    public function rainbowChart(Request $request)
+    {
+        try {
+            $days = $request->get('days', 'max');
+            
+            // Validate days parameter
+            $validDays = ['365', '730', '1826', 'max'];
+            if (!in_array($days, $validDays)) {
+                $days = 'max';
+            }
+            
+            $data = $this->rainbowChartService->getRainbowChartData($days);
+            
+            return response()->json($data);
+        } catch (\Exception $e) {
+            \Log::error('Rainbow chart error: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Failed to fetch rainbow chart data',
+                'message' => config('app.debug') ? $e->getMessage() : 'Please try again later'
+            ], 500);
+        }
+    }
+    
+    /**
+     * Get current Rainbow Chart status
+     */
+    public function rainbowChartStatus()
+    {
+        try {
+            $status = $this->rainbowChartService->getCurrentStatus();
+            
+            return response()->json($status);
+        } catch (\Exception $e) {
+            \Log::error('Rainbow chart status error: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Failed to fetch rainbow chart status',
+                'message' => config('app.debug') ? $e->getMessage() : 'Please try again later'
+            ], 500);
         }
     }
 }

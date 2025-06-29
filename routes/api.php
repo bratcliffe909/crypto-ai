@@ -20,6 +20,8 @@ Route::prefix('crypto')->group(function () {
     Route::get('/ohlc/{id}', [ChartController::class, 'ohlc']);
     Route::get('/bull-market-band', [ChartController::class, 'bullMarketBand']);
     Route::get('/pi-cycle-top', [ChartController::class, 'piCycleTop']);
+    Route::get('/rainbow-chart', [ChartController::class, 'rainbowChart']);
+    Route::get('/rainbow-chart/status', [ChartController::class, 'rainbowChartStatus']);
     
     // Indicator endpoints
     Route::get('/fear-greed', [IndicatorController::class, 'fearGreed']);
