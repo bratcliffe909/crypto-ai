@@ -245,31 +245,45 @@ class ChartController extends Controller
      */
     public function piCycleTop(Request $request)
     {
-        // Cache for 1 hour
-        $cacheKey = "pi_cycle_top_bitcoin";
+        // Cache for 6 hours for historical data
+        $cacheKey = "pi_cycle_top_bitcoin_v2";
         
-        $data = Cache::remember($cacheKey, 3600, function () {
+        $data = Cache::remember($cacheKey, 21600, function () {
             try {
-                // Try to get market chart data first
+                // Try to get historical data from multiple sources
                 $dailyPrices = [];
                 
+                // First, try to get historical data from CryptoCompare (free, up to 2000 days)
                 try {
-                    // Get maximum available data (365 days for free tier)
-                    $marketData = $this->coinGeckoService->getMarketChart('bitcoin', 'usd', 365, 'daily');
-                    
-                    if (!empty($marketData['prices'])) {
-                        foreach ($marketData['prices'] as $pricePoint) {
-                            $timestamp = $pricePoint[0] / 1000;
-                            $dailyPrices[] = [
-                                'date' => date('Y-m-d', $timestamp),
-                                'timestamp' => $timestamp,
-                                'price' => $pricePoint[1]
-                            ];
-                        }
-                        \Log::info("Got " . count($dailyPrices) . " days of price data from market chart");
+                    $historicalData = $this->fetchCryptoCompareHistory();
+                    if (!empty($historicalData)) {
+                        $dailyPrices = $historicalData;
+                        \Log::info("Got " . count($dailyPrices) . " days from CryptoCompare");
                     }
                 } catch (\Exception $e) {
-                    \Log::warning("Market chart failed, trying OHLC: " . $e->getMessage());
+                    \Log::warning("CryptoCompare failed: " . $e->getMessage());
+                }
+                
+                // If CryptoCompare fails, fall back to CoinGecko
+                if (empty($dailyPrices)) {
+                    try {
+                        // Get maximum available data (365 days for free tier)
+                        $marketData = $this->coinGeckoService->getMarketChart('bitcoin', 'usd', 365, 'daily');
+                        
+                        if (!empty($marketData['prices'])) {
+                            foreach ($marketData['prices'] as $pricePoint) {
+                                $timestamp = $pricePoint[0] / 1000;
+                                $dailyPrices[] = [
+                                    'date' => date('Y-m-d', $timestamp),
+                                    'timestamp' => $timestamp,
+                                    'price' => $pricePoint[1]
+                                ];
+                            }
+                            \Log::info("Got " . count($dailyPrices) . " days of price data from CoinGecko");
+                        }
+                    } catch (\Exception $e) {
+                        \Log::warning("Market chart failed, trying OHLC: " . $e->getMessage());
+                    }
                 }
                 
                 // If market chart fails or has no data, try OHLC
@@ -339,7 +353,7 @@ class ChartController extends Controller
                             if ($prev['ma111'] <= $prev['ma350x2'] && 
                                 $dataPoint['ma111'] > $dataPoint['ma350x2']) {
                                 $dataPoint['isCrossover'] = true;
-                                \Log::info("Pi Cycle Top crossover detected on " . $dataPoint['date']);
+                                \Log::info("Pi Cycle Top crossover detected on " . $dataPoint['date'] . " at price $" . $dataPoint['price']);
                             }
                         }
                     }
@@ -364,5 +378,53 @@ class ChartController extends Controller
         });
         
         return response()->json($data);
+    }
+    
+    /**
+     * Fetch historical Bitcoin data from CryptoCompare
+     */
+    private function fetchCryptoCompareHistory()
+    {
+        $url = 'https://min-api.cryptocompare.com/data/v2/histoday';
+        $params = [
+            'fsym' => 'BTC',
+            'tsym' => 'USD',
+            'limit' => 2000, // Maximum allowed by free tier
+            'aggregate' => 1
+        ];
+        
+        try {
+            $response = \Http::timeout(30)->get($url, $params);
+            
+            if ($response->successful()) {
+                $data = $response->json();
+                
+                if (isset($data['Data']['Data']) && is_array($data['Data']['Data'])) {
+                    $dailyPrices = [];
+                    
+                    foreach ($data['Data']['Data'] as $day) {
+                        if (isset($day['time']) && isset($day['close'])) {
+                            $dailyPrices[] = [
+                                'date' => date('Y-m-d', $day['time']),
+                                'timestamp' => $day['time'],
+                                'price' => $day['close']
+                            ];
+                        }
+                    }
+                    
+                    // Sort by date ascending
+                    usort($dailyPrices, function($a, $b) {
+                        return $a['timestamp'] - $b['timestamp'];
+                    });
+                    
+                    return $dailyPrices;
+                }
+            }
+            
+            return [];
+        } catch (\Exception $e) {
+            \Log::error('CryptoCompare API error: ' . $e->getMessage());
+            return [];
+        }
     }
 }

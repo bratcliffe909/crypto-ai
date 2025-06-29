@@ -83,8 +83,13 @@ const BullMarketBand = () => {
 
     const { data, xScale, xAccessor, displayXAccessor } = xScaleProvider(dataWithIndicators);
 
-    // Calculate view extents - show all available data
-    let xExtents = data.length > 0 ? [xAccessor(data[0]), xAccessor(data[data.length - 1])] : null;
+    // Calculate view extents - focus on the last 26 weeks (half a year) but allow panning to see all data
+    let xExtents = null;
+    if (data.length > 0) {
+      const endIndex = data.length - 1;
+      const startIndex = Math.max(0, endIndex - 25); // Show last 26 weeks
+      xExtents = [xAccessor(data[startIndex]), xAccessor(data[endIndex])];
+    }
 
     return { data, xScale, xAccessor, displayXAccessor, xExtents };
   };

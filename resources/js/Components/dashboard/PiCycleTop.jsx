@@ -1,24 +1,7 @@
 import React from 'react';
-import { Card, Spinner, Alert } from 'react-bootstrap';
+import { Card, Alert } from 'react-bootstrap';
 import { BsClock, BsInfoCircleFill } from 'react-icons/bs';
-import { format } from 'd3-format';
-import { timeFormat } from 'd3-time-format';
-import {
-  ChartCanvas,
-  Chart,
-  LineSeries,
-  ScatterSeries,
-  CircleMarker,
-  XAxis,
-  YAxis,
-  CrossHairCursor,
-  MouseCoordinateX,
-  MouseCoordinateY,
-  CurrentCoordinate,
-  EdgeIndicator,
-  discontinuousTimeScaleProviderBuilder,
-  lastVisibleItemBasedZoomAnchor,
-} from 'react-financial-charts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceDot } from 'recharts';
 import useApi from '../../hooks/useApi';
 import LoadingSpinner from '../common/LoadingSpinner';
 import Tooltip from '../common/Tooltip';
@@ -43,44 +26,20 @@ const PiCycleTop = () => {
 
   // Process data for the chart
   const processedData = React.useMemo(() => {
-    if (!rawData || !Array.isArray(rawData)) return { data: [], xScale: null, displayData: [] };
-
-    // Convert date strings to Date objects and ensure all values are numbers
-    const dataWithDates = rawData.map(d => ({
-      ...d,
-      date: new Date(d.date),
-      price: +d.price,
-      ma111: d.ma111 ? +d.ma111 : null,
-      ma350x2: d.ma350x2 ? +d.ma350x2 : null,
-      isCrossover: d.isCrossover || false
-    }));
-
-    const xScaleProvider = discontinuousTimeScaleProviderBuilder()
-      .inputDateAccessor(d => d.date)
-      .indexCalculator(d => d);
-
-    const { data, xScale, xAccessor, displayXAccessor } = xScaleProvider(dataWithDates);
-
-    return {
-      data,
-      xScale,
-      xAccessor,
-      displayXAccessor,
-      displayData: data
-    };
+    if (!rawData || !Array.isArray(rawData)) return [];
+    
+    // Only return data points that have at least one indicator
+    return rawData.filter(d => d.ma111 !== null || d.ma350x2 !== null);
   }, [rawData]);
 
-  const formatPrice = format(",.0f");
-  const dateFormat = timeFormat("%b %Y");
-
   // Find crossover points
-  const crossoverPoints = processedData.data ? processedData.data.filter(d => d.isCrossover) : [];
+  const crossoverPoints = processedData.filter(d => d.isCrossover);
   
-  // Estimate next top (simplified - would need more sophisticated analysis)
+  // Estimate next top
   const estimateNextTop = () => {
-    if (!processedData.data || processedData.data.length < 100) return null;
+    if (!processedData || processedData.length === 0) return null;
     
-    const latestData = processedData.data[processedData.data.length - 1];
+    const latestData = processedData[processedData.length - 1];
     if (!latestData || !latestData.ma111 || !latestData.ma350x2) return null;
     
     const ma111 = latestData.ma111;
@@ -111,6 +70,34 @@ const PiCycleTop = () => {
 
   const estimation = estimateNextTop();
 
+  const formatPrice = (value) => {
+    if (value >= 1000) {
+      return `$${(value / 1000).toFixed(0)}k`;
+    }
+    return `$${value.toFixed(0)}`;
+  };
+
+  const formatDate = (dateStr) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  };
+
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-dark p-2 rounded border">
+          <p className="text-light mb-1">{formatDate(label)}</p>
+          {payload.map((entry, index) => (
+            <p key={index} className="mb-0" style={{ color: entry.color }}>
+              {entry.name}: {formatPrice(entry.value)}
+            </p>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
+
   if (loading && !rawData) {
     return (
       <Card className="mb-4">
@@ -131,16 +118,16 @@ const PiCycleTop = () => {
           <h5 className="mb-0">Pi Cycle Top Indicator</h5>
         </Card.Header>
         <Card.Body>
-          <Alert variant="danger">
+          <Alert variant="warning">
             <i className="bi bi-exclamation-triangle me-2"></i>
-            {error}
+            Unable to load Pi Cycle Top data
           </Alert>
         </Card.Body>
       </Card>
     );
   }
 
-  if (!processedData || !processedData.data || processedData.data.length === 0) {
+  if (!processedData || processedData.length === 0) {
     return (
       <Card className="mb-4">
         <Card.Header>
@@ -170,204 +157,142 @@ const PiCycleTop = () => {
         )}
       </Card.Header>
       <Card.Body>
-        {/* Market Top Estimation */}
+        {/* Market Status */}
         {estimation && (
-          <div className="alert alert-info mb-3">
-            <h6 className="alert-heading mb-2">Market Top Estimation</h6>
-            <div className="row">
-              <div className="col-md-6">
-                <small className="text-muted d-block">Current Gap</small>
-                <strong>{estimation.gapPercentage.toFixed(1)}%</strong>
+          <div className="text-center mb-3">
+            <div className="d-flex justify-content-center align-items-center gap-3">
+              <div>
+                <small className="text-muted">Current Gap:</small> <strong>{estimation.gapPercentage.toFixed(1)}%</strong>
               </div>
-              <div className="col-md-6">
-                {estimation.estimatedDate ? (
-                  <>
-                    <small className="text-muted d-block">Estimated Crossover</small>
-                    <strong>{estimation.estimatedDate.toLocaleDateString()} ({estimation.daysUntilCross} days)</strong>
-                  </>
-                ) : (
-                  <>
-                    <small className="text-muted d-block">Status</small>
-                    <strong>Gap too wide for estimation</strong>
-                  </>
-                )}
+              <div className="text-muted">•</div>
+              <div>
+                <small className="text-muted">111 DMA:</small> <strong>{formatPrice(estimation.ma111)}</strong>
               </div>
+              <div className="text-muted">•</div>
+              <div>
+                <small className="text-muted">350 DMA x2:</small> <strong>{formatPrice(estimation.ma350x2)}</strong>
+              </div>
+              {estimation.estimatedDate && (
+                <>
+                  <div className="text-muted">•</div>
+                  <div>
+                    <small className="text-muted">Est. Cross:</small> <strong>{estimation.daysUntilCross} days</strong>
+                  </div>
+                </>
+              )}
             </div>
-            <div className="row mt-2">
-              <div className="col-md-6">
-                <small className="text-muted">111 DMA: ${formatPrice(estimation.ma111)}</small>
-              </div>
-              <div className="col-md-6">
-                <small className="text-muted">350 DMA x2: ${formatPrice(estimation.ma350x2)}</small>
-              </div>
-            </div>
+          </div>
+        )}
+
+        {/* Data Range Info */}
+        {processedData.length > 0 && (
+          <div className="text-center mb-2">
+            <small className="text-muted">
+              Showing data from {formatDate(processedData[0].date)} to {formatDate(processedData[processedData.length - 1].date)}
+              ({processedData.length} data points)
+            </small>
           </div>
         )}
 
         {/* Chart */}
-        {processedData && processedData.data && processedData.data.length > 0 && processedData.xScale && (
-        <div style={{ height: '400px' }}>
-          <ChartCanvas
-            height={400}
-            ratio={1}
-            width={800}
-            margin={{ left: 70, right: 70, top: 20, bottom: 30 }}
-            seriesName="PiCycleTop"
-            data={processedData.data}
-            xScale={processedData.xScale}
-            xAccessor={processedData.xAccessor}
-            displayXAccessor={processedData.displayXAccessor}
-            xExtents={[
-              processedData.xAccessor(processedData.data[0]),
-              processedData.xAccessor(processedData.data[processedData.data.length - 1])
-            ]}
-          >
-            <Chart id={1} yExtents={d => {
-              const values = [];
-              if (d.price !== null) values.push(d.price);
-              if (d.ma111 !== null) values.push(d.ma111);
-              if (d.ma350x2 !== null) values.push(d.ma350x2);
-              return values.length > 0 ? values : [0];
-            }}>
+        <div style={{ width: '100%', height: '400px' }}>
+          <ResponsiveContainer>
+            <LineChart data={processedData} margin={{ top: 5, right: 30, left: 20, bottom: 60 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#333" />
               <XAxis 
-                axisAt="bottom" 
-                orient="bottom" 
-                ticks={6}
+                dataKey="date" 
+                tickFormatter={formatDate}
                 stroke="#666"
-                tickStroke="#666"
+                interval="preserveStartEnd"
+                angle={-45}
+                textAnchor="end"
+                height={60}
+                tick={{ fontSize: 11 }}
               />
               <YAxis 
-                axisAt="left" 
-                orient="left" 
-                ticks={5}
+                tickFormatter={formatPrice}
                 stroke="#666"
-                tickStroke="#666"
-                tickFormat={formatPrice}
               />
-              <YAxis 
-                axisAt="right" 
-                orient="right" 
-                ticks={5}
-                stroke="#666"
-                tickStroke="#666"
-                tickFormat={formatPrice}
+              <RechartsTooltip content={<CustomTooltip />} />
+              
+              {/* Bitcoin Price line */}
+              <Line 
+                type="monotone" 
+                dataKey="price" 
+                stroke="#FFA500" 
+                strokeWidth={1.5}
+                dot={false}
+                name="BTC Price"
               />
-
-              <MouseCoordinateX
-                at="bottom"
-                orient="bottom"
-                displayFormat={dateFormat}
-              />
-              <MouseCoordinateY
-                at="left"
-                orient="left"
-                displayFormat={formatPrice}
-              />
-              <MouseCoordinateY
-                at="right"
-                orient="right"
-                displayFormat={formatPrice}
-              />
-
-              {/* Price line */}
-              <LineSeries
-                yAccessor={d => d.price}
-                stroke="#666"
-                strokeWidth={1}
-                strokeDasharray="2,2"
-              />
-
+              
               {/* 111 DMA */}
-              <LineSeries
-                yAccessor={d => d.ma111}
-                stroke="#00ff88"
+              <Line 
+                type="monotone" 
+                dataKey="ma111" 
+                stroke="#00ff88" 
                 strokeWidth={2}
-                defined={d => d.ma111 !== null}
+                dot={false}
+                name="111 DMA"
               />
               
               {/* 350 DMA x 2 */}
-              <LineSeries
-                yAccessor={d => d.ma350x2}
-                stroke="#ff3366"
+              <Line 
+                type="monotone" 
+                dataKey="ma350x2" 
+                stroke="#ff3366" 
                 strokeWidth={2}
-                defined={d => d.ma350x2 !== null}
+                dot={false}
+                name="350 DMA x2"
               />
-
-              {/* Crossover points */}
-              <ScatterSeries
-                yAccessor={d => d.isCrossover ? d.price : null}
-                marker={CircleMarker}
-                markerProps={{ r: 6, fill: "#ffff00", stroke: "#ffff00" }}
-              />
-
-              {/* Current values edge indicators */}
-              {processedData.data[processedData.data.length - 1]?.ma111 && (
-                <EdgeIndicator
-                  itemType="last"
-                  orient="right"
-                  edgeAt="right"
-                  yAccessor={d => d.ma111}
-                  displayFormat={formatPrice}
-                  fill="#00ff88"
-                />
-              )}
-              {processedData.data[processedData.data.length - 1]?.ma350x2 && (
-                <EdgeIndicator
-                  itemType="last"
-                  orient="right"
-                  edgeAt="right"
-                  yAccessor={d => d.ma350x2}
-                  displayFormat={formatPrice}
-                  fill="#ff3366"
-                />
-              )}
-
-              <CrossHairCursor strokeDasharray="3,3" />
-            </Chart>
-          </ChartCanvas>
-        </div>
-        )}
-
-        {/* Legend */}
-        <div className="d-flex justify-content-center mt-3 gap-4">
-          <div className="d-flex align-items-center">
-            <div style={{ width: '20px', height: '2px', backgroundColor: '#00ff88', marginRight: '8px' }}></div>
-            <small>111 DMA</small>
-          </div>
-          <div className="d-flex align-items-center">
-            <div style={{ width: '20px', height: '2px', backgroundColor: '#ff3366', marginRight: '8px' }}></div>
-            <small>350 DMA x2</small>
-          </div>
-          <div className="d-flex align-items-center">
-            <div style={{ width: '10px', height: '10px', backgroundColor: '#ffff00', borderRadius: '50%', marginRight: '8px' }}></div>
-            <small>Top Signal</small>
-          </div>
+              
+              {/* Crossover points with labels */}
+              {crossoverPoints.map((point, index) => (
+                <g key={index}>
+                  <ReferenceDot
+                    x={point.date}
+                    y={point.price}
+                    r={6}
+                    fill="#ffff00"
+                    stroke="#ffff00"
+                  />
+                  <text
+                    x={point.date}
+                    y={point.price}
+                    textAnchor="middle"
+                    fill="#ffff00"
+                    fontSize="10"
+                    dy={-10}
+                  >
+                    {`${formatDate(point.date)} - ${formatPrice(point.price)}`}
+                  </text>
+                </g>
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
         </div>
 
-        {/* Historical crossovers */}
-        {crossoverPoints.length > 0 && (
-          <div className="mt-3">
-            <h6>Historical Top Signals</h6>
-            <div className="table-responsive">
-              <table className="table table-sm">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Price</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {crossoverPoints.slice(-5).reverse().map((point, index) => (
-                    <tr key={index}>
-                      <td>{new Date(point.date).toLocaleDateString()}</td>
-                      <td>${formatPrice(point.price)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        {/* Compact Legend */}
+        <div className="d-flex justify-content-center mt-2 gap-3" style={{ fontSize: '12px' }}>
+          <span>
+            <span style={{ display: 'inline-block', width: '15px', height: '2px', backgroundColor: '#FFA500', marginRight: '4px', verticalAlign: 'middle' }}></span>
+            BTC Price
+          </span>
+          <span>
+            <span style={{ display: 'inline-block', width: '15px', height: '2px', backgroundColor: '#00ff88', marginRight: '4px', verticalAlign: 'middle' }}></span>
+            111 DMA
+          </span>
+          <span>
+            <span style={{ display: 'inline-block', width: '15px', height: '2px', backgroundColor: '#ff3366', marginRight: '4px', verticalAlign: 'middle' }}></span>
+            350 DMA x2
+          </span>
+          {crossoverPoints.length > 0 && (
+            <span>
+              <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: '#ffff00', borderRadius: '50%', marginRight: '4px', verticalAlign: 'middle' }}></span>
+              Top Signal
+            </span>
+          )}
+        </div>
+
       </Card.Body>
     </Card>
   );
