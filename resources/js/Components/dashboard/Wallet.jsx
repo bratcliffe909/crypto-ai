@@ -81,7 +81,10 @@ const Wallet = () => {
     }
 
     try {
-      setLoading(true);
+      // Only show loading if we don't have any data yet
+      if (walletData.length === 0) {
+        setLoading(true);
+      }
       setError(null);
       
       // Get CSRF token
@@ -94,6 +97,12 @@ const Wallet = () => {
       // Use the wallet-coins endpoint which can fetch any coins by ID
       const response = await axios.get(`/api/crypto/wallet-coins?ids=${requestIds.join(',')}`);
       const data = response.data;
+      
+      // Update last fetch time from headers if available
+      const lastUpdatedHeader = response.headers['x-last-updated'];
+      if (lastUpdatedHeader) {
+        setLastUpdated(new Date(lastUpdatedHeader));
+      }
       
       // Find Bitcoin price
       const bitcoinData = data.find(coin => coin.id === 'bitcoin');
@@ -127,10 +136,15 @@ const Wallet = () => {
       setWalletData(enrichedData);
       setTotalValue(total);
       setTotalChange(total - totalPrevious);
-      setLastUpdated(new Date());
+      
+      // Only update last updated if we didn't get it from headers
+      if (!response.headers['x-last-updated']) {
+        setLastUpdated(new Date());
+      }
     } catch (err) {
       console.error('Wallet fetch error:', err);
       setError('Failed to update wallet');
+      // Don't clear existing data on error - keep showing stale data
     } finally {
       setLoading(false);
     }
