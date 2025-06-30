@@ -1,28 +1,15 @@
 import React, { useMemo } from 'react';
 import { Card, Alert, ProgressBar, Row, Col, Badge } from 'react-bootstrap';
-import { BsClock, BsInfoCircleFill } from 'react-icons/bs';
+import { BsInfoCircleFill } from 'react-icons/bs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine, Area, ComposedChart } from 'recharts';
 import useApi from '../../hooks/useApi';
 import LoadingSpinner from '../common/LoadingSpinner';
 import Tooltip from '../common/Tooltip';
+import TimeAgo from '../common/TimeAgo';
 
 const AltcoinSeasonIndex = () => {
   const { data: rawData, loading, error, lastFetch } = useApi('/api/crypto/altcoin-season', 300000); // 5 minutes cache
 
-  // Format time ago
-  const getTimeAgo = (date) => {
-    if (!date) return '';
-    
-    const seconds = Math.floor((new Date() - date) / 1000);
-    
-    if (seconds < 60) return 'just now';
-    if (seconds < 120) return '1 minute ago';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
-    if (seconds < 7200) return '1 hour ago';
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
-    
-    return 'over a day ago';
-  };
 
   // Calculate current index and status
   const { currentIndex, seasonStatus, seasonColor, historicalData } = useMemo(() => {
@@ -111,12 +98,7 @@ const AltcoinSeasonIndex = () => {
             <BsInfoCircleFill className="ms-2 text-muted" style={{ cursor: 'help' }} />
           </Tooltip>
         </div>
-        {lastFetch && (
-          <small className="text-muted d-flex align-items-center">
-            <BsClock size={12} className="me-1" />
-            {getTimeAgo(lastFetch)}
-          </small>
-        )}
+        {lastFetch && <TimeAgo date={lastFetch} />}
       </Card.Header>
       <Card.Body>
 

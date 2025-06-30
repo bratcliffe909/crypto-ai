@@ -1,9 +1,10 @@
 import React from 'react';
 import { Card, Spinner, Alert } from 'react-bootstrap';
-import { BsExclamationTriangle, BsInfoCircleFill, BsClock } from 'react-icons/bs';
+import { BsExclamationTriangle, BsInfoCircleFill } from 'react-icons/bs';
 import useApi from '../../hooks/useApi';
 import LoadingSpinner from '../common/LoadingSpinner';
 import Tooltip from '../common/Tooltip';
+import TimeAgo from '../common/TimeAgo';
 
 const FearGreedIndex = () => {
   const { data, loading, error, lastFetch } = useApi('/api/crypto/fear-greed');
@@ -27,20 +28,6 @@ const FearGreedIndex = () => {
     return 'Extreme greed in the market. Consider taking profits.';
   };
 
-  // Format time ago
-  const getTimeAgo = (date) => {
-    if (!date) return '';
-    
-    const seconds = Math.floor((new Date() - date) / 1000);
-    
-    if (seconds < 60) return 'just now';
-    if (seconds < 120) return '1 minute ago';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
-    if (seconds < 7200) return '1 hour ago';
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
-    
-    return 'over a day ago';
-  };
 
   // Calculate needle rotation angle (from -90 to 90 degrees)
   const getNeedleAngle = (val) => {
@@ -173,12 +160,7 @@ const FearGreedIndex = () => {
           </Tooltip>
         </div>
         <div className="d-flex align-items-center gap-2">
-          {lastFetch && (
-            <small className="text-muted d-flex align-items-center">
-              <BsClock size={12} className="me-1" />
-              {getTimeAgo(lastFetch)}
-            </small>
-          )}
+          {lastFetch && <TimeAgo date={lastFetch} />}
           {error && (
             <BsExclamationTriangle className="text-warning" title="Failed to update" />
           )}

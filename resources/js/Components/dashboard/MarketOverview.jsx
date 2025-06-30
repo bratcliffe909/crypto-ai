@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Card, Table, Form, InputGroup, Pagination, Button } from 'react-bootstrap';
-import { BsExclamationTriangle, BsSearch, BsStar, BsStarFill, BsClock, BsInfoCircleFill } from 'react-icons/bs';
+import { BsExclamationTriangle, BsSearch, BsStar, BsStarFill, BsInfoCircleFill } from 'react-icons/bs';
 import useApi from '../../hooks/useApi';
 import LoadingSpinner from '../common/LoadingSpinner';
 import Tooltip from '../common/Tooltip';
+import TimeAgo from '../common/TimeAgo';
 import { formatPrice, formatPercentage, formatMarketCap } from '../../utils/formatters';
 
 const MarketOverview = () => {
@@ -83,20 +84,6 @@ const MarketOverview = () => {
     setCurrentPage(1); // Reset to first page when changing page size
   };
 
-  // Format time ago
-  const getTimeAgo = (date) => {
-    if (!date) return '';
-    
-    const seconds = Math.floor((new Date() - date) / 1000);
-    
-    if (seconds < 60) return 'just now';
-    if (seconds < 120) return '1 minute ago';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
-    if (seconds < 7200) return '1 hour ago';
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
-    
-    return 'over a day ago';
-  };
 
   if (loading && !data) return <LoadingSpinner />;
 
@@ -109,12 +96,7 @@ const MarketOverview = () => {
             <Tooltip content="Live rankings of the top cryptocurrencies by market capitalization. Market cap is calculated by multiplying the current price by the circulating supply. Click the star icon to add coins to your wallet for tracking.">
               <BsInfoCircleFill className="text-muted" style={{ cursor: 'help' }} />
             </Tooltip>
-            {lastFetch && (
-              <small className="text-muted d-flex align-items-center">
-                <BsClock size={12} className="me-1" />
-                {getTimeAgo(lastFetch)}
-              </small>
-            )}
+            {lastFetch && <TimeAgo date={lastFetch} />}
           </div>
           <div className="d-flex align-items-center gap-2">
             <Form.Select 

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, ProgressBar, Row, Col, Badge, Spinner, Alert, ListGroup } from 'react-bootstrap';
 import useApi from '../../hooks/useApi';
+import TimeAgo from '../common/TimeAgo';
 
 const MarketBreadth = () => {
   const { data, loading, error, lastFetch } = useApi('/api/crypto/market-metrics/breadth', 120000); // 2 minutes
@@ -29,15 +30,6 @@ const MarketBreadth = () => {
     return `$${price.toFixed(8)}`;
   };
   
-  const timeSince = (date) => {
-    if (!date) return '';
-    const seconds = Math.floor((new Date() - new Date(date)) / 1000);
-    if (seconds < 60) return `${seconds}s ago`;
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    return `${hours}h ago`;
-  };
 
   return (
     <Card className="mb-4">
@@ -46,9 +38,7 @@ const MarketBreadth = () => {
           <h5 className="mb-0">
             Market Breadth
           </h5>
-          {lastFetch && (
-            <small className="text-muted">Updated {timeSince(lastFetch)}</small>
-          )}
+          {lastFetch && <TimeAgo date={lastFetch} />}
         </div>
       </Card.Header>
       <Card.Body>

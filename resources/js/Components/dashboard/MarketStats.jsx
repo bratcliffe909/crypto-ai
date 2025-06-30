@@ -3,6 +3,7 @@ import { Card, Row, Col, Badge, Spinner, Alert } from 'react-bootstrap';
 import { BsInfoCircleFill } from 'react-icons/bs';
 import useApi from '../../hooks/useApi';
 import Tooltip from '../common/Tooltip';
+import TimeAgo from '../common/TimeAgo';
 
 const MarketStats = () => {
   const { data, loading, error, lastFetch } = useApi('/api/crypto/market-metrics/global', 60000); // 1 minute
@@ -21,15 +22,6 @@ const MarketStats = () => {
     return new Intl.NumberFormat().format(Math.round(value));
   };
   
-  const timeSince = (date) => {
-    if (!date) return '';
-    const seconds = Math.floor((new Date() - new Date(date)) / 1000);
-    if (seconds < 60) return `${seconds}s ago`;
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    return `${hours}h ago`;
-  };
 
   return (
     <Card className="mb-4">
@@ -41,9 +33,7 @@ const MarketStats = () => {
               <BsInfoCircleFill className="ms-2 text-muted" style={{ cursor: 'help' }} />
             </Tooltip>
           </div>
-          {lastFetch && (
-            <small className="text-muted">Updated {timeSince(lastFetch)}</small>
-          )}
+          {lastFetch && <TimeAgo date={lastFetch} />}
         </div>
       </Card.Header>
       <Card.Body>

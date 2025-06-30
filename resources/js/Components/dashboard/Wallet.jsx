@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Form, Button, ListGroup, InputGroup, Badge } from 'react-bootstrap';
-import { BsX, BsExclamationTriangle, BsWallet2, BsCurrencyDollar, BsClock, BsInfoCircleFill } from 'react-icons/bs';
+import { BsX, BsExclamationTriangle, BsWallet2, BsCurrencyDollar, BsInfoCircleFill } from 'react-icons/bs';
 import useLocalStorage from '../../hooks/useLocalStorage';
 import LoadingSpinner from '../common/LoadingSpinner';
 import Tooltip from '../common/Tooltip';
+import TimeAgo from '../common/TimeAgo';
 import { formatPrice, formatPercentage } from '../../utils/formatters';
 import useInterval from '../../hooks/useInterval';
 import axios from 'axios';
@@ -187,20 +188,6 @@ const Wallet = () => {
     setPortfolio(newPortfolio);
   };
 
-  // Format time ago
-  const getTimeAgo = (date) => {
-    if (!date) return '';
-    
-    const seconds = Math.floor((new Date() - date) / 1000);
-    
-    if (seconds < 60) return 'just now';
-    if (seconds < 120) return '1 minute ago';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
-    if (seconds < 7200) return '1 hour ago';
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
-    
-    return 'over a day ago';
-  };
 
   // Get display values based on selected currency
   const getDisplayValue = () => {
@@ -247,12 +234,7 @@ const Wallet = () => {
             </Tooltip>
           </div>
           <div className="d-flex align-items-center gap-2">
-            {lastUpdated && (
-              <small className="text-muted d-flex align-items-center">
-                <BsClock size={12} className="me-1" />
-                {getTimeAgo(lastUpdated)}
-              </small>
-            )}
+            {lastUpdated && <TimeAgo date={lastUpdated} />}
             {error && (
               <BsExclamationTriangle className="text-warning" title={error} />
             )}

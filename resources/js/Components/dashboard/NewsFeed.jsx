@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, ListGroup, Badge, Spinner, Alert, Image } from 'react-bootstrap';
 import useApi from '../../hooks/useApi';
+import TimeAgo from '../common/TimeAgo';
 
 const NewsFeed = () => {
   const { data, loading, error, lastFetch } = useApi('/api/crypto/news-feed', 600000); // 10 minutes
@@ -54,15 +55,6 @@ const NewsFeed = () => {
     }
   };
   
-  const timeSince = (date) => {
-    if (!date) return '';
-    const seconds = Math.floor((new Date() - new Date(date)) / 1000);
-    if (seconds < 60) return `${seconds}s ago`;
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    return `${hours}h ago`;
-  };
 
   return (
     <Card>
@@ -72,9 +64,7 @@ const NewsFeed = () => {
             <i className="bi bi-newspaper me-2"></i>
             News Feed
           </h5>
-          {lastFetch && (
-            <small className="text-muted">Updated {timeSince(lastFetch)}</small>
-          )}
+          {lastFetch && <TimeAgo date={lastFetch} />}
         </div>
       </Card.Header>
       <Card.Body className="p-0">

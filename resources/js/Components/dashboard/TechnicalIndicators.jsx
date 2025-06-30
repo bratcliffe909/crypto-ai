@@ -5,6 +5,7 @@ import { Line, Area, ComposedChart } from 'recharts';
 import { LineChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ReferenceArea } from 'recharts';
 import useApi from '../../hooks/useApi';
 import TooltipComponent from '../common/Tooltip';
+import TimeAgo from '../common/TimeAgo';
 
 const TechnicalIndicators = () => {
   const [selectedCoin, setSelectedCoin] = useState('BTC');
@@ -50,15 +51,6 @@ const TechnicalIndicators = () => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
   
-  const timeSince = (date) => {
-    if (!date) return '';
-    const seconds = Math.floor((new Date() - new Date(date)) / 1000);
-    if (seconds < 60) return `${seconds}s ago`;
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    return `${hours}h ago`;
-  };
 
   return (
     <Card className="mb-4">
@@ -86,9 +78,7 @@ const TechnicalIndicators = () => {
                 </option>
               ))}
             </Form.Select>
-            {lastFetch && (
-              <small className="text-muted">Updated {timeSince(lastFetch)}</small>
-            )}
+            {lastFetch && <TimeAgo date={lastFetch} />}
           </div>
         </div>
       </Card.Header>

@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { Card, Badge, Spinner, Alert, OverlayTrigger, Tooltip, ListGroup } from 'react-bootstrap';
-import { BsCalendar3 } from 'react-icons/bs';
+import { BsCalendar3, BsInfoCircleFill } from 'react-icons/bs';
 import useApi from '../../hooks/useApi';
+import TimeAgo from '../common/TimeAgo';
+import TooltipComponent from '../common/Tooltip';
+import { formatDateSpecial } from '../../utils/timeUtils';
 
 const EconomicCalendar = () => {
   const { data, loading, error, lastFetch } = useApi('/api/crypto/economic-calendar', 300000); // 5 minutes
@@ -19,28 +22,6 @@ const EconomicCalendar = () => {
     }
   };
   
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    // Check if it's today
-    if (date.toDateString() === today.toDateString()) {
-      return 'Today';
-    }
-    
-    // Check if it's tomorrow
-    if (date.toDateString() === tomorrow.toDateString()) {
-      return 'Tomorrow';
-    }
-    
-    // Otherwise return formatted date (e.g., "Jul 30")
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric'
-    });
-  };
   
   const getDaysUntil = (dateString) => {
     const eventDate = new Date(dateString);
@@ -69,26 +50,18 @@ const EconomicCalendar = () => {
     return flags[country] || '🏳️';
   };
   
-  const timeSince = (date) => {
-    if (!date) return '';
-    const seconds = Math.floor((new Date() - new Date(date)) / 1000);
-    if (seconds < 60) return `${seconds}s ago`;
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    return `${hours}h ago`;
-  };
 
   return (
     <Card className="mb-4">
       <Card.Header>
         <div className="d-flex justify-content-between align-items-center">
-          <h5 className="mb-0">
-            Economic Calendar
-          </h5>
-          {lastFetch && (
-            <small className="text-muted">Updated {timeSince(lastFetch)}</small>
-          )}
+          <div className="d-flex align-items-center">
+            <h5 className="mb-0">Economic Calendar</h5>
+            <TooltipComponent content="Shows upcoming economic events that may impact crypto markets. FOMC meetings and major economic announcements often trigger market volatility. High impact events (red) typically cause the most significant price movements.">
+              <BsInfoCircleFill className="ms-2 text-muted" style={{ cursor: 'help' }} />
+            </TooltipComponent>
+          </div>
+          {lastFetch && <TimeAgo date={lastFetch} />}
         </div>
       </Card.Header>
       <Card.Body>
@@ -122,7 +95,7 @@ const EconomicCalendar = () => {
                         <div className="d-flex align-items-center gap-2">
                           <small className="text-muted d-flex align-items-center">
                             <BsCalendar3 size={12} className="me-1" />
-                            {formatDate(event.date)}
+                            {formatDateSpecial(event.date)}
                           </small>
                           <small className="text-muted">
                             • {getDaysUntil(event.date)}

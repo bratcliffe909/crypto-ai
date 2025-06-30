@@ -1,8 +1,9 @@
 import React from 'react';
 import { format } from 'd3-format';
 import { timeFormat } from 'd3-time-format';
-import { BsClock, BsInfoCircleFill } from 'react-icons/bs';
+import { BsInfoCircleFill } from 'react-icons/bs';
 import Tooltip from '../common/Tooltip';
+import TimeAgo from '../common/TimeAgo';
 import {
   ema,
   sma,
@@ -28,20 +29,6 @@ const BullMarketBand = () => {
   // Refresh every 5 minutes to avoid rate limits
   const { data: rawData, loading, error, lastFetch } = useApi('/api/crypto/bull-market-band', 300000);
 
-  // Format time ago
-  const getTimeAgo = (date) => {
-    if (!date) return '';
-    
-    const seconds = Math.floor((new Date() - date) / 1000);
-    
-    if (seconds < 60) return 'just now';
-    if (seconds < 120) return '1 minute ago';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
-    if (seconds < 7200) return '1 hour ago';
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
-    
-    return 'over a day ago';
-  };
 
   // Configure SMA(20)
   const sma20 = sma()
@@ -166,12 +153,7 @@ const BullMarketBand = () => {
             <BsInfoCircleFill className="ms-2 text-muted" style={{ cursor: 'help' }} />
           </Tooltip>
         </div>
-        {lastFetch && (
-          <small className="text-muted d-flex align-items-center">
-            <BsClock size={12} className="me-1" />
-            {getTimeAgo(lastFetch)}
-          </small>
-        )}
+        {lastFetch && <TimeAgo date={lastFetch} />}
       </div>
       <div className="card-body p-3" style={{ backgroundColor: '#1a1a1a' }}>
         <div style={{ width: '100%', height: '400px', padding: '0 20px', overflow: 'hidden' }}>
