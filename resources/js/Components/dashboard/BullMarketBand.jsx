@@ -49,18 +49,36 @@ const BullMarketBand = () => {
     if (!rawData || rawData.length === 0) return { data: [], xScale: null, xAccessor: null, displayXAccessor: null, xExtents: null };
 
     // Transform data to the format expected by react-financial-charts
-    const transformedData = rawData.map((item, index) => ({
-      date: new Date(item.date),
-      open: item.open,
-      high: item.high,
-      low: item.low,
-      close: item.close,
-      volume: 0, // Required field, set to 0 for weekly data
-      idx: index,
-      // Include pre-calculated indicators from backend
-      sma20: item.sma20,
-      ema21: item.ema21,
-    }));
+    const transformedData = rawData
+      .filter(item => item && item.date && item.close != null) // Filter out invalid data
+      .map((item, index) => {
+        // Ensure date is valid
+        const dateValue = new Date(item.date);
+        if (isNaN(dateValue.getTime())) {
+          console.error('Invalid date in Bull Market Band data:', item.date);
+          return null;
+        }
+        
+        return {
+          date: dateValue,
+          open: parseFloat(item.open) || 0,
+          high: parseFloat(item.high) || 0,
+          low: parseFloat(item.low) || 0,
+          close: parseFloat(item.close) || 0,
+          volume: 0, // Required field, set to 0 for weekly data
+          idx: index,
+          // Include pre-calculated indicators from backend
+          sma20: item.sma20 != null ? parseFloat(item.sma20) : null,
+          ema21: item.ema21 != null ? parseFloat(item.ema21) : null,
+        };
+      })
+      .filter(item => item !== null); // Remove any null entries
+
+    // Check if we have valid data
+    if (transformedData.length === 0) {
+      console.error('No valid data for Bull Market Band after transformation');
+      return { data: [], xScale: null, xAccessor: null, displayXAccessor: null, xExtents: null };
+    }
 
     // Apply indicators (they will merge with existing values if present)
     const dataWithIndicators = ema21(sma20(transformedData));
@@ -69,18 +87,23 @@ const BullMarketBand = () => {
     const xScaleProvider = discontinuousTimeScaleProviderBuilder()
       .inputDateAccessor(d => d.date);
 
-    const { data, xScale, xAccessor, displayXAccessor } = xScaleProvider(dataWithIndicators);
+    try {
+      const { data, xScale, xAccessor, displayXAccessor } = xScaleProvider(dataWithIndicators);
 
-    // Calculate view extents - focus on the last 26 weeks (half a year) but allow panning to see all data
-    let xExtents = null;
-    if (data.length > 0) {
-      const endIndex = data.length - 1;
-      const startIndex = Math.max(0, endIndex - 25); // Show last 26 weeks
-      // Add some padding to the right for better visualization
-      xExtents = [xAccessor(data[startIndex]), xAccessor(data[endIndex]) + 2];
+      // Calculate view extents - focus on the last 26 weeks (half a year) but allow panning to see all data
+      let xExtents = null;
+      if (data.length > 0) {
+        const endIndex = data.length - 1;
+        const startIndex = Math.max(0, endIndex - 25); // Show last 26 weeks
+        // Add some padding to the right for better visualization
+        xExtents = [xAccessor(data[startIndex]), xAccessor(data[endIndex]) + 2];
+      }
+
+      return { data, xScale, xAccessor, displayXAccessor, xExtents };
+    } catch (error) {
+      console.error('Error processing Bull Market Band data:', error);
+      return { data: [], xScale: null, xAccessor: null, displayXAccessor: null, xExtents: null };
     }
-
-    return { data, xScale, xAccessor, displayXAccessor, xExtents };
   };
 
   const { data, xScale, xAccessor, displayXAccessor, xExtents } = processData();
@@ -115,7 +138,7 @@ const BullMarketBand = () => {
     );
   }
 
-  if (!data || data.length === 0) {
+  if (!data || data.length === 0 || !xScale || !xAccessor || !displayXAccessor) {
     return (
       <div className="card mb-4">
         <div className="card-header">
