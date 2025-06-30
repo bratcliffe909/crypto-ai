@@ -1,8 +1,9 @@
 import React from 'react';
 import { Card, ListGroup, Badge } from 'react-bootstrap';
-import { BsExclamationTriangle, BsFire, BsClock } from 'react-icons/bs';
+import { BsExclamationTriangle, BsFire, BsClock, BsInfoCircleFill } from 'react-icons/bs';
 import useApi from '../../hooks/useApi';
 import LoadingSpinner from '../common/LoadingSpinner';
+import Tooltip from '../common/Tooltip';
 
 const TrendingCoins = () => {
   const { data, loading, error, lastFetch } = useApi('/api/crypto/trending');
@@ -30,6 +31,9 @@ const TrendingCoins = () => {
         <div className="d-flex align-items-center">
           <h5 className="mb-0">Trending</h5>
           <BsFire className="ms-2 text-warning" />
+          <Tooltip content="The most searched cryptocurrencies on CoinGecko in the last 24 hours. This list represents coins gaining attention from traders and investors based on search volume, not necessarily price performance.">
+            <BsInfoCircleFill className="ms-2 text-muted" style={{ cursor: 'help' }} />
+          </Tooltip>
         </div>
         <div className="d-flex align-items-center gap-2">
           {lastFetch && (

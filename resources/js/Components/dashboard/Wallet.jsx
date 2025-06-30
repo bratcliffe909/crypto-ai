@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Form, Button, ListGroup, InputGroup, Badge } from 'react-bootstrap';
-import { BsX, BsExclamationTriangle, BsWallet2, BsCurrencyDollar, BsClock } from 'react-icons/bs';
+import { BsX, BsExclamationTriangle, BsWallet2, BsCurrencyDollar, BsClock, BsInfoCircleFill } from 'react-icons/bs';
 import useLocalStorage from '../../hooks/useLocalStorage';
 import LoadingSpinner from '../common/LoadingSpinner';
+import Tooltip from '../common/Tooltip';
 import { formatPrice, formatPercentage } from '../../utils/formatters';
 import useInterval from '../../hooks/useInterval';
 import axios from 'axios';
@@ -236,10 +237,15 @@ const Wallet = () => {
     <Card className="mb-4">
       <Card.Header className="pb-3">
         <div className="d-flex justify-content-between align-items-center mb-2">
-          <h5 className="mb-0 d-flex align-items-center">
-            <BsWallet2 className="me-2" />
-            Wallet
-          </h5>
+          <div className="d-flex align-items-center">
+            <h5 className="mb-0 d-flex align-items-center">
+              <BsWallet2 className="me-2" />
+              Wallet
+            </h5>
+            <Tooltip content="Track your cryptocurrency portfolio by adding coins from the Market Overview using the star icon. Enter the amount you own for each coin to see your total portfolio value in USD, GBP, or Bitcoin. Values automatically update every 30 seconds.">
+              <BsInfoCircleFill className="ms-2 text-muted" style={{ cursor: 'help' }} />
+            </Tooltip>
+          </div>
           <div className="d-flex align-items-center gap-2">
             {lastUpdated && (
               <small className="text-muted d-flex align-items-center">

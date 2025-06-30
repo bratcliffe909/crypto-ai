@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Card, Row, Col, Badge, Spinner, Alert, ProgressBar, Form } from 'react-bootstrap';
+import { BsInfoCircleFill } from 'react-icons/bs';
 import { Line, Area, ComposedChart } from 'recharts';
 import { LineChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ReferenceArea } from 'recharts';
 import useApi from '../../hooks/useApi';
+import TooltipComponent from '../common/Tooltip';
 
 const TechnicalIndicators = () => {
   const [selectedCoin, setSelectedCoin] = useState('BTC');
@@ -62,10 +64,15 @@ const TechnicalIndicators = () => {
     <Card className="mb-4">
       <Card.Header>
         <div className="d-flex justify-content-between align-items-center">
-          <h5 className="mb-0">
-            <i className="bi bi-graph-up me-2"></i>
-            RSI
-          </h5>
+          <div className="d-flex align-items-center">
+            <h5 className="mb-0">
+              <i className="bi bi-graph-up me-2"></i>
+              RSI
+            </h5>
+            <TooltipComponent content="The Relative Strength Index (RSI) measures momentum by comparing recent gains to recent losses over 14 periods. Values above 70 suggest the asset is overbought (potentially due for a pullback), while values below 30 indicate oversold conditions (potential buying opportunity). The chart shows RSI history to help identify trend reversals.">
+              <BsInfoCircleFill className="ms-2 text-muted" style={{ cursor: 'help' }} />
+            </TooltipComponent>
+          </div>
           <div className="d-flex align-items-center gap-2">
             <Form.Select 
               size="sm" 

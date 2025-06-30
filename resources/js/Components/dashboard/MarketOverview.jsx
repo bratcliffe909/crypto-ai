@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Card, Table, Form, InputGroup, Pagination, Button } from 'react-bootstrap';
-import { BsExclamationTriangle, BsSearch, BsStar, BsStarFill, BsClock } from 'react-icons/bs';
+import { BsExclamationTriangle, BsSearch, BsStar, BsStarFill, BsClock, BsInfoCircleFill } from 'react-icons/bs';
 import useApi from '../../hooks/useApi';
 import LoadingSpinner from '../common/LoadingSpinner';
+import Tooltip from '../common/Tooltip';
 import { formatPrice, formatPercentage, formatMarketCap } from '../../utils/formatters';
 
 const MarketOverview = () => {
@@ -105,6 +106,9 @@ const MarketOverview = () => {
         <div className="d-flex justify-content-between align-items-center mb-3">
           <div className="d-flex align-items-center gap-2">
             <h5 className="mb-0">Market Overview</h5>
+            <Tooltip content="Live rankings of the top cryptocurrencies by market capitalization. Market cap is calculated by multiplying the current price by the circulating supply. Click the star icon to add coins to your wallet for tracking.">
+              <BsInfoCircleFill className="text-muted" style={{ cursor: 'help' }} />
+            </Tooltip>
             {lastFetch && (
               <small className="text-muted d-flex align-items-center">
                 <BsClock size={12} className="me-1" />

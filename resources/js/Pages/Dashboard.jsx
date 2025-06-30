@@ -10,6 +10,7 @@ import TrendingCoins from '../Components/dashboard/TrendingCoins';
 import TechnicalIndicators from '../Components/dashboard/TechnicalIndicators';
 import PiCycleTop from '../Components/dashboard/PiCycleTop';
 import RainbowChart from '../Components/dashboard/RainbowChart';
+import AltcoinSeasonIndex from '../Components/dashboard/AltcoinSeasonIndex';
 import EconomicCalendar from '../Components/dashboard/EconomicCalendar';
 import NewsFeed from '../Components/dashboard/NewsFeed';
 import MarketStats from '../Components/dashboard/MarketStats';
@@ -50,6 +51,7 @@ function Dashboard() {
             <BullMarketBand />
             <PiCycleTop />
             <RainbowChart />
+            <AltcoinSeasonIndex />
             <TechnicalIndicators />
           </div>
           

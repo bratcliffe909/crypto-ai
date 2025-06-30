@@ -1,7 +1,8 @@
 import React from 'react';
 import { format } from 'd3-format';
 import { timeFormat } from 'd3-time-format';
-import { BsClock } from 'react-icons/bs';
+import { BsClock, BsInfoCircleFill } from 'react-icons/bs';
+import Tooltip from '../common/Tooltip';
 import {
   ema,
   sma,
@@ -158,7 +159,12 @@ const BullMarketBand = () => {
   return (
     <div className="card mb-4">
       <div className="card-header d-flex justify-content-between align-items-center">
-        <h5 className="mb-0">Bitcoin Bull Market Support Band</h5>
+        <div className="d-flex align-items-center">
+          <h5 className="mb-0">Bitcoin Bull Market Support Band</h5>
+          <Tooltip content="Shows Bitcoin's weekly price candlesticks with two key moving averages that historically act as support during bull markets. The 20-week Simple Moving Average (green) and 21-week Exponential Moving Average (red) often provide buying opportunities when Bitcoin's price touches these lines during uptrends.">
+            <BsInfoCircleFill className="ms-2 text-muted" style={{ cursor: 'help' }} />
+          </Tooltip>
+        </div>
         {lastFetch && (
           <small className="text-muted d-flex align-items-center">
             <BsClock size={12} className="me-1" />

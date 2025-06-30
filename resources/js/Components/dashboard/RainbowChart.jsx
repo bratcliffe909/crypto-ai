@@ -246,7 +246,7 @@ const RainbowChart = () => {
                 type="monotone" 
                 dataKey="price" 
                 stroke="#FFFFFF" 
-                strokeWidth={3}
+                strokeWidth={1.5}
                 dot={false}
                 name="BTC Price"
               />
