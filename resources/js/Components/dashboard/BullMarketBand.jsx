@@ -89,7 +89,8 @@ const BullMarketBand = () => {
     if (data.length > 0) {
       const endIndex = data.length - 1;
       const startIndex = Math.max(0, endIndex - 25); // Show last 26 weeks
-      xExtents = [xAccessor(data[startIndex]), xAccessor(data[endIndex])];
+      // Add some padding to the right for better visualization
+      xExtents = [xAccessor(data[startIndex]), xAccessor(data[endIndex]) + 2];
     }
 
     return { data, xScale, xAccessor, displayXAccessor, xExtents };
@@ -142,7 +143,7 @@ const BullMarketBand = () => {
   }
 
   // Chart configuration
-  const margin = { left: 60, right: 110, top: 20, bottom: 30 };
+  const margin = { left: 60, right: 140, top: 20, bottom: 30 };
   const pricesDisplayFormat = format(",.0f");
   const dateTimeFormat = "%b %d";
   const timeDisplayFormat = timeFormat(dateTimeFormat);

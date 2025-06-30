@@ -4,16 +4,19 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Services\CoinGeckoService;
+use App\Services\CacheService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class MarketMetricsController extends Controller
 {
     protected $coinGecko;
+    protected $cacheService;
 
-    public function __construct(CoinGeckoService $coinGecko)
+    public function __construct(CoinGeckoService $coinGecko, CacheService $cacheService)
     {
         $this->coinGecko = $coinGecko;
+        $this->cacheService = $cacheService;
     }
 
     /**
@@ -22,29 +25,18 @@ class MarketMetricsController extends Controller
     public function globalMetrics()
     {
         try {
-            $globalData = $this->coinGecko->getGlobalData();
+            $result = $this->coinGecko->getGlobalData();
             
-            if (empty($globalData) || !isset($globalData['data'])) {
-                // Return mock data when API is unavailable
+            if (empty($result['data']) || !isset($result['data']['data'])) {
                 return response()->json([
-                    'totalMarketCap' => 2453000000000, // $2.45T
-                    'totalMarketCapChange24h' => -1.2,
-                    'totalVolume' => 89000000000, // $89B
-                    'marketCapPercentage' => [
-                        'btc' => 52.3,
-                        'eth' => 18.2,
-                        'others' => 29.5
-                    ],
-                    'activeCryptocurrencies' => 10432,
-                    'markets' => 743,
-                    'defiMarketCap' => 45000000000,
-                    'defiToTotalMarketCapRatio' => 1.8,
-                    'lastUpdated' => now()->toIso8601String(),
-                    'note' => 'Using cached data due to API limits'
-                ]);
+                    'error' => 'No market data available',
+                    'lastUpdated' => $result['metadata']['lastUpdated'] ?? now()->toIso8601String(),
+                    'cacheAge' => $result['metadata']['cacheAge'] ?? 0,
+                    'dataSource' => $result['metadata']['source'] ?? 'none'
+                ], 200);
             }
             
-            $data = $globalData['data'];
+            $data = $result['data']['data'];
             
             return response()->json([
                 'totalMarketCap' => $data['total_market_cap']['usd'] ?? 0,
@@ -59,12 +51,19 @@ class MarketMetricsController extends Controller
                 'markets' => $data['markets'] ?? 0,
                 'defiMarketCap' => $data['defi_market_cap'] ?? null,
                 'defiToTotalMarketCapRatio' => $data['defi_to_total_market_cap_ratio'] ?? null,
-                'lastUpdated' => now()->toIso8601String()
+                'lastUpdated' => $result['metadata']['lastUpdated'],
+                'cacheAge' => $result['metadata']['cacheAge'],
+                'dataSource' => $result['metadata']['source']
             ]);
             
         } catch (\Exception $e) {
             Log::error('Global metrics error', ['error' => $e->getMessage()]);
-            return response()->json(['error' => 'Failed to fetch global metrics'], 500);
+            return response()->json([
+                'error' => 'Failed to fetch global metrics',
+                'lastUpdated' => now()->toIso8601String(),
+                'cacheAge' => 0,
+                'dataSource' => 'none'
+            ], 200);
         }
     }
     
@@ -75,10 +74,16 @@ class MarketMetricsController extends Controller
     {
         try {
             // Get top 250 coins to analyze market breadth
-            $markets = $this->coinGecko->getMarkets('usd', null, 250);
+            $result = $this->coinGecko->getMarkets('usd', null, 250);
+            $markets = $result['data'] ?? [];
             
             if (empty($markets)) {
-                return response()->json(['error' => 'No market data available'], 503);
+                return response()->json([
+                    'error' => 'No market data available',
+                    'lastUpdated' => $result['metadata']['lastUpdated'] ?? now()->toIso8601String(),
+                    'cacheAge' => $result['metadata']['cacheAge'] ?? 0,
+                    'dataSource' => $result['metadata']['source'] ?? 'none'
+                ], 200);
             }
             
             $gainers = 0;
@@ -148,12 +153,19 @@ class MarketMetricsController extends Controller
                 'topGainers' => array_slice($topGainers, 0, 5),
                 'topLosers' => array_slice($topLosers, 0, 5),
                 'totalVolume24h' => $totalVolume24h,
-                'lastUpdated' => now()->toIso8601String()
+                'lastUpdated' => $result['metadata']['lastUpdated'],
+                'cacheAge' => $result['metadata']['cacheAge'],
+                'dataSource' => $result['metadata']['source']
             ]);
             
         } catch (\Exception $e) {
             Log::error('Market breadth error', ['error' => $e->getMessage()]);
-            return response()->json(['error' => 'Failed to fetch market breadth'], 500);
+            return response()->json([
+                'error' => 'Failed to fetch market breadth',
+                'lastUpdated' => now()->toIso8601String(),
+                'cacheAge' => 0,
+                'dataSource' => 'none'
+            ], 200);
         }
     }
     
@@ -164,22 +176,16 @@ class MarketMetricsController extends Controller
     {
         try {
             // Get top 10 coins for volatility analysis
-            $markets = $this->coinGecko->getMarkets('usd', null, 10);
+            $result = $this->coinGecko->getMarkets('usd', null, 10);
+            $markets = $result['data'] ?? [];
             
             if (empty($markets)) {
-                // Return mock volatility data when API is unavailable
                 return response()->json([
-                    'coins' => [
-                        ['symbol' => 'BTC', 'name' => 'Bitcoin', 'price' => 107679, 'change24h' => -0.5, 'high24h' => 108500, 'low24h' => 106800, 'volatility' => 1.58, 'volume' => 26570000000],
-                        ['symbol' => 'ETH', 'name' => 'Ethereum', 'price' => 2420, 'change24h' => -0.86, 'high24h' => 2450, 'low24h' => 2380, 'volatility' => 2.89, 'volume' => 14200000000],
-                        ['symbol' => 'BNB', 'name' => 'BNB', 'price' => 646, 'change24h' => 0.08, 'high24h' => 650, 'low24h' => 640, 'volatility' => 1.56, 'volume' => 532000000],
-                        ['symbol' => 'SOL', 'name' => 'Solana', 'price' => 142, 'change24h' => -0.17, 'high24h' => 145, 'low24h' => 140, 'volatility' => 3.52, 'volume' => 4210000000],
-                        ['symbol' => 'XRP', 'name' => 'XRP', 'price' => 2.1, 'change24h' => -1.34, 'high24h' => 2.15, 'low24h' => 2.05, 'volatility' => 4.76, 'volume' => 2450000000]
-                    ],
-                    'averageVolatility' => 2.86,
-                    'lastUpdated' => now()->toIso8601String(),
-                    'note' => 'Using cached data due to API limits'
-                ]);
+                    'error' => 'No market data available',
+                    'lastUpdated' => $result['metadata']['lastUpdated'] ?? now()->toIso8601String(),
+                    'cacheAge' => $result['metadata']['cacheAge'] ?? 0,
+                    'dataSource' => $result['metadata']['source'] ?? 'none'
+                ], 200);
             }
             
             $volatilityData = [];
@@ -205,12 +211,19 @@ class MarketMetricsController extends Controller
             return response()->json([
                 'coins' => $volatilityData,
                 'averageVolatility' => round(array_sum(array_column($volatilityData, 'volatility')) / count($volatilityData), 2),
-                'lastUpdated' => now()->toIso8601String()
+                'lastUpdated' => $result['metadata']['lastUpdated'],
+                'cacheAge' => $result['metadata']['cacheAge'],
+                'dataSource' => $result['metadata']['source']
             ]);
             
         } catch (\Exception $e) {
             Log::error('Volatility metrics error', ['error' => $e->getMessage()]);
-            return response()->json(['error' => 'Failed to fetch volatility metrics'], 500);
+            return response()->json([
+                'error' => 'Failed to fetch volatility metrics',
+                'lastUpdated' => now()->toIso8601String(),
+                'cacheAge' => 0,
+                'dataSource' => 'none'
+            ], 200);
         }
     }
     

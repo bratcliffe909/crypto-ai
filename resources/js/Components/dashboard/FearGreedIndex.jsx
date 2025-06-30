@@ -8,8 +8,8 @@ import Tooltip from '../common/Tooltip';
 const FearGreedIndex = () => {
   const { data, loading, error, lastFetch } = useApi('/api/crypto/fear-greed');
 
-  const value = data?.data?.[0]?.value || 0;
-  const classification = data?.data?.[0]?.value_classification || 'Unknown';
+  const value = data?.data?.data?.[0]?.value || 0;
+  const classification = data?.data?.data?.[0]?.value_classification || 'Unknown';
 
   const getColorClass = (val) => {
     if (val < 25) return 'danger';

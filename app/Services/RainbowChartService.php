@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Http;
 class RainbowChartService
 {
     private $coinGeckoService;
+    private $cacheService;
     
     // Bitcoin genesis date
     private const GENESIS_DATE = '2009-01-09';
@@ -61,9 +62,10 @@ class RainbowChartService
         'band9' => '#B71C1C',  // Dark Red
     ];
 
-    public function __construct(CoinGeckoService $coinGeckoService)
+    public function __construct(CoinGeckoService $coinGeckoService, CacheService $cacheService)
     {
         $this->coinGeckoService = $coinGeckoService;
+        $this->cacheService = $cacheService;
     }
 
     /**
@@ -71,122 +73,232 @@ class RainbowChartService
      */
     public function getRainbowChartData($days = 'max')
     {
-        $cacheKey = "rainbow_chart_data_{$days}";
-        $cacheDuration = 3600; // 1 hour
-        
-        return Cache::remember($cacheKey, $cacheDuration, function () use ($days) {
-            try {
-                $marketData = ['prices' => []];
+        try {
+            // Get historical data (cached for 30 days with intelligent gap filling)
+            $historicalKey = "rainbow_chart_historical_v2";
+            $historicalResult = $this->cacheService->rememberHistorical($historicalKey, function($fromDate, $toDate) {
+                $allPrices = [];
                 
                 // First try CryptoCompare for maximum historical data
-                if ($days === 'max' || intval($days) > 365) {
-                    try {
-                        $historicalData = $this->fetchCryptoCompareHistory();
-                        if (!empty($historicalData)) {
-                            // Convert to market data format
-                            foreach ($historicalData as $dataPoint) {
-                                $marketData['prices'][] = [
-                                    $dataPoint['timestamp'] * 1000, // Convert to milliseconds
-                                    $dataPoint['price']
-                                ];
-                            }
-                            Log::info("Rainbow Chart: Got " . count($marketData['prices']) . " days from CryptoCompare");
+                try {
+                    $historicalData = $this->fetchCryptoCompareHistory();
+                    if (!empty($historicalData)) {
+                        foreach ($historicalData as $dataPoint) {
+                            $allPrices[$dataPoint['date']] = [
+                                'timestamp' => $dataPoint['timestamp'] * 1000,
+                                'price' => $dataPoint['price']
+                            ];
                         }
-                    } catch (\Exception $e) {
-                        Log::warning("CryptoCompare failed for Rainbow Chart: " . $e->getMessage());
+                        Log::info("Rainbow Chart Historical: Got " . count($allPrices) . " days from CryptoCompare");
                     }
+                } catch (\Exception $e) {
+                    Log::warning("CryptoCompare failed for Rainbow Chart Historical: " . $e->getMessage());
                 }
                 
-                // If we don't have enough data or for shorter time ranges, use CoinGecko
-                if (empty($marketData['prices']) || $days !== 'max') {
+                // If we don't have enough data, try CoinGecko for the gap
+                if (count($allPrices) < 365) {
                     try {
-                        // Get market chart data with proper parameters
-                        $cgData = $this->coinGeckoService->getMarketChart('bitcoin', 'usd', $days, 'daily');
+                        $cgResult = $this->coinGeckoService->getMarketChart('bitcoin', 'usd', 'max', 'daily');
+                        $cgData = $cgResult['data'] ?? [];
                         
                         if (!empty($cgData['prices'])) {
-                            $marketData = $cgData;
-                            Log::info("Rainbow Chart: Got " . count($marketData['prices']) . " days from CoinGecko");
+                            foreach ($cgData['prices'] as $pricePoint) {
+                                $date = date('Y-m-d', $pricePoint[0] / 1000);
+                                // Only add if we don't already have this date
+                                if (!isset($allPrices[$date])) {
+                                    $allPrices[$date] = [
+                                        'timestamp' => $pricePoint[0],
+                                        'price' => $pricePoint[1]
+                                    ];
+                                }
+                            }
+                            Log::info("Rainbow Chart Historical: Added CoinGecko data, total: " . count($allPrices));
                         }
                     } catch (\Exception $e) {
-                        // Log the error and try alternative data source
-                        Log::warning('Market chart failed: ' . $e->getMessage());
-                        
-                        // Try OHLC data as fallback
-                        try {
-                            $ohlcDays = $days === 'max' ? 365 : intval($days);
-                            $ohlcData = $this->coinGeckoService->getOHLC('bitcoin', 'usd', $ohlcDays);
-                            
-                            if (!empty($ohlcData)) {
-                                // Convert OHLC to price data format
-                                $marketData = ['prices' => []];
-                                foreach ($ohlcData as $candle) {
-                                    // Use closing price
-                                    $marketData['prices'][] = [$candle[0], $candle[4]];
-                                }
-                                Log::info('Rainbow Chart: Using OHLC data');
-                            }
-                        } catch (\Exception $e2) {
-                            Log::warning('OHLC also failed: ' . $e2->getMessage());
-                        }
+                        Log::warning('CoinGecko historical failed: ' . $e->getMessage());
                     }
                 }
                 
-                if (empty($marketData['prices'])) {
-                    Log::error('Rainbow chart: No data available from any source');
-                    throw new \Exception('Unable to fetch price data from any source');
-                }
+                // Sort by date
+                ksort($allPrices);
                 
-                $processedData = [];
-                $genesis = Carbon::parse(self::GENESIS_DATE);
-                
-                foreach ($marketData['prices'] as $pricePoint) {
-                    $timestamp = $pricePoint[0];
-                    $price = $pricePoint[1];
-                    $date = Carbon::createFromTimestampMs($timestamp);
-                    
-                    // Calculate days since genesis
-                    $daysSinceGenesis = $genesis->diffInDays($date);
-                    
-                    if ($daysSinceGenesis <= 0) {
-                        continue;
-                    }
-                    
-                    // Calculate rainbow bands
-                    $bands = $this->calculateRainbowBands($daysSinceGenesis);
-                    
-                    // Determine current band
-                    $currentBand = $this->getCurrentBand($price, $bands);
-                    
-                    $processedData[] = [
-                        'date' => $date->format('Y-m-d'),
-                        'timestamp' => $timestamp,
-                        'price' => round($price, 2),
-                        'daysSinceGenesis' => $daysSinceGenesis,
-                        'bands' => $bands,
-                        'currentBand' => $currentBand,
-                        'currentBandLabel' => self::BAND_LABELS[$currentBand] ?? 'Unknown',
-                        'currentBandColor' => self::BAND_COLORS[$currentBand] ?? '#999999',
+                // Convert to array format
+                $result = [];
+                foreach ($allPrices as $date => $data) {
+                    $result[] = [
+                        'date' => $date,
+                        'timestamp' => $data['timestamp'],
+                        'price' => $data['price']
                     ];
                 }
                 
-                // Add metadata
-                $metadata = [
+                return $result;
+            }, 'date');
+            
+            $historicalData = $historicalResult['data'] ?? [];
+            
+            // Get recent data (last 14 days, cached for 1 minute)
+            $recentKey = "rainbow_chart_recent_v2";
+            $recentResult = $this->cacheService->remember($recentKey, 60, function() {
+                $recentPrices = [];
+                
+                try {
+                    // Get last 14 days of data
+                    $cgResult = $this->coinGeckoService->getMarketChart('bitcoin', 'usd', 14, 'daily');
+                    $cgData = $cgResult['data'] ?? [];
+                    
+                    if (!empty($cgData['prices'])) {
+                        foreach ($cgData['prices'] as $pricePoint) {
+                            $date = date('Y-m-d', $pricePoint[0] / 1000);
+                            $recentPrices[$date] = [
+                                'date' => $date,
+                                'timestamp' => $pricePoint[0],
+                                'price' => $pricePoint[1]
+                            ];
+                        }
+                        Log::info("Rainbow Chart Recent: Got " . count($recentPrices) . " days from CoinGecko");
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('Recent rainbow data failed: ' . $e->getMessage());
+                    
+                    // Try OHLC as fallback
+                    try {
+                        $ohlcResult = $this->coinGeckoService->getOHLC('bitcoin', 'usd', 14);
+                        $ohlcData = $ohlcResult['data'] ?? [];
+                        
+                        if (!empty($ohlcData)) {
+                            foreach ($ohlcData as $candle) {
+                                $date = date('Y-m-d', $candle[0] / 1000);
+                                $recentPrices[$date] = [
+                                    'date' => $date,
+                                    'timestamp' => $candle[0],
+                                    'price' => $candle[4] // closing price
+                                ];
+                            }
+                            Log::info('Rainbow Chart Recent: Using OHLC data');
+                        }
+                    } catch (\Exception $e2) {
+                        Log::warning('OHLC also failed for recent: ' . $e2->getMessage());
+                    }
+                }
+                
+                // Get current price for today
+                try {
+                    $priceResult = $this->coinGeckoService->getSimplePrice('bitcoin', 'usd');
+                    $priceData = $priceResult['data'] ?? [];
+                    $currentPrice = $priceData['bitcoin']['usd'] ?? null;
+                    
+                    if ($currentPrice) {
+                        $today = now()->format('Y-m-d');
+                        $recentPrices[$today] = [
+                            'date' => $today,
+                            'timestamp' => now()->timestamp * 1000,
+                            'price' => $currentPrice
+                        ];
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('Failed to get current price for rainbow: ' . $e->getMessage());
+                }
+                
+                // Sort by date and convert to array
+                ksort($recentPrices);
+                return array_values($recentPrices);
+            });
+            
+            $recentData = $recentResult['data'] ?? [];
+            
+            // Merge historical and recent data
+            $allData = [];
+            $dataByDate = [];
+            
+            // Add historical data
+            foreach ($historicalData as $item) {
+                $dataByDate[$item['date']] = $item;
+            }
+            
+            // Overwrite with recent data (last 14 days)
+            foreach ($recentData as $item) {
+                $dataByDate[$item['date']] = $item;
+            }
+            
+            // Sort by date and convert to array
+            ksort($dataByDate);
+            $allData = array_values($dataByDate);
+            
+            // Process data to add rainbow bands
+            $processedData = [];
+            $genesis = Carbon::parse(self::GENESIS_DATE);
+            
+            foreach ($allData as $item) {
+                $date = Carbon::parse($item['date']);
+                $timestamp = $item['timestamp'];
+                $price = $item['price'];
+                
+                // Calculate days since genesis
+                $daysSinceGenesis = $genesis->diffInDays($date);
+                
+                if ($daysSinceGenesis <= 0) {
+                    continue;
+                }
+                
+                // Calculate rainbow bands
+                $bands = $this->calculateRainbowBands($daysSinceGenesis);
+                
+                // Determine current band
+                $currentBand = $this->getCurrentBand($price, $bands);
+                
+                $processedData[] = [
+                    'date' => $date->format('Y-m-d'),
+                    'timestamp' => $timestamp,
+                    'price' => round($price, 2),
+                    'daysSinceGenesis' => $daysSinceGenesis,
+                    'bands' => $bands,
+                    'currentBand' => $currentBand,
+                    'currentBandLabel' => self::BAND_LABELS[$currentBand] ?? 'Unknown',
+                    'currentBandColor' => self::BAND_COLORS[$currentBand] ?? '#999999',
+                ];
+            }
+            
+            // Filter data based on requested days
+            if ($days !== 'max') {
+                $daysToShow = intval($days);
+                $cutoffDate = now()->subDays($daysToShow)->format('Y-m-d');
+                $processedData = array_filter($processedData, function($item) use ($cutoffDate) {
+                    return $item['date'] >= $cutoffDate;
+                });
+                $processedData = array_values($processedData); // Re-index
+            }
+            
+            // Add metadata
+            $metadata = [
+                'lastUpdate' => now()->toIso8601String(),
+                'dataPoints' => count($processedData),
+                'bandLabels' => self::BAND_LABELS,
+                'bandColors' => self::BAND_COLORS,
+                'historicalCacheAge' => $historicalResult['metadata']['cacheAge'] ?? 0,
+                'recentCacheAge' => $recentResult['metadata']['cacheAge'] ?? 0,
+            ];
+            
+            return [
+                'data' => $processedData,
+                'metadata' => $metadata,
+            ];
+            
+        } catch (\Exception $e) {
+            Log::error('Rainbow chart data error: ' . $e->getMessage());
+            
+            // Return empty data structure
+            return [
+                'data' => [],
+                'metadata' => [
                     'lastUpdate' => now()->toIso8601String(),
-                    'dataPoints' => count($processedData),
+                    'dataPoints' => 0,
                     'bandLabels' => self::BAND_LABELS,
                     'bandColors' => self::BAND_COLORS,
-                ];
-                
-                return [
-                    'data' => $processedData,
-                    'metadata' => $metadata,
-                ];
-                
-            } catch (\Exception $e) {
-                Log::error('Rainbow chart data fetch error: ' . $e->getMessage());
-                throw $e;
-            }
-        });
+                    'error' => 'Unable to fetch rainbow chart data'
+                ]
+            ];
+        }
     }
     
     /**
@@ -258,7 +370,9 @@ class RainbowChartService
     {
         try {
             // Get current Bitcoin price
-            $currentPrice = $this->coinGeckoService->getSimplePrice(['bitcoin'])['bitcoin']['usd'] ?? 0;
+            $priceResult = $this->coinGeckoService->getSimplePrice('bitcoin', 'usd');
+            $priceData = $priceResult['data'] ?? [];
+            $currentPrice = $priceData['bitcoin']['usd'] ?? 0;
             
             if ($currentPrice <= 0) {
                 throw new \Exception('Invalid current price');

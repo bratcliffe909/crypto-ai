@@ -24,9 +24,13 @@ class MarketDataController extends Controller
         $ids = $request->get('ids');
         $perPage = $request->get('per_page', 250); // Maximum allowed by CoinGecko free tier
         
-        $data = $this->coinGeckoService->getMarkets($vsCurrency, $ids, $perPage);
+        $result = $this->coinGeckoService->getMarkets($vsCurrency, $ids, $perPage);
         
-        return response()->json($data);
+        // Return the actual data array for backward compatibility
+        return response()->json($result['data'] ?? [])
+            ->header('X-Cache-Age', $result['metadata']['cacheAge'] ?? 0)
+            ->header('X-Data-Source', $result['metadata']['source'] ?? 'unknown')
+            ->header('X-Last-Updated', $result['metadata']['lastUpdated'] ?? now()->toIso8601String());
     }
 
     /**
@@ -36,9 +40,12 @@ class MarketDataController extends Controller
     {
         $vsCurrencies = $request->get('vs_currencies', 'usd');
         
-        $data = $this->coinGeckoService->getSimplePrice($ids, $vsCurrencies);
+        $result = $this->coinGeckoService->getSimplePrice($ids, $vsCurrencies);
         
-        return response()->json($data);
+        return response()->json($result['data'] ?? [])
+            ->header('X-Cache-Age', $result['metadata']['cacheAge'] ?? 0)
+            ->header('X-Data-Source', $result['metadata']['source'] ?? 'unknown')
+            ->header('X-Last-Updated', $result['metadata']['lastUpdated'] ?? now()->toIso8601String());
     }
 
     /**
@@ -46,9 +53,12 @@ class MarketDataController extends Controller
      */
     public function trending()
     {
-        $data = $this->coinGeckoService->getTrending();
+        $result = $this->coinGeckoService->getTrending();
         
-        return response()->json($data);
+        return response()->json($result['data'] ?? [])
+            ->header('X-Cache-Age', $result['metadata']['cacheAge'] ?? 0)
+            ->header('X-Data-Source', $result['metadata']['source'] ?? 'unknown')
+            ->header('X-Last-Updated', $result['metadata']['lastUpdated'] ?? now()->toIso8601String());
     }
 
     /**
@@ -62,9 +72,12 @@ class MarketDataController extends Controller
             return response()->json(['error' => 'Query parameter is required'], 400);
         }
         
-        $data = $this->coinGeckoService->searchCoins($query);
+        $result = $this->coinGeckoService->searchCoins($query);
         
-        return response()->json($data);
+        return response()->json($result['data'] ?? [])
+            ->header('X-Cache-Age', $result['metadata']['cacheAge'] ?? 0)
+            ->header('X-Data-Source', $result['metadata']['source'] ?? 'unknown')
+            ->header('X-Last-Updated', $result['metadata']['lastUpdated'] ?? now()->toIso8601String());
     }
     
     /**

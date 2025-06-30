@@ -39,20 +39,27 @@ class IndicatorController extends Controller
             
             // Get current price from CoinGecko
             $coinId = $this->mapSymbolToCoinId($cryptoSymbol);
-            $priceData = $this->coinGecko->getSimplePrice($coinId, 'usd');
+            $priceResult = $this->coinGecko->getSimplePrice($coinId, 'usd');
+            $priceData = $priceResult['data'] ?? [];
             $currentData = [
                 'price' => $priceData[$coinId]['usd'] ?? null,
                 'price_change_percentage_24h' => $priceData[$coinId]['usd_24h_change'] ?? null
             ];
             
             // Get technical indicators from Alpha Vantage
-            $rsiData = $this->alphaVantage->getRSI($avSymbol, 'daily', 14);
-            $macdData = $this->alphaVantage->getMACD($avSymbol, 'daily');
+            $rsiResult = $this->alphaVantage->getRSI($avSymbol, 'daily', 14);
+            $macdResult = $this->alphaVantage->getMACD($avSymbol, 'daily');
+            
+            // Extract data from cache service wrapper
+            $rsiData = $rsiResult['data'] ?? [];
+            $macdData = $macdResult['data'] ?? [];
             
             // If Alpha Vantage fails, try to calculate locally from price history
             if (empty($rsiData) || !isset($rsiData['Technical Analysis: RSI'])) {
                 // Get historical prices from CoinGecko for calculation
-                $historicalPrices = $this->coinGecko->getMarketChart($coinId, 'usd', 30);
+                $chartResult = $this->coinGecko->getMarketChart($coinId, 'usd', 30);
+                $historicalPrices = $chartResult['data'] ?? [];
+                
                 if (!empty($historicalPrices['prices'])) {
                     $rsiData = $this->calculateRSIFromPrices($historicalPrices['prices'], 14);
                 }
@@ -218,20 +225,33 @@ class IndicatorController extends Controller
     public function fearGreed()
     {
         try {
-            $data = $this->alternative->getFearGreedIndex(1);
+            $result = $this->alternative->getFearGreedIndex(1);
             
-            if (empty($data)) {
-                return response()->json(['error' => 'No data available'], 503);
+            if (empty($result['data'])) {
+                return response()->json([
+                    'error' => 'No data available',
+                    'lastUpdated' => $result['metadata']['lastUpdated'] ?? now()->toIso8601String(),
+                    'cacheAge' => $result['metadata']['cacheAge'] ?? 0,
+                    'dataSource' => $result['metadata']['source'] ?? 'none'
+                ], 200);
             }
             
             // Return in the format expected by the frontend
             return response()->json([
-                'data' => $data
-            ]);
+                'data' => $result['data']
+            ])
+            ->header('X-Cache-Age', $result['metadata']['cacheAge'] ?? 0)
+            ->header('X-Data-Source', $result['metadata']['source'] ?? 'unknown')
+            ->header('X-Last-Updated', $result['metadata']['lastUpdated'] ?? now()->toIso8601String());
             
         } catch (\Exception $e) {
             Log::error('Fear and Greed Index error', ['error' => $e->getMessage()]);
-            return response()->json(['error' => 'Failed to fetch Fear and Greed Index'], 500);
+            return response()->json([
+                'error' => 'Failed to fetch Fear and Greed Index',
+                'lastUpdated' => now()->toIso8601String(),
+                'cacheAge' => 0,
+                'dataSource' => 'none'
+            ], 200);
         }
     }
     
@@ -244,17 +264,40 @@ class IndicatorController extends Controller
             $from = $request->get('from');
             $to = $request->get('to');
             
-            $events = $this->finnhub->getEconomicCalendar($from, $to);
+            $result = $this->finnhub->getEconomicCalendar($from, $to);
+            
+            // Extract the actual events data from the cache service wrapper
+            $events = $result['data'] ?? [];
+            
+            // If it's still wrapped in economicCalendar key
+            if (isset($events['economicCalendar'])) {
+                $events = $events['economicCalendar'];
+            }
+            
+            // Ensure events is an array
+            if (!is_array($events)) {
+                $events = [];
+            }
             
             return response()->json([
                 'events' => $events,
                 'count' => count($events),
-                'lastUpdated' => now()->toIso8601String()
-            ]);
+                'lastUpdated' => $result['metadata']['lastUpdated'] ?? now()->toIso8601String(),
+                'cacheAge' => $result['metadata']['cacheAge'] ?? 0,
+                'dataSource' => $result['metadata']['source'] ?? 'unknown'
+            ])
+            ->header('X-Cache-Age', $result['metadata']['cacheAge'] ?? 0)
+            ->header('X-Data-Source', $result['metadata']['source'] ?? 'unknown')
+            ->header('X-Last-Updated', $result['metadata']['lastUpdated'] ?? now()->toIso8601String());
             
         } catch (\Exception $e) {
             Log::error('Economic Calendar error', ['error' => $e->getMessage()]);
-            return response()->json(['error' => 'Failed to fetch economic calendar'], 500);
+            return response()->json([
+                'events' => [],
+                'count' => 0,
+                'error' => 'Failed to fetch economic calendar',
+                'lastUpdated' => now()->toIso8601String()
+            ], 200); // Return 200 with empty data instead of 500
         }
     }
     
@@ -264,47 +307,43 @@ class IndicatorController extends Controller
     public function newsFeed(Request $request)
     {
         try {
-            // Get news from both sources
-            $alphaVantageNews = $this->alphaVantage->getNewsSentiment('CRYPTO:BTC,CRYPTO:ETH', 'blockchain,cryptocurrency', null, 20);
-            $finnhubNews = $this->finnhub->getCryptoNews('crypto', 0);
+            // Get news from Finnhub (AlphaVantage often rate limited)
+            $finnhubResult = $this->finnhub->getMarketNews('crypto');
             
-            // Merge and sort by published date
-            $allNews = array_merge($alphaVantageNews, $finnhubNews);
+            // Handle the cache service response format
+            $finnhubNews = $finnhubResult['data'] ?? [];
+            
+            // Normalize Finnhub news format
+            $normalizedNews = array_map(function($article) {
+                return [
+                    'title' => $article['headline'] ?? '',
+                    'summary' => $article['summary'] ?? '',
+                    'url' => $article['url'] ?? '',
+                    'source' => $article['source'] ?? 'Unknown',
+                    'publishedAt' => isset($article['datetime']) ? date('Y-m-d H:i:s', $article['datetime']) : now()->toDateTimeString(),
+                    'image' => $article['image'] ?? null,
+                    'category' => $article['category'] ?? 'crypto'
+                ];
+            }, $finnhubNews);
             
             // Sort by published date (newest first)
-            usort($allNews, function ($a, $b) {
-                $aTime = strtotime($a['publishedAt'] ?? '0');
-                $bTime = strtotime($b['publishedAt'] ?? '0');
+            usort($normalizedNews, function ($a, $b) {
+                $aTime = strtotime($a['publishedAt']);
+                $bTime = strtotime($b['publishedAt']);
                 return $bTime - $aTime;
             });
             
-            // Limit to 30 articles and remove duplicates based on title similarity
-            $uniqueNews = [];
-            $seenTitles = [];
-            
-            foreach ($allNews as $article) {
-                $title = strtolower($article['title']);
-                $isDuplicate = false;
-                
-                foreach ($seenTitles as $seenTitle) {
-                    similar_text($title, $seenTitle, $percent);
-                    if ($percent > 80) {
-                        $isDuplicate = true;
-                        break;
-                    }
-                }
-                
-                if (!$isDuplicate && count($uniqueNews) < 30) {
-                    $uniqueNews[] = $article;
-                    $seenTitles[] = $title;
-                }
-            }
+            // Limit to 20 articles
+            $uniqueNews = array_slice($normalizedNews, 0, 20);
             
             return response()->json([
                 'articles' => $uniqueNews,
                 'count' => count($uniqueNews),
                 'lastUpdated' => now()->toIso8601String()
-            ]);
+            ])
+            ->header('X-Cache-Age', $finnhubResult['metadata']['cacheAge'] ?? 0)
+            ->header('X-Data-Source', $finnhubResult['metadata']['source'] ?? 'unknown')
+            ->header('X-Last-Updated', $finnhubResult['metadata']['lastUpdated'] ?? now()->toIso8601String());
             
         } catch (\Exception $e) {
             Log::error('News Feed error', ['error' => $e->getMessage()]);

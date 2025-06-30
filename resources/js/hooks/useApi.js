@@ -6,6 +6,8 @@ const useApi = (endpoint, interval = 30000) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastFetch, setLastFetch] = useState(null);
+  const [cacheAge, setCacheAge] = useState(null);
+  const [dataSource, setDataSource] = useState(null);
   const intervalRef = useRef(null);
 
   useEffect(() => {
@@ -27,7 +29,25 @@ const useApi = (endpoint, interval = 30000) => {
         // Fetch data
         const response = await axios.get(url);
         setData(response.data);
-        setLastFetch(new Date());
+        
+        // Extract cache metadata from headers
+        const cacheAgeHeader = response.headers['x-cache-age'];
+        const dataSourceHeader = response.headers['x-data-source'];
+        const lastUpdatedHeader = response.headers['x-last-updated'];
+        
+        if (cacheAgeHeader) {
+          setCacheAge(parseInt(cacheAgeHeader));
+        }
+        
+        if (dataSourceHeader) {
+          setDataSource(dataSourceHeader);
+        }
+        
+        if (lastUpdatedHeader) {
+          setLastFetch(new Date(lastUpdatedHeader));
+        } else {
+          setLastFetch(new Date());
+        }
       } catch (err) {
         setError(err.message || 'Failed to fetch data');
         console.error('API Error:', err);
@@ -52,7 +72,7 @@ const useApi = (endpoint, interval = 30000) => {
     };
   }, [endpoint, interval]);
 
-  return { data, loading, error, lastFetch };
+  return { data, loading, error, lastFetch, cacheAge, dataSource };
 };
 
 export default useApi;
