@@ -85,7 +85,7 @@ const NewsFeed = () => {
         {data && !loading && !error && (
           <>
             {data.articles && data.articles.length > 0 ? (
-              <ListGroup variant="flush" style={{ maxHeight: '600px', overflowY: 'auto' }}>
+              <ListGroup variant="flush">
                 {data.articles.map((article, index) => (
                   <ListGroup.Item 
                     key={index} 
@@ -159,7 +159,7 @@ const NewsFeed = () => {
             {data.articles && data.articles.length > 0 && (
               <Card.Footer className="text-center py-2">
                 <small className="text-muted">
-                  Showing {data.articles.length} latest articles
+                  Showing {data.articles.length} of {data.count || data.articles.length} latest articles
                 </small>
               </Card.Footer>
             )}

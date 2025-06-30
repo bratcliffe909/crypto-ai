@@ -47,11 +47,46 @@ const RainbowChart = () => {
     return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
   };
 
+  // Determine which band a price falls into
+  const getCurrentBand = (price, bands) => {
+    if (!bands || !price) return null;
+    
+    // Band order from highest to lowest
+    const bandOrder = ['band9', 'band8', 'band7', 'band6', 'band5', 'band4', 'band3', 'band2', 'band1'];
+    
+    // Find the highest band that the price is above
+    for (const band of bandOrder) {
+      if (bands[band] && price >= bands[band]) {
+        return band;
+      }
+    }
+    
+    // If price is below all bands, it's in band1
+    return 'band1';
+  };
+
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
+      // Find the data point for this date
+      const dataPoint = chartData.find(d => d.date === label);
+      if (!dataPoint) return null;
+      
+      // Get band labels and colors from metadata
+      const bandLabels = rawData?.metadata?.bandLabels || {};
+      const bandColors = rawData?.metadata?.bandColors || {};
+      
+      // Determine current band
+      const currentBand = getCurrentBand(dataPoint.price, dataPoint.bands);
+      const bandLabel = bandLabels[currentBand] || 'Unknown';
+      const bandColor = bandColors[currentBand] || '#999999';
+      
       return (
-        <div className="bg-dark p-3 rounded border">
-          <p className="text-light mb-0">{new Date(label).toLocaleDateString()}</p>
+        <div className="bg-dark p-3 rounded border" style={{ minWidth: '200px' }}>
+          <p className="text-light mb-1">{new Date(label).toLocaleDateString()}</p>
+          <p className="text-light mb-1">Price: {formatPrice(dataPoint.price)}</p>
+          <p className="mb-0" style={{ color: bandColor }}>
+            {bandLabel}
+          </p>
         </div>
       );
     }
@@ -204,11 +239,10 @@ const RainbowChart = () => {
                 minTickGap={50}
               />
               <YAxis 
-                tickFormatter={formatPrice}
+                tick={false}
                 stroke="#666"
                 scale="log"
                 domain={['dataMin', 'dataMax']}
-                ticks={[100, 1000, 10000, 100000, 1000000]}
               />
               <RechartsTooltip content={<CustomTooltip />} />
               
