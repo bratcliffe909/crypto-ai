@@ -29,11 +29,14 @@ class CacheService
      */
     public function remember(string $key, int $seconds = self::FRESH_CACHE_DURATION, callable $callback, callable $fallbackCallback = null): array
     {
+        $this->recordRequest();
+        
         // Get cached data with metadata
         $cachedData = $this->getCachedWithMetadata($key);
         
         // If cache exists and is fresh (under 1 minute), return it
         if ($cachedData && $cachedData['age'] < $seconds) {
+            $this->recordCacheHit();
             return $this->formatResponse($cachedData['data'], $cachedData['timestamp'], $cachedData['age'], 'cache');
         }
         
@@ -44,10 +47,12 @@ class CacheService
             if ($freshData && !empty($freshData)) {
                 // Store with metadata
                 $this->storeWithMetadata($key, $freshData);
+                $this->recordApiSuccess();
                 return $this->formatResponse($freshData, now(), 0, 'primary');
             }
         } catch (\Exception $e) {
             Log::warning("Primary API failed for {$key}", ['error' => $e->getMessage()]);
+            $this->recordApiFailure($e->getMessage());
         }
         
         // Try fallback API if provided
@@ -278,5 +283,91 @@ class CacheService
         
         // No data available
         return $this->formatResponse([], $now, 0, 'none');
+    }
+    
+    /**
+     * Record a request for statistics
+     */
+    private function recordRequest(): void
+    {
+        $stats = Cache::get('system_stats', [
+            'totalRequests' => 0,
+            'cacheHits' => 0,
+            'apiFailures' => 0,
+            'rateLimits' => 0,
+            'lastApiSuccess' => null,
+            'lastCacheHit' => null,
+            'apiProviders' => []
+        ]);
+        
+        $stats['totalRequests']++;
+        
+        // Keep stats for 1 hour
+        Cache::put('system_stats', $stats, 3600);
+    }
+    
+    /**
+     * Record a cache hit
+     */
+    private function recordCacheHit(): void
+    {
+        $stats = Cache::get('system_stats', [
+            'totalRequests' => 0,
+            'cacheHits' => 0,
+            'apiFailures' => 0,
+            'rateLimits' => 0,
+            'lastApiSuccess' => null,
+            'lastCacheHit' => null,
+            'apiProviders' => []
+        ]);
+        
+        $stats['cacheHits']++;
+        $stats['lastCacheHit'] = now()->toIso8601String();
+        
+        Cache::put('system_stats', $stats, 3600);
+    }
+    
+    /**
+     * Record an API failure
+     */
+    private function recordApiFailure(string $error): void
+    {
+        $stats = Cache::get('system_stats', [
+            'totalRequests' => 0,
+            'cacheHits' => 0,
+            'apiFailures' => 0,
+            'rateLimits' => 0,
+            'lastApiSuccess' => null,
+            'lastCacheHit' => null,
+            'apiProviders' => []
+        ]);
+        
+        if (stripos($error, 'rate limit') !== false || stripos($error, '429') !== false) {
+            $stats['rateLimits']++;
+        } else {
+            $stats['apiFailures']++;
+        }
+        
+        Cache::put('system_stats', $stats, 3600);
+    }
+    
+    /**
+     * Record a successful API call
+     */
+    private function recordApiSuccess(): void
+    {
+        $stats = Cache::get('system_stats', [
+            'totalRequests' => 0,
+            'cacheHits' => 0,
+            'apiFailures' => 0,
+            'rateLimits' => 0,
+            'lastApiSuccess' => null,
+            'lastCacheHit' => null,
+            'apiProviders' => []
+        ]);
+        
+        $stats['lastApiSuccess'] = now()->toIso8601String();
+        
+        Cache::put('system_stats', $stats, 3600);
     }
 }

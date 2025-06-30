@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\ChartController;
 use App\Http\Controllers\Api\IndicatorController;
 use App\Http\Controllers\Api\MarketMetricsController;
 use App\Http\Controllers\Api\AltcoinSeasonController;
+use App\Http\Controllers\Api\SystemStatusController;
 use Illuminate\Support\Facades\Route;
 
 // Apply web middleware group to enable sessions and CSRF
@@ -40,6 +41,9 @@ Route::prefix('crypto')->group(function () {
     
     // Exchange rates
     Route::get('/exchange-rates', [MarketDataController::class, 'exchangeRates']);
+    
+    // System status
+    Route::get('/system-status', [SystemStatusController::class, 'index']);
 });
 
 // Test route

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navbar, Container, Nav, Button } from 'react-bootstrap';
 import { BsMoonFill, BsSunFill } from 'react-icons/bs';
+import SystemStatus from '../common/SystemStatus';
 
 const Header = ({ theme, toggleTheme }) => {
   return (
@@ -10,7 +11,8 @@ const Header = ({ theme, toggleTheme }) => {
           Crypto Dashboard
         </Navbar.Brand>
         
-        <Nav className="ms-auto">
+        <Nav className="ms-auto d-flex align-items-center">
+          <SystemStatus />
           <Button
             variant="link"
             className="nav-link p-2"
