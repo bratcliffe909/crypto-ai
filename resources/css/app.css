@@ -1,3 +1,5 @@
+@import './mobile.css';
+
 /* Dark theme styles */
 [data-bs-theme="dark"] {
     --bs-body-bg: #1a1d29;
