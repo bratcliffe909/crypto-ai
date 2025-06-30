@@ -25,7 +25,7 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => [],
+    'exposed_headers' => ['X-Cache-Age', 'X-Data-Source', 'X-Last-Updated'],
 
     'max_age' => 0,
 

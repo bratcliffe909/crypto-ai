@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Card, Table, Form, InputGroup, Pagination, Button } from 'react-bootstrap';
-import { BsExclamationTriangle, BsSearch, BsStar, BsStarFill, BsInfoCircleFill } from 'react-icons/bs';
+import { BsExclamationTriangle, BsSearch, BsInfoCircleFill } from 'react-icons/bs';
 import useApi from '../../hooks/useApi';
 import LoadingSpinner from '../common/LoadingSpinner';
 import Tooltip from '../common/Tooltip';
@@ -11,46 +11,8 @@ const MarketOverview = () => {
   const { data, loading, error, lastFetch } = useApi('/api/crypto/markets?per_page=250');
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [favorites, setFavorites] = useState([]);
   const [itemsPerPage, setItemsPerPage] = useState(10); // Default to 10 items per page
 
-  // Load favorites from localStorage on mount
-  useEffect(() => {
-    const savedFavorites = localStorage.getItem('favorites');
-    if (savedFavorites) {
-      setFavorites(JSON.parse(savedFavorites));
-    }
-  }, []);
-
-  // Listen for favorites updates from wallet
-  useEffect(() => {
-    const handleFavoritesUpdate = (event) => {
-      if (event.detail && event.detail.favorites) {
-        setFavorites(event.detail.favorites);
-      }
-    };
-
-    window.addEventListener('favoritesUpdated', handleFavoritesUpdate);
-    
-    return () => {
-      window.removeEventListener('favoritesUpdated', handleFavoritesUpdate);
-    };
-  }, []);
-
-  // Toggle favorite status
-  const toggleFavorite = (coinId) => {
-    const newFavorites = favorites.includes(coinId)
-      ? favorites.filter(id => id !== coinId)
-      : [...favorites, coinId];
-    
-    setFavorites(newFavorites);
-    localStorage.setItem('favorites', JSON.stringify(newFavorites));
-    
-    // Dispatch custom event for same-tab updates
-    window.dispatchEvent(new CustomEvent('favoritesUpdated', { 
-      detail: { favorites: newFavorites } 
-    }));
-  };
 
   // Filter data based on search term
   const filteredData = useMemo(() => {
@@ -93,7 +55,7 @@ const MarketOverview = () => {
         <div className="d-flex justify-content-between align-items-center mb-3">
           <div className="d-flex align-items-center gap-2">
             <h5 className="mb-0">Market Overview</h5>
-            <Tooltip content="Live rankings of the top cryptocurrencies by market capitalization. Market cap is calculated by multiplying the current price by the circulating supply. Click the star icon to add coins to your wallet for tracking.">
+            <Tooltip content="Live rankings of the top cryptocurrencies by market capitalization. Market cap is calculated by multiplying the current price by the circulating supply.">
               <BsInfoCircleFill className="text-muted" style={{ cursor: 'help' }} />
             </Tooltip>
             {lastFetch && <TimeAgo date={lastFetch} />}
@@ -131,7 +93,6 @@ const MarketOverview = () => {
         <Table responsive hover className="mb-0">
           <thead>
             <tr>
-              <th></th>
               <th>#</th>
               <th>Coin</th>
               <th>Price</th>
@@ -143,16 +104,6 @@ const MarketOverview = () => {
           <tbody>
             {currentData.map((coin, index) => (
               <tr key={coin.id}>
-                <td className="text-center">
-                  <Button
-                    variant="link"
-                    className="p-0 text-warning"
-                    onClick={() => toggleFavorite(coin.id)}
-                    title={favorites.includes(coin.id) ? "Remove from favorites" : "Add to favorites"}
-                  >
-                    {favorites.includes(coin.id) ? <BsStarFill /> : <BsStar />}
-                  </Button>
-                </td>
                 <td>{startIndex + index + 1}</td>
                 <td>
                   <div className="d-flex align-items-center">

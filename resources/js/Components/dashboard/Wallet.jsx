@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Form, Button, ListGroup, InputGroup, Badge } from 'react-bootstrap';
-import { BsX, BsExclamationTriangle, BsWallet2, BsCurrencyDollar, BsInfoCircleFill } from 'react-icons/bs';
+import { BsX, BsExclamationTriangle, BsWallet2, BsCurrencyDollar, BsInfoCircleFill, BsPlus } from 'react-icons/bs';
 import useLocalStorage from '../../hooks/useLocalStorage';
 import LoadingSpinner from '../common/LoadingSpinner';
 import Tooltip from '../common/Tooltip';
 import TimeAgo from '../common/TimeAgo';
+import AddCoinModal from './AddCoinModal';
 import { formatPrice, formatPercentage } from '../../utils/formatters';
 import useInterval from '../../hooks/useInterval';
 import axios from 'axios';
@@ -21,6 +22,7 @@ const Wallet = () => {
   const [gbpRate, setGbpRate] = useState(0.79); // Default fallback rate
   const [selectedCurrency, setSelectedCurrency] = useState(0); // 0=USD, 1=GBP, 2=BTC
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [showAddCoinModal, setShowAddCoinModal] = useState(false);
   
   // Load favorites from localStorage
   useEffect(() => {
@@ -88,7 +90,9 @@ const Wallet = () => {
       
       // Always include bitcoin in the request to get BTC price
       const requestIds = favorites.includes('bitcoin') ? favorites : [...favorites, 'bitcoin'];
-      const response = await axios.get(`/api/crypto/markets?ids=${requestIds.join(',')}`);
+      
+      // Use the wallet-coins endpoint which can fetch any coins by ID
+      const response = await axios.get(`/api/crypto/wallet-coins?ids=${requestIds.join(',')}`);
       const data = response.data;
       
       // Find Bitcoin price
@@ -171,6 +175,21 @@ const Wallet = () => {
     setPortfolio(newPortfolio);
   };
   
+  // Add coin to wallet
+  const addCoinToWallet = (coin) => {
+    const newFavorites = [...favorites, coin.id];
+    setFavorites(newFavorites);
+    localStorage.setItem('favorites', JSON.stringify(newFavorites));
+    
+    // Dispatch custom event for same-tab updates
+    window.dispatchEvent(new CustomEvent('favoritesUpdated', { 
+      detail: { favorites: newFavorites } 
+    }));
+    
+    // Close modal
+    setShowAddCoinModal(false);
+  };
+
   // Remove from wallet
   const removeFromWallet = (coinId) => {
     const newFavorites = favorites.filter(id => id !== coinId);
@@ -229,7 +248,7 @@ const Wallet = () => {
               <BsWallet2 className="me-2" />
               Wallet
             </h5>
-            <Tooltip content="Track your cryptocurrency portfolio by adding coins from the Market Overview using the star icon. Enter the amount you own for each coin to see your total portfolio value in USD, GBP, or Bitcoin. Values automatically update every 30 seconds.">
+            <Tooltip content="Track your cryptocurrency portfolio. Enter the amount you own for each coin to see your total portfolio value in USD, GBP, or Bitcoin. Values automatically update every 30 seconds.">
               <BsInfoCircleFill className="ms-2 text-muted" style={{ cursor: 'help' }} />
             </Tooltip>
           </div>
@@ -386,10 +405,28 @@ const Wallet = () => {
           <div className="text-center text-muted py-5">
             <BsWallet2 size={48} className="mb-3" />
             <div className="h5">Your wallet is empty</div>
-            <small>Add coins from the market overview by clicking the star icon</small>
+            <small>Click "Add Coin" to start tracking your portfolio</small>
           </div>
         ) : null}
       </Card.Body>
+      
+      <Card.Footer className="p-2">
+        <Button 
+          variant="outline-light" 
+          className="w-100"
+          onClick={() => setShowAddCoinModal(true)}
+        >
+          <BsPlus size={20} className="me-1" />
+          Add Coin
+        </Button>
+      </Card.Footer>
+      
+      <AddCoinModal 
+        show={showAddCoinModal}
+        onHide={() => setShowAddCoinModal(false)}
+        onAddCoin={addCoinToWallet}
+        existingCoins={favorites}
+      />
     </Card>
   );
 };

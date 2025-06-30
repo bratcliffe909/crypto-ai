@@ -81,6 +81,25 @@ class MarketDataController extends Controller
     }
     
     /**
+     * Get specific coins by IDs for wallet
+     */
+    public function walletCoins(Request $request)
+    {
+        $ids = $request->get('ids');
+        
+        if (!$ids) {
+            return response()->json([]);
+        }
+        
+        $result = $this->coinGeckoService->getMarkets('usd', $ids, 250);
+        
+        return response()->json($result['data'] ?? [])
+            ->header('X-Cache-Age', $result['metadata']['cacheAge'] ?? 0)
+            ->header('X-Data-Source', $result['metadata']['source'] ?? 'unknown')
+            ->header('X-Last-Updated', $result['metadata']['lastUpdated'] ?? now()->toIso8601String());
+    }
+    
+    /**
      * Get exchange rates
      */
     public function exchangeRates(Request $request)
