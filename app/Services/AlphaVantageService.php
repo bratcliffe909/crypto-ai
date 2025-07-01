@@ -207,4 +207,35 @@ class AlphaVantageService
             throw new \Exception('AlphaVantage digital currency weekly request failed');
         });
     }
+    
+    /**
+     * Get cryptocurrency exchange rate
+     */
+    public function getCryptoExchangeRate($fromCurrency, $toCurrency = 'USD')
+    {
+        $cacheKey = "av_crypto_exchange_{$fromCurrency}_{$toCurrency}";
+        
+        return $this->cacheService->remember($cacheKey, 300, function () use ($fromCurrency, $toCurrency) {
+            $params = [
+                'function' => 'CURRENCY_EXCHANGE_RATE',
+                'from_currency' => $fromCurrency,
+                'to_currency' => $toCurrency,
+                'apikey' => $this->apiKey
+            ];
+            
+            $response = Http::timeout(30)->get($this->baseUrl, $params);
+            
+            if ($response->successful()) {
+                $data = $response->json();
+                
+                if (isset($data['Error Message']) || isset($data['Note'])) {
+                    throw new \Exception($data['Error Message'] ?? $data['Note'] ?? 'API Error');
+                }
+                
+                return $data;
+            }
+            
+            throw new \Exception('AlphaVantage crypto exchange rate request failed');
+        });
+    }
 }

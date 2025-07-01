@@ -247,7 +247,7 @@ const MobileWallet = () => {
                 </>
               ) : (
                 <>
-                  {totalChange >= 0 ? '+' : ''}{currency.symbol}{Math.abs(currency.change).toFixed(2)}
+                  {totalChange >= 0 ? '+' : '-'}{currency.symbol}{Math.abs(currency.change).toFixed(2)}
                   <span className="change-percent">({formatPercentage(changePercent).replace('%', '')}%)</span>
                 </>
               )}
@@ -328,7 +328,7 @@ const MobileWallet = () => {
                     <div className="value-info">
                       <div className="current-value">{formatPrice(coin.value)}</div>
                       <div className={`value-change ${coin.value > coin.previousValue ? 'positive' : 'negative'}`}>
-                        {coin.value > coin.previousValue ? '+' : ''}${Math.abs(coin.value - coin.previousValue).toFixed(2)}
+                        {coin.value > coin.previousValue ? '+' : '-'}${Math.abs(coin.value - coin.previousValue).toFixed(2)}
                       </div>
                     </div>
                   </div>

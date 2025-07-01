@@ -9,6 +9,8 @@ use App\Services\AlternativeService;
 use App\Services\FinnhubService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Http;
 
 class IndicatorController extends Controller
 {
@@ -284,6 +286,9 @@ class IndicatorController extends Controller
                 throw new \Exception('No events returned from API');
             }
             
+            // Process events to add flag URLs
+            $events = $this->processEventsWithFlags($events);
+            
             return response()->json([
                 'events' => $events,
                 'count' => count($events),
@@ -373,6 +378,9 @@ class IndicatorController extends Controller
                     'country' => 'US'
                 ]
             ];
+            
+            // Process sample events to add flag URLs
+            $sampleEvents = $this->processEventsWithFlags($sampleEvents);
             
             return response()->json([
                 'events' => $sampleEvents,
@@ -505,5 +513,63 @@ class IndicatorController extends Controller
         
         // Return in Alpha Vantage format
         return ['Technical Analysis: RSI' => array_slice($rsiValues, -30, null, true)];
+    }
+    
+    /**
+     * Process events to add cached flag URLs
+     */
+    private function processEventsWithFlags($events)
+    {
+        $countryMap = [
+            'US' => 'US',
+            'EU' => 'DE', // Use German flag for EU
+            'GB' => 'GB',
+            'UK' => 'GB',
+            'JP' => 'JP',
+            'CN' => 'CN',
+            'CA' => 'CA',
+            'AU' => 'AU'
+        ];
+        
+        foreach ($events as &$event) {
+            if (isset($event['country'])) {
+                $isoCode = $countryMap[$event['country']] ?? 'UN';
+                $event['flagUrl'] = $this->getFlagUrl($isoCode);
+            }
+        }
+        
+        return $events;
+    }
+    
+    /**
+     * Get cached flag URL or download and cache it
+     */
+    private function getFlagUrl($isoCode)
+    {
+        $flagPath = "flags/{$isoCode}.png";
+        $publicPath = "images/flags/{$isoCode}.png";
+        
+        // Check if flag exists in storage
+        if (!Storage::disk('public')->exists($flagPath)) {
+            try {
+                // Download flag from flagsapi.com
+                $response = Http::get("https://flagsapi.com/{$isoCode}/flat/32.png");
+                
+                if ($response->successful()) {
+                    // Save to storage
+                    Storage::disk('public')->put($flagPath, $response->body());
+                } else {
+                    // Return fallback if download fails
+                    return asset($publicPath);
+                }
+            } catch (\Exception $e) {
+                Log::error('Failed to download flag', ['iso' => $isoCode, 'error' => $e->getMessage()]);
+                // Return direct URL as fallback
+                return "https://flagsapi.com/{$isoCode}/flat/32.png";
+            }
+        }
+        
+        // Return the cached flag URL
+        return asset("storage/{$flagPath}");
     }
 }

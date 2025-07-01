@@ -157,6 +157,19 @@ class CacheService
     }
     
     /**
+     * Get stale cached data (regardless of age)
+     */
+    public function getStale(string $key)
+    {
+        $cachedData = $this->getCachedWithMetadata($key);
+        if ($cachedData) {
+            Log::info("Returning stale cache for {$key}", ['age' => $cachedData['age']]);
+            return $cachedData['data'];
+        }
+        return null;
+    }
+    
+    /**
      * Remember historical data with intelligent gap filling
      * 
      * @param string $key Cache key
