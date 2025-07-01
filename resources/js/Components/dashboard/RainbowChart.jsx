@@ -8,7 +8,7 @@ import Tooltip from '../common/Tooltip';
 import TimeAgo from '../common/TimeAgo';
 
 const RainbowChart = () => {
-  const [timeRange, setTimeRange] = useState('max');
+  const [timeRange, setTimeRange] = useState('365');
   const { data: rawData, loading, error, lastFetch } = useApi(`/api/crypto/rainbow-chart?days=${timeRange}`, 300000); // 5 minutes cache
 
 

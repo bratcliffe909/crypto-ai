@@ -6,6 +6,7 @@ import MobileWallet from '../wallet/MobileWallet';
 import MobileTrendingCoins from '../trending/MobileTrendingCoins';
 import MobileCalendar from '../calendar/MobileCalendar';
 import MobileNews from '../news/MobileNews';
+import MobileAnalysis from '../analysis/MobileAnalysis';
 
 const MobileLayout = ({ theme, toggleTheme }) => {
   const [activeSection, setActiveSection] = useState('market');
@@ -22,6 +23,8 @@ const MobileLayout = ({ theme, toggleTheme }) => {
         return <MobileCalendar />;
       case 'news':
         return <MobileNews />;
+      case 'analysis':
+        return <MobileAnalysis />;
       default:
         return (
           <div className="p-4">
