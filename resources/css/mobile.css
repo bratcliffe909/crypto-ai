@@ -1,0 +1,219 @@
+/* Mobile App Container */
+.mobile-app {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bs-body-bg);
+  overflow: hidden;
+}
+
+/* Mobile Header */
+.mobile-header {
+  background: var(--bs-body-bg);
+  border-bottom: 1px solid var(--bs-border-color);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+}
+
+/* Mobile Content Area */
+.mobile-content {
+  flex: 1;
+  margin-top: 50px; /* Height of header */
+  margin-bottom: 56px; /* Height of bottom nav */
+  position: relative;
+  overflow: hidden;
+}
+
+/* Swipeable Section */
+.swipe-section {
+  height: 100%;
+  width: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Mobile Section Base */
+.mobile-section {
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Bottom Navigation */
+.bottom-navigation {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  background: var(--bs-body-bg);
+  border-top: 1px solid var(--bs-border-color);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  z-index: 1000;
+}
+
+.nav-item {
+  flex: 1;
+  height: 100%;
+  border: none;
+  background: none;
+  color: var(--bs-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: color 0.2s;
+  cursor: pointer;
+  padding: 0;
+}
+
+.nav-item:active {
+  transform: scale(0.95);
+}
+
+.nav-item.active {
+  color: var(--bs-primary);
+  position: relative;
+}
+
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 20%;
+  right: 20%;
+  height: 2px;
+  background: var(--bs-primary);
+}
+
+.nav-label {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* Mobile Analysis Specific */
+.mobile-analysis {
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-analysis-header {
+  background: var(--bs-body-bg);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.mobile-chart-container {
+  flex: 1;
+  padding: 0;
+}
+
+/* Adjust card components for mobile */
+.mobile-section .card {
+  border-radius: 0;
+  margin-bottom: 0;
+  border-left: 0;
+  border-right: 0;
+}
+
+.mobile-section .card:first-child {
+  border-top: 0;
+}
+
+/* Adjust table for mobile */
+.mobile-section .table-responsive {
+  border: 0;
+}
+
+/* Adjust padding for mobile */
+.mobile-section .card-body {
+  padding: 12px;
+}
+
+.mobile-section .card-header {
+  padding: 12px;
+}
+
+/* Full Screen Loading */
+.loading-spinner.fullScreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bs-body-bg);
+  z-index: 9999;
+}
+
+/* Landscape adjustments */
+@media (orientation: landscape) and (max-height: 600px) {
+  .mobile-header {
+    padding: 4px 0;
+  }
+  
+  .mobile-content {
+    margin-top: 40px;
+    margin-bottom: 48px;
+  }
+  
+  .bottom-navigation {
+    height: 48px;
+  }
+  
+  .nav-label {
+    font-size: 10px;
+  }
+}
+
+/* Dark mode specific adjustments */
+[data-bs-theme="dark"] .bottom-navigation {
+  background: var(--bs-dark);
+  border-top-color: var(--bs-gray-800);
+}
+
+[data-bs-theme="dark"] .mobile-header {
+  background: var(--bs-dark);
+  border-bottom-color: var(--bs-gray-800);
+}
+
+/* Touch feedback */
+@media (hover: none) {
+  .nav-item:active {
+    background-color: rgba(var(--bs-primary-rgb), 0.1);
+  }
+}
+
+/* Prevent horizontal scroll */
+.mobile-app,
+.mobile-content,
+.swipe-section {
+  overflow-x: hidden;
+}
+
+/* Ensure swipeable views fill container */
+.react-swipeable-view-container {
+  height: 100%;
+}
+
+/* Import component-specific mobile styles */
+@import './mobile-market.css';
+@import './mobile-news.css';
+@import './mobile-calendar.css';
+@import './mobile-trending.css';
+@import './mobile-analysis.css';
+@import './mobile-wallet.css';

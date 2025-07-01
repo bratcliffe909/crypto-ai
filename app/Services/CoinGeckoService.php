@@ -25,7 +25,10 @@ class CoinGeckoService
     {
         $cacheKey = "coingecko_markets_{$vsCurrency}_{$perPage}" . ($ids ? "_{$ids}" : "");
         
-        return $this->cacheService->remember($cacheKey, 60, function () use ($vsCurrency, $ids, $perPage) {
+        // Use longer cache for wallet coins (5 minutes instead of 1)
+        $cacheDuration = $ids ? 300 : 60;
+        
+        return $this->cacheService->remember($cacheKey, $cacheDuration, function () use ($vsCurrency, $ids, $perPage) {
             $params = [
                 'vs_currency' => $vsCurrency,
                 'order' => 'market_cap_desc',
@@ -42,13 +45,31 @@ class CoinGeckoService
             $response = Http::timeout(30)->get("{$this->baseUrl}/coins/markets", $params);
 
             if ($response->successful()) {
-                return $response->json();
+                $data = $response->json();
+                
+                // Cache each coin individually for future use
+                if ($ids && is_array($data)) {
+                    foreach ($data as $coin) {
+                        $this->cacheIndividualCoin($coin);
+                    }
+                }
+                
+                return $data;
             }
 
             Log::error('CoinGecko API error', [
                 'status' => $response->status(),
                 'body' => $response->body()
             ]);
+
+            // If rate limited and we have specific IDs, try to build from individual caches
+            if ($response->status() === 429 && $ids) {
+                Log::warning('CoinGecko rate limit hit, building from individual caches');
+                $data = $this->buildFromIndividualCaches($ids);
+                if (!empty($data)) {
+                    return $data;
+                }
+            }
 
             throw new \Exception('CoinGecko API failed');
         });
@@ -61,7 +82,7 @@ class CoinGeckoService
     {
         $cacheKey = "price_{$ids}_{$vsCurrencies}";
         
-        return $this->cacheService->remember($cacheKey, 60, function () use ($ids, $vsCurrencies) {
+        return $this->cacheService->remember($cacheKey, 60, function () use ($ids, $vsCurrencies, $cacheKey) {
             $response = Http::timeout(30)->get("{$this->baseUrl}/simple/price", [
                 'ids' => $ids,
                 'vs_currencies' => $vsCurrencies,
@@ -70,6 +91,15 @@ class CoinGeckoService
 
             if ($response->successful()) {
                 return $response->json();
+            }
+
+            // If rate limited, try to return cached data
+            if ($response->status() === 429) {
+                Log::warning('CoinGecko rate limit hit for prices, using extended cache');
+                $cachedData = $this->cacheService->getStale($cacheKey);
+                if ($cachedData !== null) {
+                    return $cachedData;
+                }
             }
 
             throw new \Exception('CoinGecko price API failed');
@@ -264,5 +294,162 @@ class CoinGeckoService
 
             throw new \Exception('CoinGecko historical chart API failed');
         }, 'date');
+    }
+    
+    /**
+     * Cache individual coin data
+     */
+    private function cacheIndividualCoin($coinData)
+    {
+        if (!isset($coinData['id'])) {
+            return;
+        }
+        
+        $cacheKey = "coin_data_{$coinData['id']}";
+        $metaKey = $cacheKey . '_meta';
+        
+        // Cache for 5 minutes
+        \Cache::put($cacheKey, $coinData, 300);
+        \Cache::put($metaKey, [
+            'timestamp' => now()->toIso8601String(),
+            'source' => 'coingecko'
+        ], 300);
+        
+        Log::debug("Cached individual coin data", ['coin' => $coinData['id']]);
+    }
+    
+    /**
+     * Build market data from individual coin caches
+     */
+    private function buildFromIndividualCaches($ids)
+    {
+        $idArray = explode(',', $ids);
+        $result = [];
+        $missingCoins = [];
+        
+        foreach ($idArray as $coinId) {
+            $coinId = trim($coinId);
+            $cacheKey = "coin_data_{$coinId}";
+            $cachedCoin = \Cache::get($cacheKey);
+            
+            if ($cachedCoin) {
+                $result[] = $cachedCoin;
+                Log::debug("Retrieved coin from individual cache", ['coin' => $coinId]);
+            } else {
+                $missingCoins[] = $coinId;
+            }
+        }
+        
+        // If we have some missing coins, try alternative sources
+        if (!empty($missingCoins)) {
+            Log::info("Missing coins from cache", ['coins' => $missingCoins]);
+            
+            // Try to get missing coins from AlphaVantage for major cryptos
+            $alphaVantageCoins = $this->tryAlphaVantageForCoins($missingCoins);
+            if (!empty($alphaVantageCoins)) {
+                $result = array_merge($result, $alphaVantageCoins);
+            }
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Try to get coin data from AlphaVantage for major cryptocurrencies
+     */
+    private function tryAlphaVantageForCoins($coinIds)
+    {
+        $result = [];
+        
+        // Mapping of CoinGecko IDs to AlphaVantage symbols
+        $supportedCoins = [
+            'bitcoin' => ['symbol' => 'BTC', 'name' => 'Bitcoin'],
+            'ethereum' => ['symbol' => 'ETH', 'name' => 'Ethereum'],
+            'litecoin' => ['symbol' => 'LTC', 'name' => 'Litecoin'],
+            'ripple' => ['symbol' => 'XRP', 'name' => 'XRP'],
+            'bitcoin-cash' => ['symbol' => 'BCH', 'name' => 'Bitcoin Cash']
+        ];
+        
+        $alphaVantage = app(\App\Services\AlphaVantageService::class);
+        
+        foreach ($coinIds as $coinId) {
+            if (isset($supportedCoins[$coinId])) {
+                try {
+                    $symbol = $supportedCoins[$coinId]['symbol'];
+                    $exchangeRate = $alphaVantage->getCryptoExchangeRate($symbol, 'USD');
+                    
+                    if ($exchangeRate && isset($exchangeRate['data'])) {
+                        // Convert AlphaVantage format to CoinGecko format
+                        $coinData = $this->convertAlphaVantageToCoinGecko($coinId, $supportedCoins[$coinId], $exchangeRate['data']);
+                        if ($coinData) {
+                            $result[] = $coinData;
+                            // Cache this data for future use
+                            $this->cacheIndividualCoin($coinData);
+                        }
+                    }
+                } catch (\Exception $e) {
+                    Log::warning("Failed to get {$coinId} from AlphaVantage", ['error' => $e->getMessage()]);
+                }
+            }
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Convert AlphaVantage data to CoinGecko format
+     */
+    private function convertAlphaVantageToCoinGecko($coinId, $coinInfo, $alphaData)
+    {
+        if (!isset($alphaData['Realtime Currency Exchange Rate'])) {
+            return null;
+        }
+        
+        $data = $alphaData['Realtime Currency Exchange Rate'];
+        $price = floatval($data['5. Exchange Rate'] ?? 0);
+        
+        if ($price <= 0) {
+            return null;
+        }
+        
+        // Build CoinGecko-compatible structure with available data
+        return [
+            'id' => $coinId,
+            'symbol' => strtolower($coinInfo['symbol']),
+            'name' => $coinInfo['name'],
+            'image' => $this->getCoinImage($coinId),
+            'current_price' => $price,
+            'market_cap' => null, // Not available from AlphaVantage
+            'market_cap_rank' => null,
+            'fully_diluted_valuation' => null,
+            'total_volume' => null,
+            'high_24h' => null,
+            'low_24h' => null,
+            'price_change_24h' => null,
+            'price_change_percentage_24h' => 0, // Default to 0 if not available
+            'price_change_percentage_7d' => 0,
+            'price_change_percentage_30d' => 0,
+            'price_change_percentage_90d' => 0,
+            'circulating_supply' => null,
+            'total_supply' => null,
+            'max_supply' => null,
+            'last_updated' => $data['6. Last Refreshed'] ?? now()->toIso8601String()
+        ];
+    }
+    
+    /**
+     * Get coin image URL
+     */
+    private function getCoinImage($coinId)
+    {
+        $images = [
+            'bitcoin' => 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png',
+            'ethereum' => 'https://assets.coingecko.com/coins/images/279/large/ethereum.png',
+            'litecoin' => 'https://assets.coingecko.com/coins/images/2/large/litecoin.png',
+            'ripple' => 'https://assets.coingecko.com/coins/images/44/large/xrp-symbol-white-128.png',
+            'bitcoin-cash' => 'https://assets.coingecko.com/coins/images/780/large/bitcoin-cash-circle.png'
+        ];
+        
+        return $images[$coinId] ?? 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png';
     }
 }

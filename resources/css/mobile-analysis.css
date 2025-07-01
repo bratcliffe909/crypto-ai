@@ -1,0 +1,361 @@
+/* Mobile Analysis Styles */
+.mobile-analysis {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bs-body-bg);
+}
+
+/* Analysis Header */
+.analysis-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--bs-border-color);
+  background: var(--bs-body-bg);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.analysis-header h5 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Chart Menu */
+.chart-menu {
+  display: flex;
+  overflow-x: auto;
+  padding: 8px 12px;
+  background: var(--bs-gray-100);
+  border-bottom: 1px solid var(--bs-border-color);
+  gap: 8px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  margin-bottom: 12px;
+}
+
+.chart-menu::-webkit-scrollbar {
+  display: none;
+}
+
+[data-bs-theme="dark"] .chart-menu {
+  background: var(--bs-gray-800);
+}
+
+.chart-menu-item {
+  background: none;
+  border: 1px solid var(--bs-gray-300);
+  color: var(--bs-body-color);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+[data-bs-theme="dark"] .chart-menu-item {
+  border-color: var(--bs-gray-700);
+}
+
+.chart-menu-item:hover {
+  background: var(--bs-gray-200);
+  border-color: var(--bs-primary);
+}
+
+[data-bs-theme="dark"] .chart-menu-item:hover {
+  background: var(--bs-gray-700);
+}
+
+.chart-menu-item.active {
+  background: var(--bs-primary) !important;
+  color: white !important;
+  border-color: var(--bs-primary) !important;
+}
+
+.chart-menu-item.active:hover {
+  background: var(--bs-primary) !important;
+  opacity: 0.9;
+}
+
+.chart-menu-item svg {
+  flex-shrink: 0;
+}
+
+.chart-menu-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Mobile Chart Container */
+.mobile-chart-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-height: 400px;
+  height: calc(100vh - 200px); /* Account for header, menu, and bottom nav */
+}
+
+.chart-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bs-body-bg);
+}
+
+.chart-wrapper {
+  height: 100%;
+  padding: 0;
+  padding-top: 20px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Remove margins and borders from chart cards for mobile */
+.chart-wrapper .card {
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  height: 100%;
+}
+
+.chart-wrapper .card-body {
+  padding: 8px !important;
+  height: 100%;
+}
+
+.chart-wrapper .card-header {
+  display: none !important;
+}
+
+/* Ensure charts fill available space */
+.chart-wrapper canvas,
+.chart-wrapper .recharts-wrapper {
+  max-width: 100% !important;
+  height: auto !important;
+}
+
+/* Chart List */
+.chart-list {
+  background: var(--bs-body-bg);
+  border-top: 1px solid var(--bs-border-color);
+  padding: 8px;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.chart-list::-webkit-scrollbar {
+  display: none;
+}
+
+.chart-item {
+  flex-shrink: 0;
+  background: var(--bs-gray-100);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+[data-bs-theme="dark"] .chart-item {
+  background: var(--bs-gray-800);
+}
+
+.chart-item:hover {
+  background: var(--bs-gray-200);
+}
+
+[data-bs-theme="dark"] .chart-item:hover {
+  background: var(--bs-gray-700);
+}
+
+.chart-item:active {
+  transform: scale(0.98);
+}
+
+.chart-item.active {
+  background: var(--bs-primary);
+  color: white;
+  border-color: var(--bs-primary);
+}
+
+.chart-number {
+  width: 20px;
+  height: 20px;
+  background: var(--bs-gray-300);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+[data-bs-theme="dark"] .chart-number {
+  background: var(--bs-gray-600);
+}
+
+.chart-item.active .chart-number {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.chart-name {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 375px) {
+  .analysis-header h5 {
+    font-size: 16px;
+  }
+  
+  .chart-title {
+    font-size: 14px;
+  }
+  
+  .chart-item {
+    padding: 6px 10px;
+  }
+  
+  .chart-name {
+    font-size: 12px;
+  }
+}
+
+/* Landscape Mode */
+@media (orientation: landscape) and (max-height: 600px) {
+  .analysis-header {
+    padding: 12px 16px;
+  }
+  
+  .chart-navigation {
+    padding: 8px 16px;
+  }
+  
+  .mobile-chart-container {
+    min-height: 200px;
+  }
+}
+
+/* Chart-specific mobile optimizations */
+.mobile-analysis .fear-greed-container {
+  padding: 8px !important;
+}
+
+.mobile-analysis .market-breadth-charts {
+  padding: 12px 20px !important;
+}
+
+/* Hide sentiment score and badge in mobile Market Breadth */
+.mobile-analysis .card-body > div:first-child h2,
+.mobile-analysis .card-body > div:first-child .badge {
+  display: none !important;
+}
+
+/* Bull Market Band specific */
+.mobile-analysis .bull-market-band-chart {
+  height: 380px !important;
+  padding-right: 20px !important;
+}
+
+/* Rainbow Chart specific */
+.mobile-analysis .rainbow-chart-container {
+  height: 350px !important;
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+}
+
+/* Pi Cycle Top specific */
+.mobile-analysis .pi-cycle-chart {
+  height: 350px !important;
+}
+
+/* Fear & Greed specific optimizations */
+.mobile-analysis .speedometer-container {
+  transform: scale(1.1);
+  transform-origin: center center;
+  margin: 20px auto;
+}
+
+.mobile-analysis .fear-greed-description {
+  font-size: 14px !important;
+  padding: 0 16px !important;
+  text-align: center;
+}
+
+/* Hide unnecessary elements on mobile */
+.mobile-analysis .tooltip-component,
+.mobile-analysis .info-icon {
+  display: none !important;
+}
+
+/* Simplify text elements */
+.mobile-analysis .chart-title {
+  font-size: 14px !important;
+  margin-bottom: 4px !important;
+}
+
+/* Optimize axis labels */
+.mobile-analysis .react-financial-charts text {
+  font-size: 10px !important;
+}
+
+/* React Financial Charts specific */
+.mobile-analysis .react-financial-charts {
+  height: 350px !important;
+}
+
+/* Remove margins and borders from chart cards for mobile */
+.chart-wrapper .card {
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  height: 100%;
+  background: transparent !important;
+}
+
+.chart-wrapper .card-body {
+  padding: 4px !important;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-wrapper .card-header {
+  display: none !important;
+}
+
+/* Ensure charts fill available space */
+.chart-wrapper canvas {
+  max-width: 100% !important;
+}
+
+.chart-wrapper .recharts-wrapper {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Ensure touch scrolling works properly */
+.mobile-analysis .table-responsive {
+  -webkit-overflow-scrolling: touch;
+}

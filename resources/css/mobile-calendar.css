@@ -1,0 +1,257 @@
+/* Mobile Economic Calendar - Modern Dark Theme */
+.mobile-economic-calendar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bs-dark);
+}
+
+/* Calendar Header */
+.calendar-header {
+  padding: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bs-dark);
+}
+
+.calendar-header h5 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Calendar Content */
+.calendar-content {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #0a0a0a;
+}
+
+/* Date Groups */
+.date-group {
+  margin-bottom: 16px;
+}
+
+.date-divider {
+  padding: 6px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.date-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.date-info > div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.date-label {
+  font-weight: 600;
+  font-size: 14px;
+  color: #ffffff;
+}
+
+.date-full {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
+}
+
+.days-from-now {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 400;
+}
+
+/* Events List */
+.events-list {
+  padding: 8px 16px;
+}
+
+/* Event Card - Minimal Design */
+.event-card {
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.event-card:active .event-content {
+  transform: scale(0.98);
+}
+
+.event-card.expanded .event-content {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Event Content */
+.event-content {
+  padding: 8px 0;
+  transition: transform 0.1s ease;
+}
+
+.event-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.event-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #ffffff;
+  margin: 0;
+  line-height: 1.3;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.event-country-flag {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+.country-flag-icon {
+  display: block;
+}
+
+/* Impact Pills - Clean, Modern Design */
+.impact-pill {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.impact-pill.impact-high {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.impact-pill.impact-medium {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.impact-pill.impact-low {
+  background: rgba(156, 163, 175, 0.2);
+  color: #9ca3af;
+  border: 1px solid rgba(156, 163, 175, 0.3);
+}
+
+
+/* Expanded State */
+.event-expanded {
+  padding: 8px 0 12px 24px;
+  animation: slideDown 0.2s ease-out;
+}
+
+.event-description {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 8px;
+}
+
+.event-values {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 12px;
+}
+
+.value-item {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 8px;
+  border-radius: 8px;
+}
+
+.value-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.value-data {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.value-data.actual {
+  color: var(--bs-primary);
+}
+
+/* Empty State */
+.empty-calendar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  color: rgba(255, 255, 255, 0.5);
+  text-align: center;
+}
+
+/* Animations */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Scrollbar */
+.calendar-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.calendar-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.calendar-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+/* Remove duplicate information */
+.event-flag {
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* Ensure dark theme consistency */
+[data-bs-theme="dark"] .mobile-economic-calendar {
+  background: #0a0a0a;
+}
+
+[data-bs-theme="dark"] .calendar-header {
+  background: #0a0a0a;
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
