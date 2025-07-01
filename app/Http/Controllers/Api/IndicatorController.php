@@ -391,6 +391,11 @@ class IndicatorController extends Controller
     public function newsFeed(Request $request)
     {
         try {
+            // Get pagination parameters
+            $page = $request->get('page', 1);
+            $perPage = $request->get('per_page', 20);
+            $offset = ($page - 1) * $perPage;
+            
             // Get news from Finnhub (AlphaVantage often rate limited)
             $finnhubResult = $this->finnhub->getMarketNews('crypto');
             
@@ -417,12 +422,17 @@ class IndicatorController extends Controller
                 return $bTime - $aTime;
             });
             
-            // Limit to 20 articles
-            $uniqueNews = array_slice($normalizedNews, 0, 20);
+            // Apply pagination
+            $totalArticles = count($normalizedNews);
+            $paginatedNews = array_slice($normalizedNews, $offset, $perPage);
             
             return response()->json([
-                'articles' => $uniqueNews,
-                'count' => count($uniqueNews),
+                'articles' => $paginatedNews,
+                'count' => count($paginatedNews),
+                'total' => $totalArticles,
+                'page' => $page,
+                'per_page' => $perPage,
+                'has_more' => ($offset + $perPage) < $totalArticles,
                 'lastUpdated' => now()->toIso8601String()
             ])
             ->header('X-Cache-Age', $finnhubResult['metadata']['cacheAge'] ?? 0)

@@ -1,12 +1,12 @@
 import React from 'react';
-import MarketOverview from '../../dashboard/MarketOverview';
-import MarketStats from '../../dashboard/MarketStats';
+import MobileMarketStats from './MobileMarketStats';
+import MobileMarketOverview from './MobileMarketOverview';
 
 const MobileMarket = () => {
   return (
     <div className="mobile-section mobile-market">
-      <MarketStats />
-      <MarketOverview />
+      <MobileMarketStats />
+      <MobileMarketOverview />
     </div>
   );
 };

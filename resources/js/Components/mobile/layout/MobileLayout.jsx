@@ -1,80 +1,48 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
-import SwipeableViews from 'react-swipeable-views';
-import { virtualize } from 'react-swipeable-views-utils';
+import React, { useState } from 'react';
 import BottomNavigation from './BottomNavigation';
-import LoadingSpinner from '../../common/LoadingSpinner';
 import MobileHeader from './MobileHeader';
-
-// Virtualized swipeable views for better performance
-const VirtualizeSwipeableViews = virtualize(SwipeableViews);
-
-// Lazy load mobile sections
-const MobileWallet = lazy(() => import('../wallet/MobileWallet'));
-const MobileMarket = lazy(() => import('../market/MobileMarket'));
-const MobileTrendingCoins = lazy(() => import('../trending/MobileTrendingCoins'));
-const MobileCalendar = lazy(() => import('../calendar/MobileCalendar'));
-const MobileNews = lazy(() => import('../news/MobileNews'));
-const MobileAnalysis = lazy(() => import('../analysis/MobileAnalysis'));
+import MobileMarket from '../market/MobileMarket';
+import MobileWallet from '../wallet/MobileWallet';
+import MobileTrendingCoins from '../trending/MobileTrendingCoins';
+import MobileCalendar from '../calendar/MobileCalendar';
+import MobileNews from '../news/MobileNews';
 
 const MobileLayout = ({ theme, toggleTheme }) => {
-  const sections = ['wallet', 'market', 'trending', 'calendar', 'news', 'analysis'];
-  
-  const [activeIndex, setActiveIndex] = useState(() => {
-    const hash = window.location.hash.slice(1);
-    const index = sections.indexOf(hash);
-    return index >= 0 ? index : 1; // Default to market (index 1)
-  });
+  const [activeSection, setActiveSection] = useState('market');
 
-  useEffect(() => {
-    window.location.hash = sections[activeIndex];
-  }, [activeIndex, sections]);
-
-  const handleChangeIndex = (index) => {
-    setActiveIndex(index);
-  };
-
-  const slideRenderer = ({ index }) => {
-    const sectionComponents = [
-      <MobileWallet />,
-      <MobileMarket />,
-      <MobileTrendingCoins />,
-      <MobileCalendar />,
-      <MobileNews />,
-      <MobileAnalysis />
-    ];
-
-    return (
-      <div className="swipe-section" key={index}>
-        <Suspense fallback={
-          <div className="d-flex justify-content-center align-items-center h-100">
-            <LoadingSpinner />
+  const renderSection = () => {
+    switch (activeSection) {
+      case 'market':
+        return <MobileMarket />;
+      case 'wallet':
+        return <MobileWallet />;
+      case 'trending':
+        return <MobileTrendingCoins />;
+      case 'calendar':
+        return <MobileCalendar />;
+      case 'news':
+        return <MobileNews />;
+      default:
+        return (
+          <div className="p-4">
+            <h2>Section: {activeSection}</h2>
+            <p>This section is not implemented yet.</p>
           </div>
-        }>
-          {sectionComponents[index]}
-        </Suspense>
-      </div>
-    );
+        );
+    }
   };
 
   return (
     <div className="mobile-app">
       <MobileHeader theme={theme} toggleTheme={toggleTheme} />
       
-      <VirtualizeSwipeableViews
-        className="mobile-content"
-        index={activeIndex}
-        onChangeIndex={handleChangeIndex}
-        slideCount={sections.length}
-        slideRenderer={slideRenderer}
-        resistance
-      />
+      <div className="mobile-content">
+        {renderSection()}
+      </div>
       
       <BottomNavigation 
-        activeSection={sections[activeIndex]} 
-        onSectionChange={(section) => {
-          const index = sections.indexOf(section);
-          if (index >= 0) setActiveIndex(index);
-        }} 
+        activeSection={activeSection} 
+        onSectionChange={setActiveSection} 
       />
     </div>
   );

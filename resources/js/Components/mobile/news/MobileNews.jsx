@@ -1,10 +1,10 @@
 import React from 'react';
-import NewsFeed from '../../dashboard/NewsFeed';
+import MobileNewsFeed from './MobileNewsFeed';
 
 const MobileNews = () => {
   return (
     <div className="mobile-section mobile-news">
-      <NewsFeed />
+      <MobileNewsFeed />
     </div>
   );
 };

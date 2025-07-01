@@ -1,10 +1,10 @@
 import React from 'react';
-import EconomicCalendar from '../../dashboard/EconomicCalendar';
+import MobileEconomicCalendar from './MobileEconomicCalendar';
 
 const MobileCalendar = () => {
   return (
     <div className="mobile-section mobile-calendar">
-      <EconomicCalendar />
+      <MobileEconomicCalendar />
     </div>
   );
 };

@@ -1,4 +1,10 @@
 @import './mobile.css';
+@import './mobile-market.css';
+@import './mobile-news.css';
+@import './mobile-calendar.css';
+@import './mobile-trending.css';
+@import './mobile-analysis.css';
+@import './mobile-wallet.css';
 
 /* Dark theme styles */
 [data-bs-theme="dark"] {

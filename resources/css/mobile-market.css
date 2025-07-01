@@ -1,0 +1,261 @@
+/* Mobile Market Overview Styles */
+.mobile-market {
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Mobile Market Stats Container */
+.mobile-market-stats-container {
+  background: var(--bs-body-bg);
+  border-bottom: 1px solid var(--bs-border-color);
+  padding: 12px;
+}
+
+.stats-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 0 4px;
+}
+
+.stats-header h6 {
+  font-weight: 600;
+  color: var(--bs-body-color);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bs-gray-100);
+  border-radius: 10px;
+  padding: 10px;
+  transition: transform 0.2s;
+}
+
+[data-bs-theme="dark"] .stat-card {
+  background: var(--bs-gray-800);
+}
+
+.stat-card:active {
+  transform: scale(0.98);
+}
+
+.stat-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stat-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: var(--bs-secondary);
+  margin-bottom: 2px;
+}
+
+.stat-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--bs-body-color);
+  line-height: 1.2;
+}
+
+/* Make market cap and volume values bigger and white */
+.stat-card:nth-child(1) .stat-value,
+.stat-card:nth-child(2) .stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.stat-change {
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.stat-change.positive {
+  color: var(--bs-success);
+}
+
+.stat-change.negative {
+  color: var(--bs-danger);
+}
+
+.stat-change svg {
+  margin-right: -2px;
+}
+
+.mobile-market-overview {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Search Container */
+.search-container {
+  padding: 12px;
+  border-bottom: 1px solid var(--bs-border-color);
+  background: var(--bs-body-bg);
+}
+
+.search-container .input-group {
+  background: var(--bs-gray-100);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+[data-bs-theme="dark"] .search-container .input-group {
+  background: var(--bs-gray-800);
+}
+
+.search-container .form-control {
+  padding-left: 0;
+}
+
+.search-container .form-control:focus {
+  box-shadow: none;
+}
+
+/* Coin List */
+.coin-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Coin Row */
+.coin-row {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  border-bottom: 1px solid var(--bs-border-color);
+  gap: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.coin-row:active {
+  background-color: var(--bs-gray-100);
+}
+
+[data-bs-theme="dark"] .coin-row:active {
+  background-color: var(--bs-gray-800);
+}
+
+.coin-rank {
+  width: 24px;
+  font-size: 13px;
+  color: var(--bs-secondary);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.coin-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.coin-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.coin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 4px;
+}
+
+.coin-name-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.coin-name {
+  font-weight: 500;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.coin-symbol {
+  font-size: 12px;
+  color: var(--bs-secondary);
+}
+
+.coin-price-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.coin-price {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.coin-change {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.coin-change.positive {
+  color: var(--bs-success);
+}
+
+.coin-change.negative {
+  color: var(--bs-danger);
+}
+
+.coin-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+  color: var(--bs-secondary);
+}
+
+/* Mobile Market Scrollbar */
+.mobile-market::-webkit-scrollbar {
+  width: 4px;
+}
+
+.mobile-market::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.mobile-market::-webkit-scrollbar-thumb {
+  background: var(--bs-gray-400);
+  border-radius: 2px;
+}
+
+[data-bs-theme="dark"] .mobile-market::-webkit-scrollbar-thumb {
+  background: var(--bs-gray-600);
+}

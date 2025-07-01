@@ -1,39 +1,97 @@
-import React, { useState } from 'react';
-import { ButtonGroup, Button } from 'react-bootstrap';
-import BullMarketBand from '../../dashboard/BullMarketBand';
-import RainbowChart from '../../dashboard/RainbowChart';
-import PiCycleTop from '../../dashboard/PiCycleTop';
+import React, { useState, lazy, Suspense } from 'react';
+import { BsGraphUp, BsChevronLeft, BsChevronRight } from 'react-icons/bs';
+import LoadingSpinner from '../../common/LoadingSpinner';
+
+// Lazy load chart components
+const BullMarketBand = lazy(() => import('../../dashboard/BullMarketBand'));
+const RainbowChart = lazy(() => import('../../dashboard/RainbowChart'));
+const PiCycleTop = lazy(() => import('../../dashboard/PiCycleTop'));
+const FearGreedIndex = lazy(() => import('../../dashboard/FearGreedIndex'));
+const MarketBreadth = lazy(() => import('../../dashboard/MarketBreadth'));
 
 const MobileAnalysis = () => {
-  const [activeChart, setActiveChart] = useState('bullmarket');
+  const [activeChartIndex, setActiveChartIndex] = useState(0);
 
   const charts = [
-    { id: 'bullmarket', label: 'Bull Market', component: BullMarketBand },
-    { id: 'rainbow', label: 'Rainbow', component: RainbowChart },
-    { id: 'picycle', label: 'Pi Cycle', component: PiCycleTop }
+    { id: 'bullmarket', label: 'Bull Market Band', component: BullMarketBand },
+    { id: 'rainbow', label: 'Rainbow Chart', component: RainbowChart },
+    { id: 'picycle', label: 'Pi Cycle Top', component: PiCycleTop },
+    { id: 'feargreed', label: 'Fear & Greed', component: FearGreedIndex },
+    { id: 'breadth', label: 'Market Breadth', component: MarketBreadth }
   ];
 
-  const ActiveChartComponent = charts.find(c => c.id === activeChart)?.component;
+  const ActiveChartComponent = charts[activeChartIndex].component;
+
+  const handlePrevChart = () => {
+    setActiveChartIndex((prev) => (prev === 0 ? charts.length - 1 : prev - 1));
+  };
+
+  const handleNextChart = () => {
+    setActiveChartIndex((prev) => (prev === charts.length - 1 ? 0 : prev + 1));
+  };
 
   return (
     <div className="mobile-section mobile-analysis">
-      <div className="mobile-analysis-header p-3 border-bottom">
-        <h5 className="mb-2">Chart Analysis</h5>
-        <ButtonGroup size="sm" className="w-100">
-          {charts.map(chart => (
-            <Button
-              key={chart.id}
-              variant={activeChart === chart.id ? 'primary' : 'outline-secondary'}
-              onClick={() => setActiveChart(chart.id)}
-            >
-              {chart.label}
-            </Button>
-          ))}
-        </ButtonGroup>
+      <div className="analysis-header">
+        <div className="d-flex align-items-center">
+          <h5 className="mb-0">Analysis</h5>
+          <BsGraphUp className="ms-2 text-primary" size={20} />
+        </div>
+      </div>
+
+      <div className="chart-navigation">
+        <button 
+          className="nav-arrow prev"
+          onClick={handlePrevChart}
+          aria-label="Previous chart"
+        >
+          <BsChevronLeft size={20} />
+        </button>
+        
+        <div className="chart-info">
+          <div className="chart-title">{charts[activeChartIndex].label}</div>
+          <div className="chart-indicators">
+            {charts.map((_, index) => (
+              <span
+                key={index}
+                className={`indicator ${index === activeChartIndex ? 'active' : ''}`}
+              />
+            ))}
+          </div>
+        </div>
+        
+        <button 
+          className="nav-arrow next"
+          onClick={handleNextChart}
+          aria-label="Next chart"
+        >
+          <BsChevronRight size={20} />
+        </button>
       </div>
 
       <div className="mobile-chart-container">
-        {ActiveChartComponent && <ActiveChartComponent />}
+        <Suspense fallback={
+          <div className="chart-loading">
+            <LoadingSpinner />
+          </div>
+        }>
+          <div className="chart-wrapper">
+            <ActiveChartComponent />
+          </div>
+        </Suspense>
+      </div>
+
+      <div className="chart-list">
+        {charts.map((chart, index) => (
+          <button
+            key={chart.id}
+            className={`chart-item ${index === activeChartIndex ? 'active' : ''}`}
+            onClick={() => setActiveChartIndex(index)}
+          >
+            <span className="chart-number">{index + 1}</span>
+            <span className="chart-name">{chart.label}</span>
+          </button>
+        ))}
       </div>
     </div>
   );

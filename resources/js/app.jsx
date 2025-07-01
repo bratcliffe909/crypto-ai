@@ -12,10 +12,19 @@ createInertiaApp({
     title: (title) => `${title} - ${appName}`,
     resolve: (name) => resolvePageComponent(`./Pages/${name}.jsx`, import.meta.glob('./Pages/**/*.jsx')),
     setup({ el, App, props }) {
-        const root = createRoot(el);
-        root.render(<App {...props} />);
+        console.log('Inertia setup called with props:', props);
+        try {
+            const root = createRoot(el);
+            root.render(<App {...props} />);
+            console.log('React app rendered successfully');
+        } catch (error) {
+            console.error('Error rendering React app:', error);
+            el.innerHTML = `<div style="color: red; padding: 20px;">Error: ${error.message}</div>`;
+        }
     },
     progress: {
         color: '#4B5563',
     },
+}).catch(error => {
+    console.error('Error creating Inertia app:', error);
 });

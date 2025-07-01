@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePage } from '@inertiajs/react';
 import { Container } from 'react-bootstrap';
 import { useMobileDetection } from '../hooks/useMobileDetection';
@@ -16,9 +16,8 @@ import EconomicCalendar from '../Components/dashboard/EconomicCalendar';
 import NewsFeed from '../Components/dashboard/NewsFeed';
 import MarketStats from '../Components/dashboard/MarketStats';
 import LoadingSpinner from '../Components/common/LoadingSpinner';
-
-// Lazy load mobile layout
-const MobileLayout = lazy(() => import('../Components/mobile/layout/MobileLayout'));
+import MobileLayout from '../Components/mobile/layout/MobileLayout';
+import ErrorBoundary from '../Components/ErrorBoundary';
 
 function Dashboard() {
   const props = usePage().props;
@@ -26,6 +25,16 @@ function Dashboard() {
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('theme') || 'dark';
   });
+
+  // Debug output
+  if (typeof window !== 'undefined') {
+    window.dashboardDebug = {
+      isMobile,
+      isTablet,
+      windowWidth: window.innerWidth,
+      theme
+    };
+  }
 
   useEffect(() => {
     document.documentElement.setAttribute('data-bs-theme', theme);
@@ -39,9 +48,9 @@ function Dashboard() {
   // Show mobile layout for phones and tablets
   if (isMobile || isTablet) {
     return (
-      <Suspense fallback={<LoadingSpinner fullScreen />}>
+      <ErrorBoundary>
         <MobileLayout theme={theme} toggleTheme={toggleTheme} />
-      </Suspense>
+      </ErrorBoundary>
     );
   }
 
