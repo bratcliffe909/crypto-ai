@@ -8,6 +8,7 @@ import {
   BsRainbow
 } from 'react-icons/bs';
 import LoadingSpinner from '../../common/LoadingSpinner';
+import MobileSectionHeader from '../common/MobileSectionHeader';
 
 // Lazy load chart components
 const BullMarketBand = lazy(() => import('../../dashboard/BullMarketBand'));
@@ -31,11 +32,10 @@ const MobileAnalysis = () => {
 
   return (
     <div className="mobile-section mobile-analysis">
-      <div className="analysis-header">
-        <div className="d-flex align-items-center justify-content-between">
-          <h5 className="mb-0">{charts[activeChartIndex].label}</h5>
-        </div>
-      </div>
+      <MobileSectionHeader
+        title="Charts"
+        icon={BsGraphUp}
+      />
 
       <div className="chart-menu">
         {charts.map((chart, index) => {

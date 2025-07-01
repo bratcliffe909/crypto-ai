@@ -5,7 +5,7 @@ const BottomNavigation = ({ activeSection, onSectionChange }) => {
   const sections = [
     { id: 'wallet', label: 'Wallet', icon: BsWallet2 },
     { id: 'market', label: 'Market', icon: BsGridFill },
-    { id: 'trending', label: 'Trend', icon: BsFire },
+    { id: 'trending', label: 'Trending', icon: BsFire },
     { id: 'calendar', label: 'Events', icon: BsCalendar3 },
     { id: 'news', label: 'News', icon: BsNewspaper },
     { id: 'analysis', label: 'Charts', icon: BsGraphUp }

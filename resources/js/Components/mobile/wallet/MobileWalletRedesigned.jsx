@@ -4,14 +4,13 @@ import useLocalStorage from '../../../hooks/useLocalStorage';
 import useApi from '../../../hooks/useApi';
 import LoadingSpinner from '../../common/LoadingSpinner';
 import TimeAgo from '../../common/TimeAgo';
-import MobileSectionHeader from '../common/MobileSectionHeader';
 import AddCoinModal from '../../dashboard/AddCoinModal';
 import EditBalanceModal from '../../dashboard/EditBalanceModal';
 import { formatPrice, formatPercentage } from '../../../utils/formatters';
 import useInterval from '../../../hooks/useInterval';
 import axios from 'axios';
 
-const MobileWallet = () => {
+const MobileWalletRedesigned = () => {
   const [favorites, setFavorites] = useState([]);
   const [portfolio, setPortfolio] = useLocalStorage('portfolio', {});
   const [walletData, setWalletData] = useState([]);
@@ -26,7 +25,6 @@ const MobileWallet = () => {
   const [showAddCoinModal, setShowAddCoinModal] = useState(false);
   const [showEditBalanceModal, setShowEditBalanceModal] = useState(false);
   const [editingCoin, setEditingCoin] = useState(null);
-  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   
   // Load favorites from localStorage
   useEffect(() => {
@@ -122,15 +120,13 @@ const MobileWallet = () => {
             ...coin,
             balance,
             value,
-            previousValue,
-            isLoaded: true
+            previousValue
           };
         });
       
       setWalletData(enrichedData);
       setTotalValue(total);
       setTotalChange(total - totalPrevious);
-      setInitialLoadComplete(true);
       
       if (!response.headers['x-last-updated']) {
         setLastUpdated(new Date());
@@ -138,7 +134,6 @@ const MobileWallet = () => {
     } catch (err) {
       console.error('Wallet fetch error:', err);
       setError('Failed to update wallet');
-      setInitialLoadComplete(true);
     } finally {
       setLoading(false);
     }
@@ -186,35 +181,7 @@ const MobileWallet = () => {
       updateBalance(coin.id, coin.initialBalance);
     }
     
-    // Add placeholder data immediately while waiting for API
-    const placeholderCoin = {
-      id: coin.id,
-      name: coin.name,
-      symbol: coin.symbol,
-      image: coin.thumb || coin.image,
-      current_price: 0,
-      price_change_percentage_24h: 0,
-      balance: coin.initialBalance || 0,
-      value: 0,
-      previousValue: 0,
-      isLoaded: false
-    };
-    
-    // Check if coin already exists in wallet data
-    setWalletData(prevData => {
-      const exists = prevData.find(c => c.id === coin.id);
-      if (exists) {
-        return prevData;
-      }
-      return [...prevData, placeholderCoin];
-    });
-    
     setShowAddCoinModal(false);
-    
-    // Immediately fetch fresh data from API
-    setTimeout(() => {
-      fetchWalletData();
-    }, 100);
   };
 
   const removeFromWallet = (coinId) => {
@@ -272,12 +239,16 @@ const MobileWallet = () => {
   return (
     <div className="mobile-section mobile-wallet">
       <div className="wallet-header">
-        <MobileSectionHeader
-          title="Wallet"
-          icon={BsWallet2}
-          lastUpdated={lastUpdated}
-          error={error}
-        />
+        <div className="header-top">
+          <div className="d-flex align-items-center">
+            <h5 className="mb-0">Wallet</h5>
+            <BsWallet2 className="ms-2 text-primary" size={20} />
+          </div>
+          <div className="d-flex align-items-center gap-2">
+            {lastUpdated && <TimeAgo date={lastUpdated} />}
+            {error && <BsExclamationTriangle className="text-warning" size={16} />}
+          </div>
+        </div>
 
         {totalValue > 0 && (
           <div className="wallet-summary">
@@ -316,68 +287,70 @@ const MobileWallet = () => {
             <LoadingSpinner />
           </div>
         ) : walletData.length > 0 ? (
-          <div className="wallet-table">
-            <div className="table-header">
-              <div className="header-asset">Asset</div>
-              <div className="header-price">Price</div>
-              <div className="header-holdings">Holdings</div>
-            </div>
-            <div className="table-body">
-              {walletData.map(coin => (
-                <div key={coin.id} className="table-row">
-                  <div className="col-asset">
+          <div className="coin-list">
+            {walletData.map(coin => (
+              <div key={coin.id} className="coin-item">
+                <div className="coin-header">
+                  <div className="coin-identity">
                     <img 
                       src={coin.image} 
-                      alt={coin.symbol}
+                      alt={coin.name}
                       className="coin-image"
                       loading="lazy"
                     />
-                    <span className="coin-symbol">{coin.symbol.toUpperCase()}</span>
-                  </div>
-                  
-                  <div className="col-price">
-                    {(!initialLoadComplete || (coin.current_price === 0 && !coin.isLoaded)) ? (
-                      <div className="price-loading">
-                        <div className="spinner-border spinner-border-sm text-primary" role="status">
-                          <span className="visually-hidden">Loading...</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="current-price">{formatPrice(coin.current_price)}</div>
-                        <div className={`price-change ${coin.price_change_percentage_24h >= 0 ? 'positive' : 'negative'}`}>
-                          {formatPercentage(coin.price_change_percentage_24h)}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                  
-                  <div className="col-holdings">
-                    <div className="holdings-value">{formatPrice(coin.value)}</div>
-                    <div className="holdings-amount">
-                      {coin.balance || 0} {coin.symbol.toUpperCase()}
+                    <div className="coin-names">
+                      <div className="coin-name">{coin.name}</div>
+                      <div className="coin-symbol">{coin.symbol.toUpperCase()}</div>
                     </div>
                   </div>
-                  
-                  <div className="col-actions">
+                  <div className="coin-actions">
                     <button
                       className="action-btn edit"
                       onClick={() => openEditBalance(coin)}
                       title="Edit balance"
                     >
-                      <BsPencil size={14} />
+                      <BsPencil size={16} />
                     </button>
                     <button
                       className="action-btn delete"
                       onClick={() => removeFromWallet(coin.id)}
                       title="Remove from wallet"
                     >
-                      <BsTrash size={14} />
+                      <BsTrash size={16} />
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
+                
+                <div className="coin-details">
+                  <div className="detail-group">
+                    <label>Amount</label>
+                    <div className="amount-display">
+                      {coin.balance || 0} {coin.symbol.toUpperCase()}
+                    </div>
+                  </div>
+                  
+                  <div className="detail-group">
+                    <label>Price</label>
+                    <div className="price-info">
+                      <div className="current-price">{formatPrice(coin.current_price)}</div>
+                      <div className={`price-change ${coin.price_change_percentage_24h >= 0 ? 'positive' : 'negative'}`}>
+                        {formatPercentage(coin.price_change_percentage_24h)}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="detail-group">
+                    <label>Value</label>
+                    <div className="value-info">
+                      <div className="current-value">{formatPrice(coin.value)}</div>
+                      <div className={`value-change ${coin.value > coin.previousValue ? 'positive' : 'negative'}`}>
+                        {coin.value > coin.previousValue ? '+' : '-'}${Math.abs(coin.value - coin.previousValue).toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : favorites.length === 0 ? (
           <div className="empty-state">
@@ -419,4 +392,4 @@ const MobileWallet = () => {
   );
 };
 
-export default MobileWallet;
+export default MobileWalletRedesigned;

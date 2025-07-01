@@ -3,6 +3,7 @@ import { BsFire, BsExclamationTriangle } from 'react-icons/bs';
 import useApi from '../../../hooks/useApi';
 import LoadingSpinner from '../../common/LoadingSpinner';
 import TimeAgo from '../../common/TimeAgo';
+import MobileSectionHeader from '../common/MobileSectionHeader';
 import { formatPercentage } from '../../../utils/formatters';
 
 const MobileTrendingCoins = () => {
@@ -11,18 +12,12 @@ const MobileTrendingCoins = () => {
 
   return (
     <div className="mobile-section mobile-trending">
-      <div className="trending-header">
-        <div className="d-flex align-items-center">
-          <h5 className="mb-0">Trending</h5>
-          <BsFire className="ms-2 text-warning" size={20} />
-        </div>
-        <div className="d-flex align-items-center gap-2">
-          {lastFetch && <TimeAgo date={lastFetch} />}
-          {error && (
-            <BsExclamationTriangle className="text-warning" size={16} />
-          )}
-        </div>
-      </div>
+      <MobileSectionHeader
+        title="Trending"
+        icon={BsFire}
+        lastUpdated={lastFetch}
+        error={error}
+      />
 
       <div className="trending-content">
         {loading && !data ? (

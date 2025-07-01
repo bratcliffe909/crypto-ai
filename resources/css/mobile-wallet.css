@@ -1,22 +1,36 @@
-/* Mobile Wallet Styles */
+/* Mobile Wallet Styles - Cleaner Design */
+:root {
+  --wallet-bg: var(--bs-body-bg);
+  --wallet-card-bg: var(--bs-body-bg);
+  --wallet-border: var(--bs-gray-200);
+  --wallet-text-primary: var(--bs-body-color);
+  --wallet-text-secondary: var(--bs-secondary);
+  --wallet-success: #16a34a;
+  --wallet-danger: #dc2626;
+  --wallet-primary: var(--bs-primary);
+}
+
+[data-bs-theme="dark"] {
+  --wallet-border: var(--bs-gray-800);
+  --wallet-card-bg: var(--bs-gray-900);
+}
+
 .mobile-wallet {
   display: flex;
   flex-direction: column;
+  background: var(--wallet-bg);
   height: 100%;
-  background: var(--bs-body-bg);
+  overflow: hidden;
 }
 
 /* Wallet Header */
 .wallet-header {
-  background: var(--bs-body-bg);
-  border-bottom: 1px solid var(--bs-border-color);
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  background: var(--wallet-bg);
+  border-bottom: 1px solid var(--wallet-border);
 }
 
 .header-top {
-  padding: 16px;
+  padding: 12px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -30,29 +44,30 @@
 
 /* Wallet Summary */
 .wallet-summary {
-  padding: 0 16px 16px;
+  padding: 0 12px 12px;
   text-align: center;
 }
 
 .total-value {
   font-size: 28px;
   font-weight: 700;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   letter-spacing: -0.5px;
+  color: var(--wallet-text-primary);
 }
 
 .wallet-summary .value-change {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 500;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .wallet-summary .value-change.positive {
-  color: var(--bs-success);
+  color: var(--wallet-success);
 }
 
 .wallet-summary .value-change.negative {
-  color: var(--bs-danger);
+  color: var(--wallet-danger);
 }
 
 .change-percent {
@@ -68,33 +83,25 @@
 }
 
 .currency-btn {
-  padding: 6px 12px;
-  border: 1px solid var(--bs-border-color);
-  background: var(--bs-gray-100);
-  border-radius: 16px;
-  font-size: 12px;
+  padding: 6px 16px;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 20px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--bs-secondary);
+  color: var(--wallet-text-secondary);
   transition: all 0.2s;
   cursor: pointer;
 }
 
-[data-bs-theme="dark"] .currency-btn {
-  background: var(--bs-gray-800);
-}
-
 .currency-btn:hover {
-  background: var(--bs-gray-200);
-}
-
-[data-bs-theme="dark"] .currency-btn:hover {
-  background: var(--bs-gray-700);
+  color: var(--wallet-text-primary);
 }
 
 .currency-btn.active {
-  background: var(--bs-primary);
+  background: var(--wallet-primary);
   color: white;
-  border-color: var(--bs-primary);
+  box-shadow: 0 2px 8px rgba(var(--bs-primary-rgb), 0.3);
 }
 
 /* Wallet Content */
@@ -102,131 +109,177 @@
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  padding-bottom: 80px; /* Space for fixed footer */
 }
 
-/* Coin List */
-.coin-list {
-  padding: 0;
+/* Wallet Table */
+.wallet-table {
+  width: 100%;
+  min-height: 0; /* Important for flex containers */
 }
 
-/* Coin Item */
-.coin-item {
-  padding: 16px;
-  border-bottom: 1px solid var(--bs-border-color);
+/* Table Header */
+.table-header {
+  display: grid;
+  grid-template-columns: minmax(80px, 1fr) minmax(80px, 1fr) minmax(100px, 1.2fr);
+  padding: 8px 12px;
+  padding-right: 80px; /* Space for action buttons */
+  background: var(--wallet-bg);
+  border-bottom: 1px solid var(--bs-gray-300);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--wallet-text-primary);
+  text-transform: capitalize;
+  letter-spacing: 0;
 }
 
-.coin-header {
-  display: flex;
-  justify-content: space-between;
+[data-bs-theme="dark"] .table-header {
+  border-bottom-color: var(--bs-gray-700);
+}
+
+.header-asset {
+  text-align: left;
+}
+
+.header-price {
+  text-align: right;
+}
+
+.header-holdings {
+  text-align: right;
+}
+
+/* Table Body */
+.table-body {
+  width: 100%;
+}
+
+/* Table Row */
+.table-row {
+  display: grid;
+  grid-template-columns: minmax(80px, 1fr) minmax(80px, 1fr) minmax(100px, 1.2fr) 68px;
+  padding: 12px;
+  border-bottom: 1px solid var(--wallet-border);
   align-items: center;
-  margin-bottom: 12px;
+  transition: background 0.2s;
 }
 
-.coin-identity {
+.table-row:hover {
+  background: var(--bs-gray-50);
+}
+
+[data-bs-theme="dark"] .table-row:hover {
+  background: var(--bs-gray-900);
+}
+
+/* Column Styles */
+.col-asset {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 6px;
 }
 
-.coin-item .coin-image {
-  width: 40px;
-  height: 40px;
+.coin-image {
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
 }
 
-.coin-names {
-  display: flex;
-  flex-direction: column;
-}
-
-.coin-item .coin-name {
-  font-size: 16px;
+.coin-symbol {
+  font-size: 14px;
   font-weight: 600;
-  line-height: 1.2;
+  color: var(--wallet-text-primary);
 }
 
-.coin-item .coin-symbol {
-  font-size: 13px;
-  color: var(--bs-secondary);
-  text-transform: uppercase;
+.col-price {
+  text-align: right;
 }
 
-.remove-btn {
+.price-loading {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  height: 36px;
+}
+
+.current-price {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wallet-text-primary);
+  line-height: 1.3;
+}
+
+.price-change {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.price-change.positive {
+  color: var(--wallet-success);
+}
+
+.price-change.negative {
+  color: var(--wallet-danger);
+}
+
+.col-holdings {
+  text-align: right;
+}
+
+.holdings-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wallet-text-primary);
+  line-height: 1.3;
+}
+
+.holdings-amount {
+  font-size: 12px;
+  color: var(--wallet-text-secondary);
+  line-height: 1.3;
+}
+
+/* Column Actions */
+.col-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  padding-left: 12px;
+}
+
+.action-btn {
   background: none;
   border: none;
-  color: var(--bs-danger);
-  padding: 4px;
+  padding: 6px;
   cursor: pointer;
-  transition: transform 0.2s;
+  transition: all 0.2s;
+  border-radius: 6px;
+  opacity: 0.6;
 }
 
-.remove-btn:active {
+.action-btn:hover {
+  opacity: 1;
+  background: rgba(var(--bs-primary-rgb), 0.1);
+}
+
+.action-btn:active {
   transform: scale(0.9);
 }
 
-/* Coin Details */
-.coin-details {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 12px;
+.action-btn.edit {
+  color: var(--wallet-text-secondary);
 }
 
-.detail-group {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.action-btn.delete {
+  color: var(--wallet-text-secondary);
 }
 
-.detail-group label {
-  font-size: 11px;
-  color: var(--bs-secondary);
-  text-transform: uppercase;
-  font-weight: 600;
+.action-btn.delete:hover {
+  color: var(--wallet-danger);
+  background: rgba(220, 38, 38, 0.1);
 }
 
-.amount-input {
-  width: 100%;
-  padding: 6px 8px;
-  border: 1px solid var(--bs-border-color);
-  border-radius: 6px;
-  background: var(--bs-body-bg);
-  color: var(--bs-body-color);
-  font-size: 14px;
-  text-align: center;
-}
-
-.amount-input:focus {
-  outline: none;
-  border-color: var(--bs-primary);
-}
-
-.price-info,
-.value-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.current-price,
-.current-value {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.price-info .price-change,
-.value-info .value-change {
-  font-size: 12px;
-}
-
-.price-info .price-change.positive,
-.value-info .value-change.positive {
-  color: var(--bs-success);
-}
-
-.price-info .price-change.negative,
-.value-info .value-change.negative {
-  color: var(--bs-danger);
-}
 
 /* Loading Container */
 .loading-container {
@@ -234,7 +287,12 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  padding: 32px;
+  padding: 48px;
+}
+
+.loading-container .spinner-border {
+  color: var(--wallet-primary);
+  opacity: 0.8;
 }
 
 /* Empty State */
@@ -244,52 +302,60 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  padding: 32px;
+  padding: 48px 32px;
   text-align: center;
 }
 
+.empty-state svg {
+  opacity: 0.2;
+}
+
 .empty-title {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 600;
   margin-bottom: 8px;
+  color: var(--wallet-text-primary);
 }
 
 .empty-text {
-  font-size: 14px;
-  color: var(--bs-secondary);
+  font-size: 15px;
+  color: var(--wallet-text-secondary);
   margin: 0;
 }
 
 /* Wallet Footer */
 .wallet-footer {
-  padding: 12px 16px;
-  background: var(--bs-body-bg);
-  border-top: 1px solid var(--bs-border-color);
+  padding: 12px;
+  background: var(--wallet-bg);
+  border-top: 1px solid var(--wallet-border);
   display: flex;
   gap: 12px;
-  position: sticky;
-  bottom: 0;
+  position: fixed;
+  bottom: 56px; /* Height of mobile bottom navigation */
+  left: 0;
+  right: 0;
+  z-index: 10;
 }
+
 
 .add-coin-btn {
   flex: 1;
   padding: 12px;
-  background: var(--bs-primary);
+  background: var(--wallet-primary);
   color: white;
   border: none;
   border-radius: 8px;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .add-coin-btn:hover {
-  background: var(--bs-primary);
   filter: brightness(1.1);
 }
 
@@ -337,42 +403,62 @@
   }
   
   .wallet-summary .value-change {
-    font-size: 14px;
+    font-size: 13px;
   }
   
-  .coin-details {
-    gap: 8px;
+  .table-header {
+    font-size: 11px;
+    padding: 6px 8px;
   }
   
-  .detail-group label {
-    font-size: 10px;
+  .table-row {
+    padding: 10px 8px;
+    grid-template-columns: minmax(70px, 1fr) minmax(70px, 0.9fr) minmax(80px, 1.1fr) 60px;
+  }
+  
+  .coin-image {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .coin-symbol {
+    font-size: 13px;
   }
   
   .current-price,
-  .current-value {
+  .holdings-value {
     font-size: 13px;
+  }
+  
+  .price-change,
+  .holdings-amount {
+    font-size: 11px;
+  }
+  
+  .action-btn {
+    padding: 4px;
   }
 }
 
 /* Landscape Mode */
 @media (orientation: landscape) and (max-height: 600px) {
-  .wallet-header {
-    position: relative;
-  }
-  
   .header-top {
-    padding: 12px 16px;
+    padding: 8px 12px;
   }
   
   .wallet-summary {
-    padding: 0 16px 12px;
+    padding: 0 12px 8px;
   }
   
   .total-value {
     font-size: 24px;
   }
   
-  .coin-item {
-    padding: 12px 16px;
+  .table-header {
+    padding: 6px 12px;
+  }
+  
+  .table-row {
+    padding: 8px 12px;
   }
 }

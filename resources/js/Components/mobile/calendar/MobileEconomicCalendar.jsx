@@ -3,6 +3,7 @@ import { BsCalendar3, BsClock } from 'react-icons/bs';
 import useApi from '../../../hooks/useApi';
 import LoadingSpinner from '../../common/LoadingSpinner';
 import TimeAgo from '../../common/TimeAgo';
+import MobileSectionHeader from '../common/MobileSectionHeader';
 
 const MobileEconomicCalendar = () => {
   const { data, loading, error, lastUpdated } = useApi('/api/crypto/economic-calendar');
@@ -94,13 +95,12 @@ const MobileEconomicCalendar = () => {
   
   return (
     <div className="mobile-economic-calendar">
-      <div className="calendar-header">
-        <h5 className="mb-0 d-flex align-items-center">
-          <BsCalendar3 className="me-2" />
-          Economic Calendar
-        </h5>
-        {lastUpdated && <TimeAgo date={lastUpdated} />}
-      </div>
+      <MobileSectionHeader
+        title="Events"
+        icon={BsCalendar3}
+        lastUpdated={lastUpdated}
+        error={error}
+      />
       
       <div className="calendar-content">
         {Object.entries(groupedEvents).map(([dateLabel, dateGroup]) => {

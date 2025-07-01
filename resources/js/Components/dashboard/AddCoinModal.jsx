@@ -9,6 +9,8 @@ const AddCoinModal = ({ show, onHide, onAddCoin, existingCoins = [] }) => {
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [selectedCoin, setSelectedCoin] = useState(null);
+  const [balance, setBalance] = useState('');
   
   // Debounce search term to avoid too many API calls
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
@@ -55,22 +57,46 @@ const AddCoinModal = ({ show, onHide, onAddCoin, existingCoins = [] }) => {
       setSearchTerm('');
       setSearchResults([]);
       setError(null);
+      setSelectedCoin(null);
+      setBalance('');
     }
   }, [show]);
   
-  const handleAddCoin = (coin) => {
-    onAddCoin(coin);
-    // Clear search after adding
-    setSearchTerm('');
-    setSearchResults([]);
+  const handleSelectCoin = (coin) => {
+    setSelectedCoin(coin);
+  };
+  
+  const handleAddCoin = () => {
+    if (selectedCoin) {
+      const coinWithBalance = {
+        ...selectedCoin,
+        initialBalance: parseFloat(balance) || 0
+      };
+      onAddCoin(coinWithBalance);
+      // Clear everything after adding
+      setSearchTerm('');
+      setSearchResults([]);
+      setSelectedCoin(null);
+      setBalance('');
+    }
+  };
+  
+  const handleBack = () => {
+    setSelectedCoin(null);
+    setBalance('');
   };
   
   return (
     <Modal show={show} onHide={onHide} centered>
       <Modal.Header closeButton>
-        <Modal.Title>Add Coin to Wallet</Modal.Title>
+        <Modal.Title>
+          {selectedCoin ? `Add ${selectedCoin.name} to Wallet` : 'Add Coin to Wallet'}
+        </Modal.Title>
       </Modal.Header>
       <Modal.Body>
+        {!selectedCoin ? (
+          // Search view
+          <>
         <InputGroup className="mb-3">
           <InputGroup.Text>
             <BsSearch />
@@ -104,7 +130,7 @@ const AddCoinModal = ({ show, onHide, onAddCoin, existingCoins = [] }) => {
                 key={coin.id}
                 className="d-flex justify-content-between align-items-center"
                 action
-                onClick={() => handleAddCoin(coin)}
+                onClick={() => handleSelectCoin(coin)}
                 style={{ cursor: 'pointer' }}
               >
                 <div className="d-flex align-items-center">
@@ -127,11 +153,11 @@ const AddCoinModal = ({ show, onHide, onAddCoin, existingCoins = [] }) => {
                   size="sm"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleAddCoin(coin);
+                    handleSelectCoin(coin);
                   }}
                 >
                   <BsPlus size={18} />
-                  Add
+                  Select
                 </Button>
               </ListGroup.Item>
             ))}
@@ -147,6 +173,52 @@ const AddCoinModal = ({ show, onHide, onAddCoin, existingCoins = [] }) => {
         {searchTerm.length < 2 && searchTerm.length > 0 && (
           <div className="text-center text-muted py-3">
             Type at least 2 characters to search
+          </div>
+        )}
+          </>
+        ) : (
+          // Balance input view
+          <div>
+            <div className="d-flex align-items-center mb-3">
+              {selectedCoin.thumb && (
+                <img 
+                  src={selectedCoin.thumb} 
+                  alt={selectedCoin.name}
+                  width="32"
+                  height="32"
+                  className="me-3"
+                />
+              )}
+              <div>
+                <h5 className="mb-0">{selectedCoin.name}</h5>
+                <small className="text-muted">{selectedCoin.symbol?.toUpperCase()}</small>
+              </div>
+            </div>
+            
+            <Form.Group className="mb-3">
+              <Form.Label>Amount you own</Form.Label>
+              <Form.Control
+                type="number"
+                placeholder="0.00"
+                value={balance}
+                onChange={(e) => setBalance(e.target.value)}
+                step="any"
+                min="0"
+                autoFocus
+              />
+              <Form.Text className="text-muted">
+                Enter the amount of {selectedCoin.symbol?.toUpperCase()} you currently own
+              </Form.Text>
+            </Form.Group>
+            
+            <div className="d-flex gap-2">
+              <Button variant="secondary" onClick={handleBack}>
+                Back
+              </Button>
+              <Button variant="primary" onClick={handleAddCoin} className="flex-grow-1">
+                Add to Wallet
+              </Button>
+            </div>
           </div>
         )}
       </Modal.Body>

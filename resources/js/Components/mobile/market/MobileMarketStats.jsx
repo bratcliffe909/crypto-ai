@@ -72,10 +72,6 @@ const MobileMarketStats = () => {
 
   return (
     <div className="mobile-market-stats-container">
-      <div className="stats-header">
-        <h6 className="mb-0">Global Market</h6>
-        {lastFetch && <TimeAgo date={lastFetch} />}
-      </div>
       
       <div className="stats-grid">
         {stats.map((stat, index) => {

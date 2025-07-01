@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
-import { BsClock, BsBoxArrowUpRight } from 'react-icons/bs';
+import { BsClock, BsBoxArrowUpRight, BsNewspaper } from 'react-icons/bs';
 import LoadingSpinner from '../../common/LoadingSpinner';
+import MobileSectionHeader from '../common/MobileSectionHeader';
 import { getTimeAgo } from '../../../utils/timeUtils';
 
 const MobileNewsFeed = () => {
@@ -87,8 +88,10 @@ const MobileNewsFeed = () => {
 
   return (
     <div className="mobile-news-feed">
-      <div className="news-header">
-        <h5 className="mb-0">Crypto News</h5>
+      <MobileSectionHeader
+        title="News"
+        icon={BsNewspaper}
+      >
         <button 
           className="refresh-btn"
           onClick={handleRefresh}
@@ -96,7 +99,7 @@ const MobileNewsFeed = () => {
         >
           {refreshing ? '⟳' : '↻'}
         </button>
-      </div>
+      </MobileSectionHeader>
 
       <div className="news-list">
         {articles.map((article, index) => {

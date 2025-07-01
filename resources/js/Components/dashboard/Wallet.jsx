@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Form, Button, ListGroup, InputGroup, Badge } from 'react-bootstrap';
-import { BsX, BsExclamationTriangle, BsWallet2, BsCurrencyDollar, BsInfoCircleFill, BsPlus } from 'react-icons/bs';
+import { BsX, BsExclamationTriangle, BsWallet2, BsCurrencyDollar, BsInfoCircleFill, BsPlus, BsPencil, BsTrash } from 'react-icons/bs';
 import useLocalStorage from '../../hooks/useLocalStorage';
 import LoadingSpinner from '../common/LoadingSpinner';
 import Tooltip from '../common/Tooltip';
 import TimeAgo from '../common/TimeAgo';
 import AddCoinModal from './AddCoinModal';
+import EditBalanceModal from './EditBalanceModal';
 import { formatPrice, formatPercentage } from '../../utils/formatters';
 import useInterval from '../../hooks/useInterval';
 import axios from 'axios';
@@ -23,6 +24,8 @@ const Wallet = () => {
   const [selectedCurrency, setSelectedCurrency] = useState(0); // 0=USD, 1=GBP, 2=BTC
   const [lastUpdated, setLastUpdated] = useState(null);
   const [showAddCoinModal, setShowAddCoinModal] = useState(false);
+  const [showEditBalanceModal, setShowEditBalanceModal] = useState(false);
+  const [editingCoin, setEditingCoin] = useState(null);
   
   // Load favorites from localStorage
   useEffect(() => {
@@ -200,25 +203,38 @@ const Wallet = () => {
       detail: { favorites: newFavorites } 
     }));
     
+    // If coin has initial balance, set it
+    if (coin.initialBalance > 0) {
+      updateBalance(coin.id, coin.initialBalance);
+    }
+    
     // Close modal
     setShowAddCoinModal(false);
   };
 
   // Remove from wallet
   const removeFromWallet = (coinId) => {
-    const newFavorites = favorites.filter(id => id !== coinId);
-    setFavorites(newFavorites);
-    localStorage.setItem('favorites', JSON.stringify(newFavorites));
-    
-    // Dispatch custom event for same-tab updates
-    window.dispatchEvent(new CustomEvent('favoritesUpdated', { 
-      detail: { favorites: newFavorites } 
-    }));
-    
-    // Also remove from portfolio
-    const newPortfolio = { ...portfolio };
-    delete newPortfolio[coinId];
-    setPortfolio(newPortfolio);
+    if (window.confirm('Are you sure you want to remove this coin from your wallet?')) {
+      const newFavorites = favorites.filter(id => id !== coinId);
+      setFavorites(newFavorites);
+      localStorage.setItem('favorites', JSON.stringify(newFavorites));
+      
+      // Dispatch custom event for same-tab updates
+      window.dispatchEvent(new CustomEvent('favoritesUpdated', { 
+        detail: { favorites: newFavorites } 
+      }));
+      
+      // Also remove from portfolio
+      const newPortfolio = { ...portfolio };
+      delete newPortfolio[coinId];
+      setPortfolio(newPortfolio);
+    }
+  };
+  
+  // Open edit balance modal
+  const openEditBalance = (coin) => {
+    setEditingCoin(coin);
+    setShowEditBalanceModal(true);
   };
 
 
@@ -355,7 +371,7 @@ const Wallet = () => {
             {walletData.map(coin => (
               <ListGroup.Item key={coin.id} className="px-2 py-1">
                 <div className="d-flex justify-content-between align-items-center mb-1">
-                  <div className="d-flex align-items-center">
+                  <div className="d-flex align-items-center flex-grow-1">
                     <img 
                       src={coin.image} 
                       alt={coin.name} 
@@ -363,34 +379,37 @@ const Wallet = () => {
                       height="24" 
                       className="me-2" 
                     />
-                    <div>
+                    <div className="flex-grow-1">
                       <span className="fw-medium small">{coin.name}</span>
                       <span className="text-muted small ms-1">{coin.symbol.toUpperCase()}</span>
                     </div>
                   </div>
-                  <Button
-                    variant="link"
-                    size="sm"
-                    className="p-0 text-muted"
-                    onClick={() => removeFromWallet(coin.id)}
-                  >
-                    <BsX size={18} />
-                  </Button>
+                  <div className="d-flex gap-1">
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="p-1 text-primary"
+                      onClick={() => openEditBalance(coin)}
+                      title="Edit balance"
+                    >
+                      <BsPencil size={14} />
+                    </Button>
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="p-1 text-danger"
+                      onClick={() => removeFromWallet(coin.id)}
+                      title="Remove from wallet"
+                    >
+                      <BsTrash size={14} />
+                    </Button>
+                  </div>
                 </div>
                 <div className="d-flex align-items-center gap-2">
                   <div className="flex-fill">
-                    <InputGroup size="sm">
-                      <Form.Control
-                        type="number"
-                        placeholder="0.00"
-                        value={coin.balance || ''}
-                        onChange={(e) => updateBalance(coin.id, e.target.value)}
-                        step="0.01"
-                        min="0"
-                        className="text-center"
-                        style={{ fontSize: '0.875rem' }}
-                      />
-                    </InputGroup>
+                    <div className="font-monospace small text-center">
+                      {coin.balance || 0} {coin.symbol.toUpperCase()}
+                    </div>
                   </div>
                   <div className="text-center" style={{ minWidth: '90px' }}>
                     <div className="font-monospace small">
@@ -440,6 +459,17 @@ const Wallet = () => {
         onHide={() => setShowAddCoinModal(false)}
         onAddCoin={addCoinToWallet}
         existingCoins={favorites}
+      />
+      
+      <EditBalanceModal
+        show={showEditBalanceModal}
+        onHide={() => {
+          setShowEditBalanceModal(false);
+          setEditingCoin(null);
+        }}
+        coin={editingCoin}
+        currentBalance={editingCoin ? portfolio[editingCoin.id]?.balance || 0 : 0}
+        onSave={updateBalance}
       />
     </Card>
   );

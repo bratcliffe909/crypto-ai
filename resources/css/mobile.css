@@ -210,6 +210,36 @@
   height: 100%;
 }
 
+/* Standardized Mobile Section Header */
+.mobile-section-header {
+  background: var(--bs-body-bg);
+  border-bottom: 1px solid var(--bs-border-color);
+  padding: 12px;
+}
+
+.mobile-section-header .header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mobile-section-header .section-icon {
+  color: var(--bs-body-color);
+  margin-right: 8px;
+}
+
+.mobile-section-header .section-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--bs-body-color);
+}
+
+.mobile-section-header .header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 /* Import component-specific mobile styles */
 @import './mobile-market.css';
 @import './mobile-news.css';
