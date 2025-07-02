@@ -286,7 +286,8 @@ class IndicatorController extends Controller
                 throw new \Exception('No events returned from API');
             }
             
-            // Process events to add flag URLs
+            // Process events to add flag URLs - this needs to happen ALWAYS
+            // whether data comes from cache or fresh API call
             $events = $this->processEventsWithFlags($events);
             
             return response()->json([
@@ -528,12 +529,34 @@ class IndicatorController extends Controller
             'JP' => 'JP',
             'CN' => 'CN',
             'CA' => 'CA',
-            'AU' => 'AU'
+            'AU' => 'AU',
+            'FR' => 'FR',
+            'IT' => 'IT',
+            'ES' => 'ES',
+            'CH' => 'CH',
+            'SE' => 'SE',
+            'NO' => 'NO',
+            'DK' => 'DK',
+            'NZ' => 'NZ',
+            'IN' => 'IN',
+            'BR' => 'BR',
+            'MX' => 'MX',
+            'RU' => 'RU',
+            'KR' => 'KR',
+            'SG' => 'SG',
+            'HK' => 'HK',
+            'TW' => 'TW',
+            'ZA' => 'ZA'
         ];
         
         foreach ($events as &$event) {
+            // Always process flag URL even if it already exists (to ensure consistency)
             if (isset($event['country'])) {
-                $isoCode = $countryMap[$event['country']] ?? 'UN';
+                $isoCode = $countryMap[$event['country']] ?? $event['country'];
+                // Convert to uppercase if it's already an ISO code
+                if (strlen($isoCode) == 2) {
+                    $isoCode = strtoupper($isoCode);
+                }
                 $event['flagUrl'] = $this->getFlagUrl($isoCode);
             }
         }
@@ -546,24 +569,36 @@ class IndicatorController extends Controller
      */
     private function getFlagUrl($isoCode)
     {
+        // Validate ISO code
+        if (!$isoCode || strlen($isoCode) != 2) {
+            $isoCode = 'UN'; // United Nations flag as fallback
+        }
+        
         $flagPath = "flags/{$isoCode}.png";
-        $publicPath = "images/flags/{$isoCode}.png";
+        
+        // Ensure flags directory exists
+        if (!Storage::disk('public')->exists('flags')) {
+            Storage::disk('public')->makeDirectory('flags');
+        }
         
         // Check if flag exists in storage
         if (!Storage::disk('public')->exists($flagPath)) {
             try {
                 // Download flag from flagsapi.com
-                $response = Http::get("https://flagsapi.com/{$isoCode}/flat/32.png");
+                $response = Http::timeout(5)->get("https://flagsapi.com/{$isoCode}/flat/32.png");
                 
                 if ($response->successful()) {
                     // Save to storage
                     Storage::disk('public')->put($flagPath, $response->body());
+                    Log::info("Downloaded flag for {$isoCode}");
                 } else {
-                    // Return fallback if download fails
-                    return asset($publicPath);
+                    // Log the issue but don't fail
+                    Log::warning("Failed to download flag for {$isoCode}, status: " . $response->status());
+                    // Return direct URL as fallback
+                    return "https://flagsapi.com/{$isoCode}/flat/32.png";
                 }
             } catch (\Exception $e) {
-                Log::error('Failed to download flag', ['iso' => $isoCode, 'error' => $e->getMessage()]);
+                Log::warning("Failed to download flag for {$isoCode}", ['error' => $e->getMessage()]);
                 // Return direct URL as fallback
                 return "https://flagsapi.com/{$isoCode}/flat/32.png";
             }

@@ -5,6 +5,7 @@
 @import './mobile-trending.css';
 @import './mobile-analysis.css';
 @import './mobile-wallet.css';
+@import './mobile-altcoin-season.css';
 
 /* Dark theme styles */
 [data-bs-theme="dark"] {

@@ -1,0 +1,85 @@
+/* Mobile Altcoin Season Styles */
+/* Ensure proper margins and display on mobile screens */
+
+/* Add horizontal padding to the scale container on mobile */
+@media (max-width: 768px) {
+  .mobile-analysis .card-body {
+    padding: 1rem 1.5rem !important;
+  }
+
+  /* Ensure the scale bar has proper margins */
+  .mobile-analysis .position-relative[style*="height: 10px"] {
+    margin: 0 15px;
+  }
+
+  /* Adjust the numerical label position to account for margins */
+  .mobile-analysis .position-absolute[style*="transform: translateX(-50%)"] {
+    /* Ensure pointer stays within bounds */
+    min-left: 15px;
+    max-left: calc(100% - 15px);
+  }
+
+  /* Scale labels spacing */
+  .mobile-analysis .d-flex.justify-content-between {
+    padding: 0 15px;
+  }
+
+  /* Ensure badge is visible and properly sized */
+  .mobile-analysis .badge {
+    font-size: 0.875rem !important;
+    padding: 0.25rem 0.5rem !important;
+  }
+
+  /* Zone labels proper alignment */
+  .mobile-analysis small.fw-bold {
+    font-size: 10px !important;
+  }
+
+  /* Historical chart container */
+  .mobile-analysis div[style*="height: 200px"] {
+    padding-right: 0 !important;
+    margin: 0 -0.5rem;
+  }
+
+  /* Responsive chart adjustments */
+  .mobile-analysis .recharts-wrapper {
+    font-size: 10px !important;
+  }
+
+  /* Ensure proper touch targets */
+  .mobile-analysis .recharts-tooltip-wrapper {
+    pointer-events: none;
+  }
+
+  /* Card styling for mobile */
+  .mobile-analysis .card {
+    margin-bottom: 1rem;
+    background-color: transparent !important;
+    border: none !important;
+  }
+
+  .mobile-analysis .card-header {
+    background-color: transparent !important;
+    border: none !important;
+    padding: 0.5rem 0;
+  }
+
+  .mobile-analysis .card-body {
+    background-color: transparent !important;
+  }
+}
+
+/* Fix for very small screens */
+@media (max-width: 375px) {
+  .mobile-analysis .position-relative[style*="height: 10px"] {
+    margin: 0 10px;
+  }
+
+  .mobile-analysis .d-flex.justify-content-between {
+    padding: 0 10px;
+  }
+
+  .mobile-analysis small {
+    font-size: 9px !important;
+  }
+}
