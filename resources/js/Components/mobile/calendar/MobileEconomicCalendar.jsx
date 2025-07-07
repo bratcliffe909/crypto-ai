@@ -6,7 +6,17 @@ import TimeAgo from '../../common/TimeAgo';
 import MobileSectionHeader from '../common/MobileSectionHeader';
 
 const MobileEconomicCalendar = () => {
-  const { data, loading, error, lastUpdated } = useApi('/api/crypto/economic-calendar');
+  // Get date range for next 30 days
+  const today = new Date();
+  const thirtyDaysFromNow = new Date();
+  thirtyDaysFromNow.setDate(today.getDate() + 30);
+  
+  const params = {
+    from: today.toISOString().split('T')[0],
+    to: thirtyDaysFromNow.toISOString().split('T')[0]
+  };
+  
+  const { data, loading, error, lastUpdated } = useApi('/api/crypto/economic-calendar', { params });
   const [expandedEvents, setExpandedEvents] = useState({});
   
   const events = data?.events || [];

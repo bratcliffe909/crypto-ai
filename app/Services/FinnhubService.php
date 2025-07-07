@@ -34,6 +34,12 @@ class FinnhubService
         $cacheKey = "finnhub_economic_calendar_{$from}_{$to}";
 
         return $this->cacheService->remember($cacheKey, 60, function () use ($from, $to) {
+            Log::info('Fetching economic calendar from Finnhub', [
+                'from' => $from,
+                'to' => $to,
+                'url' => "{$this->baseUrl}/calendar/economic"
+            ]);
+            
             $response = Http::timeout(30)->get("{$this->baseUrl}/calendar/economic", [
                 'from' => $from,
                 'to' => $to,
@@ -43,6 +49,13 @@ class FinnhubService
             if ($response->successful()) {
                 $data = $response->json();
                 
+                Log::info('Finnhub economic calendar response', [
+                    'status' => $response->status(),
+                    'hasData' => !empty($data),
+                    'dataType' => gettype($data),
+                    'hasEconomicCalendar' => isset($data['economicCalendar'])
+                ]);
+                
                 if (isset($data['economicCalendar'])) {
                     return $data['economicCalendar'];
                 }
@@ -50,7 +63,12 @@ class FinnhubService
                 return $data;
             }
 
-            throw new \Exception('Finnhub economic calendar request failed');
+            Log::error('Finnhub economic calendar request failed', [
+                'status' => $response->status(),
+                'body' => $response->body()
+            ]);
+            
+            throw new \Exception('Finnhub economic calendar request failed: ' . $response->status());
         });
     }
 

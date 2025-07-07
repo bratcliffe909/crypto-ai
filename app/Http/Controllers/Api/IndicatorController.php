@@ -279,9 +279,13 @@ class IndicatorController extends Controller
                 $events = [];
             }
             
-            // If we have no events, throw an exception to trigger the sample data
+            // If we have no events, log it but don't throw exception
             if (empty($events)) {
-                throw new \Exception('No events returned from API');
+                Log::warning('Economic Calendar returned no events', [
+                    'from' => $from,
+                    'to' => $to,
+                    'metadata' => $result['metadata'] ?? []
+                ]);
             }
             
             // Process events to add flag URLs - this needs to happen ALWAYS
@@ -300,91 +304,20 @@ class IndicatorController extends Controller
             ->header('X-Last-Updated', $result['metadata']['lastUpdated'] ?? now()->toIso8601String());
             
         } catch (\Exception $e) {
-            Log::error('Economic Calendar error', ['error' => $e->getMessage()]);
+            Log::error('Economic Calendar error', [
+                'error' => $e->getMessage(),
+                'from' => $from ?? 'not set',
+                'to' => $to ?? 'not set'
+            ]);
             
-            // Return sample data for demonstration
-            $sampleEvents = [
-                [
-                    'event' => 'FOMC Meeting Minutes',
-                    'date' => now()->addDays(2)->format('Y-m-d'),
-                    'impact' => 'high',
-                    'country' => 'US'
-                ],
-                [
-                    'event' => 'US CPI (Consumer Price Index)',
-                    'date' => now()->addDays(5)->format('Y-m-d'),
-                    'impact' => 'high',
-                    'country' => 'US'
-                ],
-                [
-                    'event' => 'ECB Interest Rate Decision',
-                    'date' => now()->addDays(7)->format('Y-m-d'),
-                    'impact' => 'high',
-                    'country' => 'EU'
-                ],
-                [
-                    'event' => 'US Unemployment Rate',
-                    'date' => now()->addDays(9)->format('Y-m-d'),
-                    'impact' => 'medium',
-                    'country' => 'US'
-                ],
-                [
-                    'event' => 'US PPI (Producer Price Index)',
-                    'date' => now()->addDays(12)->format('Y-m-d'),
-                    'impact' => 'medium',
-                    'country' => 'US'
-                ],
-                [
-                    'event' => 'Fed Chair Powell Speech',
-                    'date' => now()->addDays(14)->format('Y-m-d'),
-                    'impact' => 'high',
-                    'country' => 'US'
-                ],
-                [
-                    'event' => 'US Retail Sales',
-                    'date' => now()->addDays(16)->format('Y-m-d'),
-                    'impact' => 'medium',
-                    'country' => 'US'
-                ],
-                [
-                    'event' => 'Bank of England Rate Decision',
-                    'date' => now()->addDays(18)->format('Y-m-d'),
-                    'impact' => 'high',
-                    'country' => 'GB'
-                ],
-                [
-                    'event' => 'US GDP Growth Rate',
-                    'date' => now()->addDays(21)->format('Y-m-d'),
-                    'impact' => 'high',
-                    'country' => 'US'
-                ],
-                [
-                    'event' => 'US Core PCE Price Index',
-                    'date' => now()->addDays(23)->format('Y-m-d'),
-                    'impact' => 'high',
-                    'country' => 'US'
-                ],
-                [
-                    'event' => 'FOMC Meeting',
-                    'date' => now()->addDays(25)->format('Y-m-d'),
-                    'impact' => 'high',
-                    'country' => 'US'
-                ],
-                [
-                    'event' => 'US Non-Farm Payrolls',
-                    'date' => now()->addDays(28)->format('Y-m-d'),
-                    'impact' => 'high',
-                    'country' => 'US'
-                ]
-            ];
-            
-            // Process sample events to add flag URLs
-            $sampleEvents = $this->processEventsWithFlags($sampleEvents);
+            // Return empty events array instead of sample data
+            // This prevents the shifting dates issue
+            $sampleEvents = [];
             
             return response()->json([
                 'events' => $sampleEvents,
-                'count' => count($sampleEvents),
-                'error' => 'Using sample data - API temporarily unavailable',
+                'count' => 0,
+                'error' => 'Economic calendar data temporarily unavailable. Please check API configuration.',
                 'lastUpdated' => now()->toIso8601String(),
                 'cacheAge' => 0,
                 'dataSource' => 'sample'

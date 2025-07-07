@@ -7,7 +7,20 @@ import TooltipComponent from '../common/Tooltip';
 import { formatDateSpecial } from '../../utils/timeUtils';
 
 const EconomicCalendar = () => {
-  const { data, loading, error, lastFetch } = useApi('/api/crypto/economic-calendar', 300000); // 5 minutes
+  // Get date range for next 30 days
+  const today = new Date();
+  const thirtyDaysFromNow = new Date();
+  thirtyDaysFromNow.setDate(today.getDate() + 30);
+  
+  const params = {
+    from: today.toISOString().split('T')[0],
+    to: thirtyDaysFromNow.toISOString().split('T')[0]
+  };
+  
+  const { data, loading, error, lastFetch } = useApi('/api/crypto/economic-calendar', { 
+    params,
+    refetchInterval: 300000 // 5 minutes
+  });
   
   const getImpactBadge = (impact) => {
     switch (impact) {
