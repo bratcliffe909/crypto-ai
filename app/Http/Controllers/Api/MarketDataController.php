@@ -5,14 +5,17 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Services\CoinGeckoService;
+use App\Services\WalletCacheService;
 
 class MarketDataController extends Controller
 {
     private CoinGeckoService $coinGeckoService;
+    private WalletCacheService $walletCacheService;
     
-    public function __construct(CoinGeckoService $coinGeckoService)
+    public function __construct(CoinGeckoService $coinGeckoService, WalletCacheService $walletCacheService)
     {
         $this->coinGeckoService = $coinGeckoService;
+        $this->walletCacheService = $walletCacheService;
     }
 
     /**
@@ -89,6 +92,12 @@ class MarketDataController extends Controller
         
         if (!$ids) {
             return response()->json([]);
+        }
+        
+        // Track these coins as being used in wallets
+        $coinIds = explode(',', $ids);
+        foreach ($coinIds as $coinId) {
+            $this->walletCacheService->trackWalletCoin(trim($coinId));
         }
         
         $result = $this->coinGeckoService->getMarkets('usd', $ids, 250);
