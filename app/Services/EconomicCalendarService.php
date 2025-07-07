@@ -30,7 +30,7 @@ class EconomicCalendarService
         $cacheKey = "economic_events_{$days}";
         
         if ($this->cacheService) {
-            return $this->cacheService->remember($cacheKey, 720, function () use ($days) {
+            return $this->cacheService->rememberWithoutFreshness($cacheKey, function () use ($days) {
                 return $this->fetchAllEvents($days);
             });
         }
@@ -245,7 +245,7 @@ class EconomicCalendarService
         $cacheKey = "economic_calendar_{$from}_{$to}";
         
         // Use cacheService wrapper format for consistency
-        return $this->cacheService->remember($cacheKey, 3600, function () use ($startDate, $endDate, $days) {
+        return $this->cacheService->rememberWithoutFreshness($cacheKey, function () use ($startDate, $endDate, $days) {
             $events = [];
             $source = 'none';
             

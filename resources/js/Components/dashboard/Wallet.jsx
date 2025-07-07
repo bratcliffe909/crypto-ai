@@ -522,8 +522,89 @@ const Wallet = () => {
                 );
               }
               
-              // Skip if coin data not available and not loading
-              if (!coin) return null;
+              // If no coin data, create a minimal display with portfolio data
+              if (!coin) {
+                const cachedCoin = cachedWalletData[coinId];
+                const balance = portfolio[coinId]?.balance || 0;
+                
+                // Create minimal coin object for display
+                const minimalCoin = {
+                  id: coinId,
+                  name: cachedCoin?.name || coinId.charAt(0).toUpperCase() + coinId.slice(1).replace(/-/g, ' '),
+                  symbol: cachedCoin?.symbol || coinId.slice(0, 3).toUpperCase(),
+                  image: cachedCoin?.image || null,
+                  current_price: cachedCoin?.current_price || 0,
+                  price_change_percentage_24h: cachedCoin?.price_change_percentage_24h || 0,
+                  balance: balance,
+                  value: balance * (cachedCoin?.current_price || 0),
+                  isStale: true,
+                  isUnavailable: !cachedCoin
+                };
+                
+                return (
+                  <ListGroup.Item key={coinId} className="px-2 py-1" style={{ opacity: 0.6 }}>
+                    <div className="d-flex justify-content-between align-items-center mb-1">
+                      <div className="d-flex align-items-center flex-grow-1">
+                        {minimalCoin.image ? (
+                          <img 
+                            src={minimalCoin.image} 
+                            alt={minimalCoin.name} 
+                            width="24" 
+                            height="24" 
+                            className="me-2" 
+                          />
+                        ) : (
+                          <div className="bg-secondary rounded-circle me-2" style={{ width: 24, height: 24 }} />
+                        )}
+                        <div className="flex-grow-1">
+                          <span className="fw-medium small">{minimalCoin.name}</span>
+                          <span className="text-muted small ms-1">{minimalCoin.symbol}</span>
+                          <Tooltip content={minimalCoin.isUnavailable ? "Price data unavailable" : "Using cached data"}>
+                            <BsExclamationTriangle className="ms-1 text-warning" size={12} />
+                          </Tooltip>
+                        </div>
+                      </div>
+                      <div className="d-flex gap-1">
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="p-1 text-white"
+                          onClick={() => openEditBalance({ id: coinId, balance: balance })}
+                          title="Edit balance"
+                        >
+                          <BsPencil size={14} />
+                        </Button>
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="p-1 text-white"
+                          onClick={() => removeFromWallet(coinId)}
+                          title="Remove from wallet"
+                        >
+                          <BsTrash size={14} />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="d-flex align-items-center gap-2">
+                      <div className="flex-fill">
+                        <div className="font-monospace small text-center">
+                          {balance} {minimalCoin.symbol}
+                        </div>
+                      </div>
+                      <div className="text-center" style={{ minWidth: '90px' }}>
+                        <div className="font-monospace small">
+                          {minimalCoin.isUnavailable ? '--' : `$${minimalCoin.current_price.toFixed(2)}`}
+                        </div>
+                      </div>
+                      <div className="text-end" style={{ minWidth: '90px' }}>
+                        <div className="font-monospace small">
+                          {minimalCoin.isUnavailable ? '--' : `$${minimalCoin.value.toFixed(2)}`}
+                        </div>
+                      </div>
+                    </div>
+                  </ListGroup.Item>
+                );
+              }
               
               return (
               <ListGroup.Item key={coin.id} className="px-2 py-1" style={{ opacity: coin.isStale ? 0.8 : 1 }}>

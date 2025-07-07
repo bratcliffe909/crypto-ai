@@ -146,7 +146,7 @@ class FinnhubService
     {
         $cacheKey = "finnhub_market_news_{$category}";
 
-        return $this->cacheService->remember($cacheKey, 60, function () use ($category) {
+        return $this->cacheService->rememberWithoutFreshness($cacheKey, function () use ($category) {
             $response = Http::timeout(30)->get("{$this->baseUrl}/news", [
                 'category' => $category,
                 'token' => $this->apiKey

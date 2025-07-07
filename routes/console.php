@@ -24,3 +24,11 @@ Schedule::command('wallet:update-cache')
     ->withoutOverlapping()
     ->runInBackground()
     ->appendOutputTo(storage_path('logs/wallet-cache.log'));
+
+// Update news and calendar cache every hour (30 minutes offset from wallet cache)
+Schedule::command('cache:update-news-calendar')
+    ->hourlyAt(30)
+    ->name('news-calendar-cache-update')
+    ->withoutOverlapping()
+    ->runInBackground()
+    ->appendOutputTo(storage_path('logs/news-calendar-cache.log'));

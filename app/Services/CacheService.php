@@ -139,6 +139,42 @@ class CacheService
     }
     
     /**
+     * Get cached data without freshness check - for use with background updates
+     * Always returns cache if available, only calls callback if cache is empty
+     */
+    public function rememberWithoutFreshness(string $key, callable $callback): array
+    {
+        $this->recordRequest();
+        
+        // Get cached data with metadata
+        $cachedData = $this->getCachedWithMetadata($key);
+        
+        // If cache exists, return it regardless of age
+        if ($cachedData) {
+            $this->recordCacheHit();
+            return $this->formatResponse($cachedData['data'], $cachedData['timestamp'], $cachedData['age'], 'cache');
+        }
+        
+        // No cache exists, try to fetch data
+        try {
+            $freshData = $callback();
+            
+            if ($freshData && !empty($freshData)) {
+                // Store with metadata
+                $this->storeWithMetadata($key, $freshData);
+                $this->recordApiSuccess();
+                return $this->formatResponse($freshData, now(), 0, 'primary');
+            }
+        } catch (\Exception $e) {
+            Log::warning("API failed for {$key}", ['error' => $e->getMessage()]);
+            $this->recordApiFailure($e->getMessage());
+        }
+        
+        // No data available
+        return $this->formatResponse([], now(), 0, 'none');
+    }
+    
+    /**
      * Clear cache for a specific key
      */
     public function forget(string $key): void
