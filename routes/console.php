@@ -32,3 +32,11 @@ Schedule::command('cache:update-news-calendar')
     ->withoutOverlapping()
     ->runInBackground()
     ->appendOutputTo(storage_path('logs/news-calendar-cache.log'));
+
+// Update market data (Fear & Greed, Global Stats, Trending) every hour (15 minutes offset)
+Schedule::command('cache:update-market-data')
+    ->hourlyAt(15)
+    ->name('market-data-cache-update')
+    ->withoutOverlapping()
+    ->runInBackground()
+    ->appendOutputTo(storage_path('logs/market-data-cache.log'));

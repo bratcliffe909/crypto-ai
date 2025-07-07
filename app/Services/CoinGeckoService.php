@@ -171,7 +171,7 @@ class CoinGeckoService
     {
         $cacheKey = 'trending';
         
-        return $this->cacheService->remember($cacheKey, 60, function () {
+        return $this->cacheService->rememberWithoutFreshness($cacheKey, function () {
             $response = Http::timeout(30)->get("{$this->baseUrl}/search/trending");
 
             if ($response->successful()) {
@@ -189,7 +189,7 @@ class CoinGeckoService
     {
         $cacheKey = 'global';
         
-        return $this->cacheService->remember($cacheKey, 60, function () {
+        return $this->cacheService->rememberWithoutFreshness($cacheKey, function () {
             $response = Http::timeout(30)->get("{$this->baseUrl}/global");
 
             if ($response->successful()) {

@@ -22,7 +22,7 @@ class AlternativeService
     {
         $cacheKey = "fear_greed_index_{$limit}";
 
-        return $this->cacheService->remember($cacheKey, 60, function () use ($limit) {
+        return $this->cacheService->rememberWithoutFreshness($cacheKey, function () use ($limit) {
             $response = Http::timeout(30)->get("{$this->baseUrl}/fng/", [
                 'limit' => $limit,
                 'format' => 'json'
