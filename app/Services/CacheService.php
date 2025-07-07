@@ -14,9 +14,9 @@ class CacheService
     const FRESH_CACHE_DURATION = 60; // 1 minute
     
     /**
-     * Cache duration for stale data (24 hours)
+     * Cache duration for stale data (30 days)
      */
-    const STALE_CACHE_DURATION = 86400; // 24 hours
+    const STALE_CACHE_DURATION = 2592000; // 30 days
     
     /**
      * Remember data with proper timestamp tracking

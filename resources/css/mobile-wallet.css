@@ -268,11 +268,11 @@
 }
 
 .action-btn.edit {
-  color: var(--wallet-text-secondary);
+  color: white;
 }
 
 .action-btn.delete {
-  color: var(--wallet-text-secondary);
+  color: white;
 }
 
 .action-btn.delete:hover {

@@ -27,7 +27,18 @@ class MarketMetricsController extends Controller
         try {
             $result = $this->coinGecko->getGlobalData();
             
-            if (empty($result['data']) || !isset($result['data']['data'])) {
+            // Check if we have data (could be wrapped or direct)
+            $data = null;
+            if (!empty($result['data'])) {
+                if (isset($result['data']['data'])) {
+                    $data = $result['data']['data'];
+                } elseif (isset($result['data']['total_market_cap'])) {
+                    // Direct data format
+                    $data = $result['data'];
+                }
+            }
+            
+            if (empty($data)) {
                 return response()->json([
                     'error' => 'No market data available',
                     'lastUpdated' => $result['metadata']['lastUpdated'] ?? now()->toIso8601String(),
@@ -36,16 +47,19 @@ class MarketMetricsController extends Controller
                 ], 200);
             }
             
-            $data = $result['data']['data'];
+            // Use regular dominance including stablecoins
+            $btcDominance = $data['market_cap_percentage']['btc'] ?? 0;
+            $ethDominance = $data['market_cap_percentage']['eth'] ?? 0;
+            $othersDominance = $this->calculateOthersPercentage($data['market_cap_percentage'] ?? []);
             
             return response()->json([
                 'totalMarketCap' => $data['total_market_cap']['usd'] ?? 0,
                 'totalMarketCapChange24h' => $data['market_cap_change_percentage_24h_usd'] ?? 0,
                 'totalVolume' => $data['total_volume']['usd'] ?? 0,
                 'marketCapPercentage' => [
-                    'btc' => $data['market_cap_percentage']['btc'] ?? 0,
-                    'eth' => $data['market_cap_percentage']['eth'] ?? 0,
-                    'others' => $this->calculateOthersPercentage($data['market_cap_percentage'] ?? [])
+                    'btc' => $btcDominance,
+                    'eth' => $ethDominance,
+                    'others' => $othersDominance
                 ],
                 'activeCryptocurrencies' => $data['active_cryptocurrencies'] ?? 0,
                 'markets' => $data['markets'] ?? 0,
@@ -237,6 +251,39 @@ class MarketMetricsController extends Controller
         $others = 100 - $btc - $eth;
         
         return round($others, 2);
+    }
+    
+    /**
+     * Calculate dominance excluding stablecoins
+     */
+    private function calculateDominanceExcludingStables($percentages)
+    {
+        // List of stablecoins to exclude
+        $stablecoins = ['usdt', 'usdc', 'busd', 'dai', 'tusd', 'usdp', 'usdd', 'gusd', 'frax', 'lusd'];
+        
+        // Calculate total stablecoin percentage
+        $stablecoinTotal = 0;
+        foreach ($stablecoins as $stable) {
+            $stablecoinTotal += $percentages[$stable] ?? 0;
+        }
+        
+        // Calculate remaining market percentage
+        $remainingMarket = 100 - $stablecoinTotal;
+        
+        // Recalculate BTC and ETH dominance excluding stables
+        $btcOriginal = $percentages['btc'] ?? 0;
+        $ethOriginal = $percentages['eth'] ?? 0;
+        
+        $btcExStables = ($btcOriginal / $remainingMarket) * 100;
+        $ethExStables = ($ethOriginal / $remainingMarket) * 100;
+        $othersExStables = 100 - $btcExStables - $ethExStables;
+        
+        return [
+            'btc' => round($btcExStables, 2),
+            'eth' => round($ethExStables, 2),
+            'others' => round($othersExStables, 2),
+            'stablecoins_total' => round($stablecoinTotal, 2)
+        ];
     }
     
     /**

@@ -550,7 +550,7 @@ const Wallet = () => {
                     <Button
                       variant="link"
                       size="sm"
-                      className="p-1 text-primary"
+                      className="p-1 text-white"
                       onClick={() => openEditBalance(coin)}
                       title="Edit balance"
                     >
@@ -559,7 +559,7 @@ const Wallet = () => {
                     <Button
                       variant="link"
                       size="sm"
-                      className="p-1 text-danger"
+                      className="p-1 text-white"
                       onClick={() => removeFromWallet(coin.id)}
                       title="Remove from wallet"
                     >

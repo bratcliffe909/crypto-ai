@@ -227,27 +227,22 @@ const PiCycleTop = () => {
                 name="350 DMA x2"
               />
               
-              {/* Crossover points with labels */}
+              {/* Crossover points */}
               {crossoverPoints.map((point, index) => (
-                <g key={index}>
-                  <ReferenceDot
-                    x={point.date}
-                    y={point.price}
-                    r={6}
-                    fill="#ffff00"
-                    stroke="#ffff00"
-                  />
-                  <text
-                    x={point.date}
-                    y={point.price}
-                    textAnchor="middle"
-                    fill="#ffff00"
-                    fontSize="10"
-                    dy={-10}
-                  >
-                    {`${formatDate(point.date)} - ${formatPrice(point.price)}`}
-                  </text>
-                </g>
+                <ReferenceDot
+                  key={index}
+                  x={point.date}
+                  y={point.price}
+                  r={6}
+                  fill="#ffff00"
+                  stroke="#ffff00"
+                  label={{
+                    value: `${formatDate(point.date)} - ${formatPrice(point.price)}`,
+                    position: 'top',
+                    fill: '#ffff00',
+                    fontSize: 10
+                  }}
+                />
               ))}
             </LineChart>
           </ResponsiveContainer>

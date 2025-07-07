@@ -158,6 +158,25 @@ class EconomicCalendarService
     }
 
     /**
+     * Get static major events from config
+     */
+    private function getStaticMajorEvents($startDate, $endDate)
+    {
+        $majorEvents = config('economic-events.major_events_2025', []);
+        $events = [];
+
+        foreach ($majorEvents as $event) {
+            $eventDate = Carbon::parse($event['date']);
+            
+            if ($eventDate->between($startDate, $endDate)) {
+                $events[] = $event;
+            }
+        }
+
+        return $events;
+    }
+
+    /**
      * Process, deduplicate and sort events
      */
     private function processEvents($events)
@@ -264,7 +283,8 @@ class EconomicCalendarService
             if (empty($events)) {
                 $events = array_merge(
                     $this->getStaticFOMCDates($startDate, $endDate),
-                    $this->getStaticCryptoEvents($startDate, $endDate)
+                    $this->getStaticCryptoEvents($startDate, $endDate),
+                    $this->getStaticMajorEvents($startDate, $endDate)
                 );
                 $source = 'static';
             }

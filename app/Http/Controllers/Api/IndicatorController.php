@@ -114,7 +114,7 @@ class IndicatorController extends Controller
                     ];
                     $count++;
                 }
-                $rsiHistory = array_reverse($rsiHistory);
+                // Keep chronological order - oldest to newest
             }
             
             $macdHistory = [];
@@ -130,7 +130,7 @@ class IndicatorController extends Controller
                     ];
                     $count++;
                 }
-                $macdHistory = array_reverse($macdHistory);
+                // Keep chronological order - oldest to newest
             }
             
             return response()->json([
@@ -245,9 +245,7 @@ class IndicatorController extends Controller
             }
             
             // Return in the format expected by the frontend
-            return response()->json([
-                'data' => $result['data']
-            ])
+            return response()->json($result['data'])
             ->header('X-Cache-Age', $result['metadata']['cacheAge'] ?? 0)
             ->header('X-Data-Source', $result['metadata']['source'] ?? 'unknown')
             ->header('X-Last-Updated', $result['metadata']['lastUpdated'] ?? now()->toIso8601String());

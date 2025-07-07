@@ -118,6 +118,14 @@ return [
             'source' => 'Bureau of Labor Statistics'
         ],
         [
+            'event' => 'US PPI',
+            'typical_day' => 'second week',
+            'impact' => 'medium',
+            'country' => 'US',
+            'description' => 'Producer Price Index - wholesale inflation',
+            'source' => 'Bureau of Labor Statistics'
+        ],
+        [
             'event' => 'ECB Rate Decision',
             'typical_day' => 'every 6 weeks',
             'impact' => 'high',
@@ -132,10 +140,50 @@ return [
             'country' => 'US',
             'description' => 'Gross Domestic Product - economic growth indicator',
             'source' => 'Bureau of Economic Analysis'
+        ],
+        [
+            'event' => 'US Retail Sales',
+            'typical_day' => 'mid-month',
+            'impact' => 'high',
+            'country' => 'US',
+            'description' => 'Consumer spending indicator',
+            'source' => 'Census Bureau'
+        ],
+        [
+            'event' => 'Bank of England Rate Decision',
+            'typical_day' => '8 times per year',
+            'impact' => 'high',
+            'country' => 'UK',
+            'description' => 'UK interest rate decision',
+            'source' => 'Bank of England'
+        ],
+        [
+            'event' => 'US Initial Jobless Claims',
+            'typical_day' => 'every Thursday',
+            'impact' => 'medium',
+            'country' => 'US',
+            'description' => 'Weekly unemployment claims',
+            'source' => 'Department of Labor'
+        ],
+        [
+            'event' => 'US PCE Inflation',
+            'typical_day' => 'end of month',
+            'impact' => 'high',
+            'country' => 'US',
+            'description' => "Fed's preferred inflation measure",
+            'source' => 'Bureau of Economic Analysis'
         ]
     ],
 
     'crypto_events_2025' => [
+        [
+            'event' => 'Bitcoin Halving Anniversary',
+            'date' => '2025-04-19',
+            'impact' => 'medium',
+            'country' => 'Global',
+            'description' => '1 year since 2024 Bitcoin halving - historical price patterns',
+            'source' => 'Bitcoin Network'
+        ],
         [
             'event' => 'Ethereum Pectra Upgrade',
             'date' => '2025-Q1',
@@ -151,6 +199,44 @@ return [
             'country' => 'US',
             'description' => 'Options trading begins for Bitcoin ETFs',
             'source' => 'Market Data'
+        ]
+    ],
+    
+    'major_events_2025' => [
+        [
+            'event' => 'Jackson Hole Symposium',
+            'date' => '2025-08-22',
+            'end_date' => '2025-08-24',
+            'impact' => 'high',
+            'country' => 'US',
+            'description' => 'Annual central banking conference - major policy signals',
+            'source' => 'Federal Reserve Bank of Kansas City'
+        ],
+        [
+            'event' => 'G7 Finance Ministers Meeting',
+            'date' => '2025-05-09',
+            'end_date' => '2025-05-11',
+            'impact' => 'medium',
+            'country' => 'Global',
+            'description' => 'Global economic policy coordination',
+            'source' => 'G7'
+        ],
+        [
+            'event' => 'IMF/World Bank Spring Meetings',
+            'date' => '2025-04-14',
+            'end_date' => '2025-04-20',
+            'impact' => 'medium',
+            'country' => 'Global',
+            'description' => 'Global economic outlook and policy discussions',
+            'source' => 'IMF/World Bank'
+        ],
+        [
+            'event' => 'US Debt Ceiling Deadline',
+            'date' => '2025-07-31',
+            'impact' => 'high',
+            'country' => 'US',
+            'description' => 'Potential market volatility around debt ceiling negotiations',
+            'source' => 'US Treasury'
         ]
     ],
 
