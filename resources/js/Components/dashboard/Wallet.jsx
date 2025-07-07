@@ -26,6 +26,8 @@ const Wallet = () => {
   const [showAddCoinModal, setShowAddCoinModal] = useState(false);
   const [showEditBalanceModal, setShowEditBalanceModal] = useState(false);
   const [editingCoin, setEditingCoin] = useState(null);
+  const [loadingCoins, setLoadingCoins] = useState({}); // Track loading state per coin
+  const [cachedWalletData, setCachedWalletData] = useLocalStorage('cachedWalletData', {}); // Cache wallet data
   
   // Load favorites from localStorage
   useEffect(() => {
@@ -85,7 +87,7 @@ const Wallet = () => {
 
     try {
       // Only show loading if we don't have any data yet
-      if (walletData.length === 0) {
+      if (walletData.length === 0 && !Object.keys(cachedWalletData).length) {
         setLoading(true);
       }
       setError(null);
@@ -140,6 +142,23 @@ const Wallet = () => {
       setTotalValue(total);
       setTotalChange(total - totalPrevious);
       
+      // Cache the enriched data by coin ID
+      const newCachedData = {};
+      enrichedData.forEach(coin => {
+        newCachedData[coin.id] = {
+          ...coin,
+          cachedAt: new Date().toISOString()
+        };
+      });
+      setCachedWalletData(prev => ({ ...prev, ...newCachedData }));
+      
+      // Clear loading state for all fetched coins
+      setLoadingCoins(prev => {
+        const newState = { ...prev };
+        favorites.forEach(id => delete newState[id]);
+        return newState;
+      });
+      
       // Only update last updated if we didn't get it from headers
       if (!response.headers['x-last-updated']) {
         setLastUpdated(new Date());
@@ -147,7 +166,48 @@ const Wallet = () => {
     } catch (err) {
       console.error('Wallet fetch error:', err);
       setError('Failed to update wallet');
-      // Don't clear existing data on error - keep showing stale data
+      
+      // Load from cache if available
+      if (Object.keys(cachedWalletData).length > 0) {
+        const cachedEnrichedData = favorites
+          .filter(id => cachedWalletData[id])
+          .map(id => {
+            const cached = cachedWalletData[id];
+            const balance = portfolio[id]?.balance || 0;
+            const value = balance * (cached.current_price || 0);
+            const previousPrice = cached.current_price / (1 + (cached.price_change_percentage_24h || 0) / 100);
+            const previousValue = balance * previousPrice;
+            
+            return {
+              ...cached,
+              balance,
+              value,
+              previousValue,
+              isStale: true // Mark as stale data
+            };
+          });
+        
+        // Calculate totals from cached data
+        let cachedTotal = 0;
+        let cachedTotalPrevious = 0;
+        cachedEnrichedData.forEach(coin => {
+          cachedTotal += coin.value;
+          cachedTotalPrevious += coin.previousValue;
+        });
+        
+        setWalletData(cachedEnrichedData);
+        setTotalValue(cachedTotal);
+        setTotalChange(cachedTotal - cachedTotalPrevious);
+        
+        // Find Bitcoin price from cache
+        const cachedBitcoin = cachedWalletData['bitcoin'];
+        if (cachedBitcoin) {
+          setBtcPrice(cachedBitcoin.current_price);
+        }
+      }
+      
+      // Clear loading state
+      setLoadingCoins({});
     } finally {
       setLoading(false);
     }
@@ -158,6 +218,49 @@ const Wallet = () => {
     fetchExchangeRate();
   }, []);
 
+  // Load cached data on mount if available
+  useEffect(() => {
+    if (favorites.length > 0 && Object.keys(cachedWalletData).length > 0) {
+      const cachedEnrichedData = favorites
+        .filter(id => cachedWalletData[id])
+        .map(id => {
+          const cached = cachedWalletData[id];
+          const balance = portfolio[id]?.balance || 0;
+          const value = balance * (cached.current_price || 0);
+          const previousPrice = cached.current_price / (1 + (cached.price_change_percentage_24h || 0) / 100);
+          const previousValue = balance * previousPrice;
+          
+          return {
+            ...cached,
+            balance,
+            value,
+            previousValue,
+            isStale: true // Mark as stale data until fresh data loads
+          };
+        });
+      
+      if (cachedEnrichedData.length > 0) {
+        // Calculate totals from cached data
+        let cachedTotal = 0;
+        let cachedTotalPrevious = 0;
+        cachedEnrichedData.forEach(coin => {
+          cachedTotal += coin.value;
+          cachedTotalPrevious += coin.previousValue;
+        });
+        
+        setWalletData(cachedEnrichedData);
+        setTotalValue(cachedTotal);
+        setTotalChange(cachedTotal - cachedTotalPrevious);
+        
+        // Find Bitcoin price from cache
+        const cachedBitcoin = cachedWalletData['bitcoin'];
+        if (cachedBitcoin) {
+          setBtcPrice(cachedBitcoin.current_price);
+        }
+      }
+    }
+  }, []); // Only run on mount
+  
   // Fetch data on mount and when favorites or portfolio changes
   useEffect(() => {
     fetchWalletData();
@@ -208,6 +311,9 @@ const Wallet = () => {
       updateBalance(coin.id, coin.initialBalance);
     }
     
+    // Mark this coin as loading
+    setLoadingCoins(prev => ({ ...prev, [coin.id]: true }));
+    
     // Close modal
     setShowAddCoinModal(false);
   };
@@ -228,6 +334,13 @@ const Wallet = () => {
       const newPortfolio = { ...portfolio };
       delete newPortfolio[coinId];
       setPortfolio(newPortfolio);
+      
+      // Remove from cache
+      setCachedWalletData(prev => {
+        const newCache = { ...prev };
+        delete newCache[coinId];
+        return newCache;
+      });
     }
   };
   
@@ -360,7 +473,7 @@ const Wallet = () => {
           <div className="text-center py-3">
             <LoadingSpinner />
           </div>
-        ) : walletData.length > 0 ? (
+        ) : walletData.length > 0 || favorites.length > 0 ? (
           <>
             <div className="px-2 py-1 border-bottom small text-muted d-flex align-items-center">
               <div className="flex-fill ps-5">Amount</div>
@@ -368,8 +481,52 @@ const Wallet = () => {
               <div className="text-end" style={{ minWidth: '90px' }}>Value</div>
             </div>
             <ListGroup variant="flush">
-            {walletData.map(coin => (
-              <ListGroup.Item key={coin.id} className="px-2 py-1">
+            {favorites.map(coinId => {
+              const coin = walletData.find(c => c.id === coinId);
+              const isLoading = loadingCoins[coinId];
+              
+              // Show loading placeholder for coins being fetched
+              if (!coin && isLoading) {
+                return (
+                  <ListGroup.Item key={coinId} className="px-2 py-1">
+                    <div className="d-flex justify-content-between align-items-center">
+                      <div className="d-flex align-items-center flex-grow-1">
+                        <div className="placeholder-glow me-2">
+                          <span className="placeholder rounded-circle" style={{ width: 24, height: 24 }}></span>
+                        </div>
+                        <div className="flex-grow-1">
+                          <span className="placeholder-glow">
+                            <span className="placeholder col-6"></span>
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="d-flex align-items-center gap-2 mt-1">
+                      <div className="flex-fill text-center">
+                        <span className="placeholder-glow">
+                          <span className="placeholder col-8"></span>
+                        </span>
+                      </div>
+                      <div className="text-center" style={{ minWidth: '90px' }}>
+                        <span className="placeholder-glow">
+                          <span className="placeholder col-10"></span>
+                        </span>
+                      </div>
+                      <div className="text-end" style={{ minWidth: '90px' }}>
+                        <span className="placeholder-glow">
+                          <span className="placeholder col-10"></span>
+                        </span>
+                      </div>
+                    </div>
+                  </ListGroup.Item>
+                );
+              }
+              
+              // Skip if coin data not available and not loading
+              if (!coin) return null;
+              
+              return (
+              <ListGroup.Item key={coin.id} className="px-2 py-1" style={{ opacity: coin.isStale ? 0.8 : 1 }}>
                 <div className="d-flex justify-content-between align-items-center mb-1">
                   <div className="d-flex align-items-center flex-grow-1">
                     <img 
@@ -382,6 +539,11 @@ const Wallet = () => {
                     <div className="flex-grow-1">
                       <span className="fw-medium small">{coin.name}</span>
                       <span className="text-muted small ms-1">{coin.symbol.toUpperCase()}</span>
+                      {coin.isStale && (
+                        <Tooltip content="Using cached data - unable to fetch latest prices">
+                          <BsExclamationTriangle className="ms-1 text-warning" size={12} />
+                        </Tooltip>
+                      )}
                     </div>
                   </div>
                   <div className="d-flex gap-1">
@@ -431,16 +593,17 @@ const Wallet = () => {
                   </div>
                 </div>
               </ListGroup.Item>
-            ))}
+            );
+            })}
           </ListGroup>
           </>
-        ) : favorites.length === 0 ? (
+        ) : (
           <div className="text-center text-muted py-5">
             <BsWallet2 size={48} className="mb-3" />
             <div className="h5">Your wallet is empty</div>
             <small>Click "Add Coin" to start tracking your portfolio</small>
           </div>
-        ) : null}
+        )}
       </Card.Body>
       
       <Card.Footer className="p-2">

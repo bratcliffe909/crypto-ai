@@ -1,0 +1,285 @@
+/* Desktop components with mobile-inspired styling */
+
+/* Wallet Component */
+.wallet-card .wallet-header {
+  padding: 1rem 1.25rem;
+  background: var(--bs-body-bg);
+}
+
+.wallet-card .wallet-summary {
+  text-align: center;
+  margin-top: 1rem;
+}
+
+.wallet-card .currency-selector {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.wallet-card .currency-btn {
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--bs-gray-300);
+  background: transparent;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--bs-gray-700);
+  transition: all 0.2s ease;
+}
+
+.wallet-card .currency-btn:hover {
+  background: var(--bs-gray-100);
+}
+
+.wallet-card .currency-btn.active {
+  background: var(--bs-primary);
+  color: white;
+  border-color: var(--bs-primary);
+}
+
+.wallet-card .table-header {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--bs-gray-600);
+}
+
+.wallet-card .table-row:hover {
+  background: var(--bs-gray-50);
+}
+
+.wallet-card .coin-image {
+  border-radius: 50%;
+}
+
+.wallet-card .add-coin-btn {
+  font-weight: 500;
+  padding: 0.625rem 1.25rem;
+}
+
+/* Market Overview Component */
+.market-overview-card .market-header {
+  padding: 1rem 1.25rem;
+  background: var(--bs-body-bg);
+}
+
+.market-overview-card .search-container {
+  margin-top: 0.75rem;
+}
+
+.market-overview-card .coin-row {
+  transition: background-color 0.2s ease;
+}
+
+.market-overview-card .coin-row:hover {
+  background: var(--bs-gray-50);
+  cursor: pointer;
+}
+
+.market-overview-card .coin-rank {
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.market-overview-card .coin-logo {
+  border-radius: 50%;
+}
+
+.market-overview-card .coin-name {
+  font-weight: 500;
+}
+
+.market-overview-card .coin-symbol {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.market-overview-card .coin-price {
+  font-family: var(--bs-font-monospace);
+}
+
+.market-overview-card .coin-change {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.market-overview-card .coin-stats {
+  font-size: 0.75rem;
+}
+
+/* News Feed Component */
+.news-feed-card .news-header {
+  padding: 1rem 1.25rem;
+  background: var(--bs-body-bg);
+}
+
+.news-feed-card .news-item {
+  transition: background-color 0.2s ease;
+}
+
+.news-feed-card .news-item:hover {
+  background: var(--bs-gray-50);
+}
+
+.news-feed-card .news-image {
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.news-feed-card .news-title {
+  line-height: 1.4;
+  margin-bottom: 0.25rem;
+}
+
+.news-feed-card .news-source {
+  font-weight: 500;
+}
+
+.news-feed-card .news-time {
+  font-size: 0.75rem;
+}
+
+.news-feed-card .news-summary {
+  line-height: 1.5;
+}
+
+/* Economic Calendar Component */
+.economic-calendar-card .calendar-header {
+  padding: 1rem 1.25rem;
+  background: var(--bs-body-bg);
+}
+
+.economic-calendar-card .event-card {
+  transition: background-color 0.2s ease;
+}
+
+.economic-calendar-card .event-card:hover {
+  background: var(--bs-gray-50);
+}
+
+.economic-calendar-card .event-title {
+  line-height: 1.4;
+  margin-bottom: 0.25rem;
+}
+
+.economic-calendar-card .country-flag-img {
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
+}
+
+.economic-calendar-card .impact-pill {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.economic-calendar-card .impact-pill.impact-high {
+  background: var(--bs-danger);
+  color: white;
+}
+
+.economic-calendar-card .impact-pill.impact-medium {
+  background: var(--bs-warning);
+  color: var(--bs-dark);
+}
+
+.economic-calendar-card .impact-pill.impact-low {
+  background: var(--bs-gray-500);
+  color: white;
+}
+
+/* Common styles */
+.text-primary {
+  color: var(--bs-primary) !important;
+}
+
+.text-success {
+  color: var(--bs-success) !important;
+}
+
+.text-danger {
+  color: var(--bs-danger) !important;
+}
+
+/* Dark mode adjustments */
+[data-bs-theme="dark"] .wallet-card .currency-btn {
+  color: var(--bs-gray-300);
+  border-color: var(--bs-gray-600);
+}
+
+[data-bs-theme="dark"] .wallet-card .currency-btn:hover {
+  background: var(--bs-gray-800);
+}
+
+[data-bs-theme="dark"] .wallet-card .currency-btn.active {
+  background: var(--bs-primary);
+  color: white;
+  border-color: var(--bs-primary);
+}
+
+[data-bs-theme="dark"] .table-header {
+  background: var(--bs-gray-800) !important;
+}
+
+[data-bs-theme="dark"] .coin-row:hover,
+[data-bs-theme="dark"] .news-item:hover,
+[data-bs-theme="dark"] .event-card:hover,
+[data-bs-theme="dark"] .table-row:hover {
+  background: var(--bs-gray-800);
+}
+
+[data-bs-theme="dark"] .search-container .form-control {
+  background: var(--bs-gray-800) !important;
+  border-color: var(--bs-gray-700) !important;
+  color: var(--bs-gray-100);
+}
+
+[data-bs-theme="dark"] .search-container .input-group-text {
+  background: var(--bs-gray-800) !important;
+  border-color: var(--bs-gray-700) !important;
+  color: var(--bs-gray-400);
+}
+
+/* Responsive adjustments for desktop */
+@media (min-width: 768px) {
+  .wallet-card .wallet-summary {
+    margin-top: 1.5rem;
+  }
+  
+  .market-overview-card .coin-row,
+  .news-feed-card .news-item,
+  .economic-calendar-card .event-card {
+    padding: 1rem 1.25rem;
+  }
+  
+  .wallet-card .table-row {
+    padding: 1rem 1.25rem;
+  }
+}
+
+/* Loading and empty states */
+.empty-state {
+  padding: 3rem 1.5rem;
+  text-align: center;
+  color: var(--bs-gray-600);
+}
+
+.empty-state .empty-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.empty-state .empty-title {
+  font-size: 1.25rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.empty-state .empty-text {
+  font-size: 0.875rem;
+  color: var(--bs-gray-500);
+}

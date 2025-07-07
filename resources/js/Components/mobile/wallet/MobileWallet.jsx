@@ -27,6 +27,7 @@ const MobileWallet = () => {
   const [showEditBalanceModal, setShowEditBalanceModal] = useState(false);
   const [editingCoin, setEditingCoin] = useState(null);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [cachedWalletData, setCachedWalletData] = useLocalStorage('cachedWalletData', {}); // Share cache with desktop
   
   // Load favorites from localStorage
   useEffect(() => {
@@ -82,7 +83,7 @@ const MobileWallet = () => {
     }
 
     try {
-      if (walletData.length === 0) {
+      if (walletData.length === 0 && !Object.keys(cachedWalletData).length) {
         setLoading(true);
       }
       setError(null);
@@ -132,21 +133,114 @@ const MobileWallet = () => {
       setTotalChange(total - totalPrevious);
       setInitialLoadComplete(true);
       
+      // Cache the enriched data by coin ID
+      const newCachedData = {};
+      enrichedData.forEach(coin => {
+        newCachedData[coin.id] = {
+          ...coin,
+          cachedAt: new Date().toISOString()
+        };
+      });
+      setCachedWalletData(prev => ({ ...prev, ...newCachedData }));
+      
       if (!response.headers['x-last-updated']) {
         setLastUpdated(new Date());
       }
     } catch (err) {
       console.error('Wallet fetch error:', err);
       setError('Failed to update wallet');
+      
+      // Load from cache if available
+      if (Object.keys(cachedWalletData).length > 0) {
+        const cachedEnrichedData = favorites
+          .filter(id => cachedWalletData[id])
+          .map(id => {
+            const cached = cachedWalletData[id];
+            const balance = portfolio[id]?.balance || 0;
+            const value = balance * (cached.current_price || 0);
+            const previousPrice = cached.current_price / (1 + (cached.price_change_percentage_24h || 0) / 100);
+            const previousValue = balance * previousPrice;
+            
+            return {
+              ...cached,
+              balance,
+              value,
+              previousValue,
+              isLoaded: true,
+              isStale: true // Mark as stale data
+            };
+          });
+        
+        // Calculate totals from cached data
+        let cachedTotal = 0;
+        let cachedTotalPrevious = 0;
+        cachedEnrichedData.forEach(coin => {
+          cachedTotal += coin.value;
+          cachedTotalPrevious += coin.previousValue;
+        });
+        
+        setWalletData(cachedEnrichedData);
+        setTotalValue(cachedTotal);
+        setTotalChange(cachedTotal - cachedTotalPrevious);
+        
+        // Find Bitcoin price from cache
+        const cachedBitcoin = cachedWalletData['bitcoin'];
+        if (cachedBitcoin) {
+          setBtcPrice(cachedBitcoin.current_price);
+        }
+      }
+      
       setInitialLoadComplete(true);
     } finally {
       setLoading(false);
     }
   };
 
+  // Load cached data on mount if available
   useEffect(() => {
+    if (favorites.length > 0 && Object.keys(cachedWalletData).length > 0) {
+      const cachedEnrichedData = favorites
+        .filter(id => cachedWalletData[id])
+        .map(id => {
+          const cached = cachedWalletData[id];
+          const balance = portfolio[id]?.balance || 0;
+          const value = balance * (cached.current_price || 0);
+          const previousPrice = cached.current_price / (1 + (cached.price_change_percentage_24h || 0) / 100);
+          const previousValue = balance * previousPrice;
+          
+          return {
+            ...cached,
+            balance,
+            value,
+            previousValue,
+            isLoaded: true,
+            isStale: true // Mark as stale data until fresh data loads
+          };
+        });
+      
+      if (cachedEnrichedData.length > 0) {
+        // Calculate totals from cached data
+        let cachedTotal = 0;
+        let cachedTotalPrevious = 0;
+        cachedEnrichedData.forEach(coin => {
+          cachedTotal += coin.value;
+          cachedTotalPrevious += coin.previousValue;
+        });
+        
+        setWalletData(cachedEnrichedData);
+        setTotalValue(cachedTotal);
+        setTotalChange(cachedTotal - cachedTotalPrevious);
+        
+        // Find Bitcoin price from cache
+        const cachedBitcoin = cachedWalletData['bitcoin'];
+        if (cachedBitcoin) {
+          setBtcPrice(cachedBitcoin.current_price);
+        }
+      }
+    }
+    
     fetchExchangeRate();
-  }, []);
+  }, []); // Only run on mount
 
   useEffect(() => {
     fetchWalletData();
@@ -230,6 +324,13 @@ const MobileWallet = () => {
       const newPortfolio = { ...portfolio };
       delete newPortfolio[coinId];
       setPortfolio(newPortfolio);
+      
+      // Remove from cache
+      setCachedWalletData(prev => {
+        const newCache = { ...prev };
+        delete newCache[coinId];
+        return newCache;
+      });
     }
   };
   
@@ -336,6 +437,13 @@ const MobileWallet = () => {
                   </div>
                   
                   <div className="col-price">
+                    {coin.isStale && (
+                      <BsExclamationTriangle 
+                        className="text-warning me-1" 
+                        size={12} 
+                        title="Using cached data"
+                      />
+                    )}
                     {(!initialLoadComplete || (coin.current_price === 0 && !coin.isLoaded)) ? (
                       <div className="price-loading">
                         <div className="spinner-border spinner-border-sm text-primary" role="status">
