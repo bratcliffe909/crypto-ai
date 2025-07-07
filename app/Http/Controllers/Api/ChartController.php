@@ -349,7 +349,7 @@ class ChartController extends Controller
         // Cache for 6 hours for historical data
         $cacheKey = "pi_cycle_top_bitcoin_v2";
         
-        $data = Cache::remember($cacheKey, 21600, function () {
+        $data = $this->cacheService->rememberWithoutFreshness($cacheKey, function () {
             try {
                 // Try to get historical data from multiple sources
                 $dailyPrices = [];
@@ -478,7 +478,13 @@ class ChartController extends Controller
             }
         });
         
-        return response()->json($data);
+        // Extract data from cache service wrapper
+        $piCycleData = $data['data'] ?? [];
+        
+        return response()->json($piCycleData)
+            ->header('X-Cache-Age', $data['metadata']['cacheAge'] ?? 0)
+            ->header('X-Data-Source', $data['metadata']['source'] ?? 'cache')
+            ->header('X-Last-Updated', $data['metadata']['lastUpdated'] ?? now()->toIso8601String());
     }
     
     /**

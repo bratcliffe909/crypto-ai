@@ -24,7 +24,7 @@ class AlphaVantageService
     {
         $cacheKey = "av_{$function}_{$symbol}_{$interval}_{$timePeriod}";
 
-        return $this->cacheService->remember($cacheKey, 60, function () use ($function, $symbol, $interval, $timePeriod, $seriesType) {
+        return $this->cacheService->rememberWithoutFreshness($cacheKey, function () use ($function, $symbol, $interval, $timePeriod, $seriesType) {
             $params = [
                 'function' => $function,
                 'symbol' => $symbol,
@@ -134,7 +134,7 @@ class AlphaVantageService
     {
         $cacheKey = "av_macd_{$symbol}_{$interval}";
 
-        return $this->cacheService->remember($cacheKey, 60, function () use ($symbol, $interval) {
+        return $this->cacheService->rememberWithoutFreshness($cacheKey, function () use ($symbol, $interval) {
             $params = [
                 'function' => 'MACD',
                 'symbol' => $symbol,

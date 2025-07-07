@@ -40,3 +40,11 @@ Schedule::command('cache:update-market-data')
     ->withoutOverlapping()
     ->runInBackground()
     ->appendOutputTo(storage_path('logs/market-data-cache.log'));
+
+// Update indicators (Pi Cycle, Rainbow Chart, Altcoin Season, RSI) daily at midnight
+Schedule::command('cache:update-indicators')
+    ->dailyAt('00:05')
+    ->name('indicator-cache-update')
+    ->withoutOverlapping()
+    ->runInBackground()
+    ->appendOutputTo(storage_path('logs/indicator-cache.log'));

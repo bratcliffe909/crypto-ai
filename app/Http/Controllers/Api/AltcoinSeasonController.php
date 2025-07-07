@@ -27,7 +27,7 @@ class AltcoinSeasonController extends Controller
     {
         $cacheKey = 'altcoin_season_index';
         
-        $result = $this->cacheService->remember($cacheKey, 60, function () {
+        $result = $this->cacheService->rememberWithoutFreshness($cacheKey, function () {
             // Get top 50 coins by market cap
             $marketsResponse = $this->coinGecko->getMarkets('usd', null, 50);
             $markets = $marketsResponse['data'] ?? [];
