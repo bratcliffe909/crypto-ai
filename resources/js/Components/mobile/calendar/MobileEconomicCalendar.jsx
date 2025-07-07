@@ -6,20 +6,28 @@ import TimeAgo from '../../common/TimeAgo';
 import MobileSectionHeader from '../common/MobileSectionHeader';
 
 const MobileEconomicCalendar = () => {
-  // Get date range for next 30 days
+  // Get date range from start of current year to end of next year
   const today = new Date();
-  const thirtyDaysFromNow = new Date();
-  thirtyDaysFromNow.setDate(today.getDate() + 30);
+  const startDate = new Date(today.getFullYear(), 0, 1); // January 1st of current year
+  const endDate = new Date(today.getFullYear() + 1, 11, 31); // December 31st of next year
   
   const params = {
-    from: today.toISOString().split('T')[0],
-    to: thirtyDaysFromNow.toISOString().split('T')[0]
+    from: startDate.toISOString().split('T')[0],
+    to: endDate.toISOString().split('T')[0]
   };
   
   const { data, loading, error, lastUpdated } = useApi('/api/crypto/economic-calendar', { params });
   const [expandedEvents, setExpandedEvents] = useState({});
   
   const events = data?.events || [];
+  
+  // Filter out past events
+  const futureEvents = events.filter(event => {
+    const eventDate = new Date(event.date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return eventDate >= today;
+  });
   
   const formatEventDate = (dateString) => {
     const date = new Date(dateString);
@@ -56,7 +64,7 @@ const MobileEconomicCalendar = () => {
   };
   
   // Group events by date using the formatted date
-  const groupedEvents = events.reduce((groups, event) => {
+  const groupedEvents = futureEvents.reduce((groups, event) => {
     const dateKey = formatEventDate(event.date);
     
     if (!groups[dateKey]) {
@@ -199,10 +207,10 @@ const MobileEconomicCalendar = () => {
           );
         })}
         
-        {events.length === 0 && (
+        {futureEvents.length === 0 && (
           <div className="empty-calendar">
             <BsCalendar3 size={48} className="text-muted mb-3" />
-            <p className="text-muted">No economic events scheduled</p>
+            <p className="text-muted">No upcoming economic events</p>
           </div>
         )}
       </div>

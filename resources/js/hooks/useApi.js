@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
-const useApi = (endpoint, interval = 30000) => {
+const useApi = (endpoint, options = {}) => {
+  // Handle backward compatibility - if options is a number, treat it as refetchInterval
+  const normalizedOptions = typeof options === 'number' ? { refetchInterval: options } : options;
+  const { params = {}, refetchInterval = 30000 } = normalizedOptions;
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -26,8 +29,8 @@ const useApi = (endpoint, interval = 30000) => {
           url = endpoint + '?per_page=50';
         }
         
-        // Fetch data
-        const response = await axios.get(url);
+        // Fetch data with params
+        const response = await axios.get(url, { params });
         setData(response.data);
         
         // Extract cache metadata from headers
@@ -60,8 +63,8 @@ const useApi = (endpoint, interval = 30000) => {
     fetchData();
 
     // Set up interval if provided
-    if (interval) {
-      intervalRef.current = setInterval(fetchData, interval);
+    if (refetchInterval) {
+      intervalRef.current = setInterval(fetchData, refetchInterval);
     }
 
     // Cleanup
@@ -70,7 +73,7 @@ const useApi = (endpoint, interval = 30000) => {
         clearInterval(intervalRef.current);
       }
     };
-  }, [endpoint, interval]);
+  }, [endpoint, refetchInterval, JSON.stringify(params)]);
 
   return { data, loading, error, lastFetch, cacheAge, dataSource };
 };

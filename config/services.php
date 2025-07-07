@@ -50,4 +50,14 @@ return [
         'base_url' => 'https://finnhub.io/api/v1',
     ],
 
+    'fred' => [
+        'key' => env('FRED_API_KEY'),
+        'base_url' => 'https://api.stlouisfed.org/fred',
+    ],
+
+    'trading_economics' => [
+        'key' => env('TRADING_ECONOMICS_KEY'),
+        'base_url' => 'https://api.tradingeconomics.com',
+    ],
+
 ];

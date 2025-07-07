@@ -7,14 +7,14 @@ import TooltipComponent from '../common/Tooltip';
 import { formatDateSpecial } from '../../utils/timeUtils';
 
 const EconomicCalendar = () => {
-  // Get date range for next 30 days
+  // Get date range from start of current year to end of next year
   const today = new Date();
-  const thirtyDaysFromNow = new Date();
-  thirtyDaysFromNow.setDate(today.getDate() + 30);
+  const startDate = new Date(today.getFullYear(), 0, 1); // January 1st of current year
+  const endDate = new Date(today.getFullYear() + 1, 11, 31); // December 31st of next year
   
   const params = {
-    from: today.toISOString().split('T')[0],
-    to: thirtyDaysFromNow.toISOString().split('T')[0]
+    from: startDate.toISOString().split('T')[0],
+    to: endDate.toISOString().split('T')[0]
   };
   
   const { data, loading, error, lastFetch } = useApi('/api/crypto/economic-calendar', { 
@@ -96,7 +96,15 @@ const EconomicCalendar = () => {
           <>
             {data.events && data.events.length > 0 ? (
               <ListGroup variant="flush">
-                {data.events.slice(0, 10).map((event, index) => (
+                {data.events
+                  .filter(event => {
+                    const eventDate = new Date(event.date);
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    return eventDate >= today;
+                  })
+                  .slice(0, 10)
+                  .map((event, index) => (
                   <ListGroup.Item key={index} className="px-0 py-3">
                     <div className="d-flex justify-content-between align-items-center">
                       <div className="flex-grow-1">
@@ -129,13 +137,22 @@ const EconomicCalendar = () => {
               </div>
             )}
             
-            {data.events && data.events.length > 10 && (
-              <div className="text-center mt-3">
-                <small className="text-muted">
-                  Showing 10 of {data.count} events
-                </small>
-              </div>
-            )}
+            {(() => {
+              const futureEvents = data.events?.filter(event => {
+                const eventDate = new Date(event.date);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                return eventDate >= today;
+              }) || [];
+              
+              return futureEvents.length > 10 && (
+                <div className="text-center mt-3">
+                  <small className="text-muted">
+                    Showing 10 of {futureEvents.length} upcoming events
+                  </small>
+                </div>
+              );
+            })()}
             
             <div className="mt-3 text-center">
               <small className="text-muted">

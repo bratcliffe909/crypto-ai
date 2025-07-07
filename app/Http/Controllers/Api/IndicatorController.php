@@ -7,6 +7,7 @@ use App\Services\AlphaVantageService;
 use App\Services\CoinGeckoService;
 use App\Services\AlternativeService;
 use App\Services\FinnhubService;
+use App\Services\EconomicCalendarService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -16,13 +17,20 @@ class IndicatorController extends Controller
     protected $coinGecko;
     protected $alternative;
     protected $finnhub;
+    protected $economicCalendarService;
 
-    public function __construct(AlphaVantageService $alphaVantage, CoinGeckoService $coinGecko, AlternativeService $alternative, FinnhubService $finnhub)
-    {
+    public function __construct(
+        AlphaVantageService $alphaVantage, 
+        CoinGeckoService $coinGecko, 
+        AlternativeService $alternative, 
+        FinnhubService $finnhub, 
+        EconomicCalendarService $economicCalendar
+    ) {
         $this->alphaVantage = $alphaVantage;
         $this->coinGecko = $coinGecko;
         $this->alternative = $alternative;
         $this->finnhub = $finnhub;
+        $this->economicCalendarService = $economicCalendar;
     }
 
     /**
@@ -264,14 +272,15 @@ class IndicatorController extends Controller
             $from = $request->get('from');
             $to = $request->get('to');
             
-            $result = $this->finnhub->getEconomicCalendar($from, $to);
+            // Use the unified EconomicCalendarService which handles both FRED and Finnhub
+            $result = $this->economicCalendarService->getEvents($from, $to);
             
-            // Extract the actual events data from the cache service wrapper
+            // Extract the actual events data from the service
             $events = $result['data'] ?? [];
             
-            // If it's still wrapped in economicCalendar key
-            if (isset($events['economicCalendar'])) {
-                $events = $events['economicCalendar'];
+            // Handle case where events might be wrapped in another data layer (from cache)
+            if (isset($events['data']) && is_array($events['data'])) {
+                $events = $events['data'];
             }
             
             // Ensure events is an array
@@ -279,17 +288,7 @@ class IndicatorController extends Controller
                 $events = [];
             }
             
-            // If we have no events, log it but don't throw exception
-            if (empty($events)) {
-                Log::warning('Economic Calendar returned no events', [
-                    'from' => $from,
-                    'to' => $to,
-                    'metadata' => $result['metadata'] ?? []
-                ]);
-            }
-            
-            // Process events to add flag URLs - this needs to happen ALWAYS
-            // whether data comes from cache or fresh API call
+            // Process events to add flag URLs
             $events = $this->processEventsWithFlags($events);
             
             return response()->json([
@@ -310,17 +309,14 @@ class IndicatorController extends Controller
                 'to' => $to ?? 'not set'
             ]);
             
-            // Return empty events array instead of sample data
-            // This prevents the shifting dates issue
-            $sampleEvents = [];
-            
+            // Return empty events array
             return response()->json([
-                'events' => $sampleEvents,
+                'events' => [],
                 'count' => 0,
-                'error' => 'Economic calendar data temporarily unavailable. Please check API configuration.',
+                'error' => 'Economic calendar data temporarily unavailable. Please add FRED_API_KEY to your .env file (free at https://fred.stlouisfed.org/docs/api/api_key.html)',
                 'lastUpdated' => now()->toIso8601String(),
                 'cacheAge' => 0,
-                'dataSource' => 'sample'
+                'dataSource' => 'none'
             ], 200);
         }
     }

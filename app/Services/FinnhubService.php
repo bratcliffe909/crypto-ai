@@ -19,6 +19,14 @@ class FinnhubService
     }
 
     /**
+     * Check if Finnhub API is configured
+     */
+    public function isConfigured()
+    {
+        return !empty($this->apiKey);
+    }
+
+    /**
      * Get economic calendar events
      */
     public function getEconomicCalendar($from = null, $to = null)
@@ -56,11 +64,17 @@ class FinnhubService
                     'hasEconomicCalendar' => isset($data['economicCalendar'])
                 ]);
                 
-                if (isset($data['economicCalendar'])) {
-                    return $data['economicCalendar'];
+                // Map Finnhub format to our standard format
+                $mappedEvents = [];
+                $events = isset($data['economicCalendar']) ? $data['economicCalendar'] : $data;
+                
+                if (is_array($events)) {
+                    foreach ($events as $event) {
+                        $mappedEvents[] = $this->mapFinnhubEvent($event);
+                    }
                 }
                 
-                return $data;
+                return $mappedEvents;
             }
 
             Log::error('Finnhub economic calendar request failed', [
@@ -70,6 +84,35 @@ class FinnhubService
             
             throw new \Exception('Finnhub economic calendar request failed: ' . $response->status());
         });
+    }
+
+    /**
+     * Map Finnhub event to standard format
+     */
+    private function mapFinnhubEvent($finnhubEvent)
+    {
+        // Map impact levels
+        $impactMap = [
+            '3' => 'high',
+            '2' => 'medium',
+            '1' => 'low',
+            '0' => 'low'
+        ];
+
+        $impact = $impactMap[$finnhubEvent['impact'] ?? '0'] ?? 'medium';
+
+        return [
+            'event' => $finnhubEvent['event'] ?? 'Unknown Event',
+            'date' => Carbon::createFromTimestamp($finnhubEvent['time'] ?? time())->format('Y-m-d'),
+            'impact' => $impact,
+            'country' => $finnhubEvent['country'] ?? 'Unknown',
+            'description' => $finnhubEvent['event'] ?? '',
+            'actual' => $finnhubEvent['actual'] ?? null,
+            'estimate' => $finnhubEvent['estimate'] ?? null,
+            'previous' => $finnhubEvent['prev'] ?? null,
+            'unit' => $finnhubEvent['unit'] ?? '',
+            'source' => 'Finnhub'
+        ];
     }
 
     /**

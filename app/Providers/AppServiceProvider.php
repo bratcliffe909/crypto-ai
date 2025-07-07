@@ -40,6 +40,20 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(\App\Services\CacheService::class)
             );
         });
+
+        $this->app->singleton(\App\Services\FREDService::class, function ($app) {
+            return new \App\Services\FREDService(
+                $app->make(\App\Services\CacheService::class)
+            );
+        });
+
+        $this->app->singleton(\App\Services\EconomicCalendarService::class, function ($app) {
+            return new \App\Services\EconomicCalendarService(
+                $app->make(\App\Services\FREDService::class),
+                $app->make(\App\Services\FinnhubService::class),
+                $app->make(\App\Services\CacheService::class)
+            );
+        });
     }
 
     /**
