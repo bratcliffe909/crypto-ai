@@ -91,6 +91,30 @@ class CoinGeckoService
     }
 
     /**
+     * Get market data from cache only - for frontend display
+     * This method is specifically for market overview where we want to show cached data
+     * even if it's stale, rather than making API calls
+     */
+    public function getMarketsFromCache($vsCurrency = 'usd', $ids = null, $perPage = 250)
+    {
+        $cacheKey = "coingecko_markets_{$vsCurrency}_{$perPage}" . ($ids ? "_{$ids}" : "");
+        
+        // Check if we have this cache key
+        $cachedData = $this->cacheService->getCachedWithMetadataPublic($cacheKey);
+        if ($cachedData) {
+            return $this->cacheService->formatResponsePublic(
+                $cachedData['data'], 
+                $cachedData['timestamp'], 
+                $cachedData['age'], 
+                'cache'
+            );
+        }
+        
+        // No cache available
+        return $this->cacheService->formatResponsePublic([], now(), 0, 'none');
+    }
+    
+    /**
      * Get market data for wallet coins - always returns cache if available
      * This method is specifically for wallet display where we want to show cached prices
      * even if they're stale, rather than failing

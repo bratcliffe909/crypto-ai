@@ -17,6 +17,14 @@ Artisan::command('inspire', function () {
 |
 */
 
+// Update market overview cache every 5 minutes
+Schedule::command('market:update-cache')
+    ->everyFiveMinutes()
+    ->name('market-overview-cache-update')
+    ->withoutOverlapping()
+    ->runInBackground()
+    ->appendOutputTo(storage_path('logs/market-cache.log'));
+
 // Update wallet cache every hour
 Schedule::command('wallet:update-cache')
     ->hourly()

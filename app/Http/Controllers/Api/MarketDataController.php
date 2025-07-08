@@ -20,7 +20,7 @@ class MarketDataController extends Controller
     }
 
     /**
-     * Get market data for cryptocurrencies
+     * Get market data for cryptocurrencies - reads from cache only
      */
     public function index(Request $request)
     {
@@ -28,7 +28,8 @@ class MarketDataController extends Controller
         $ids = $request->get('ids');
         $perPage = $request->get('per_page', 250); // Maximum allowed by CoinGecko free tier
         
-        $result = $this->coinGeckoService->getMarkets($vsCurrency, $ids, $perPage);
+        // Use cache-only method to avoid API calls from frontend
+        $result = $this->coinGeckoService->getMarketsFromCache($vsCurrency, $ids, $perPage);
         
         // Return the actual data array for backward compatibility
         return response()->json($result['data'] ?? [])
