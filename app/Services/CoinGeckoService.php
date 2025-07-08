@@ -99,7 +99,7 @@ class CoinGeckoService
     {
         $cacheKey = "coingecko_markets_{$vsCurrency}_{$perPage}" . ($ids ? "_{$ids}" : "");
         
-        // Check if we have this cache key
+        // Check if we have this exact cache key
         $cachedData = $this->cacheService->getCachedWithMetadataPublic($cacheKey);
         if ($cachedData) {
             return $this->cacheService->formatResponsePublic(
@@ -108,6 +108,36 @@ class CoinGeckoService
                 $cachedData['age'], 
                 'cache'
             );
+        }
+        
+        // If no exact match and no IDs specified, try to use a larger cache and slice it
+        if (!$ids) {
+            // Try common cache sizes in order
+            $fallbackSizes = [250, 500, 100, 50];
+            foreach ($fallbackSizes as $size) {
+                if ($size === $perPage) continue; // Skip the size we already tried
+                
+                $fallbackKey = "coingecko_markets_{$vsCurrency}_{$size}";
+                $fallbackData = $this->cacheService->getCachedWithMetadataPublic($fallbackKey);
+                
+                if ($fallbackData && is_array($fallbackData['data'])) {
+                    // Return the requested number of items from the larger cache
+                    $slicedData = array_slice($fallbackData['data'], 0, $perPage);
+                    
+                    Log::debug("Using fallback cache for market data", [
+                        'requested' => $perPage,
+                        'found_cache_size' => $size,
+                        'returned_count' => count($slicedData)
+                    ]);
+                    
+                    return $this->cacheService->formatResponsePublic(
+                        $slicedData, 
+                        $fallbackData['timestamp'], 
+                        $fallbackData['age'], 
+                        'cache'
+                    );
+                }
+            }
         }
         
         // No cache available

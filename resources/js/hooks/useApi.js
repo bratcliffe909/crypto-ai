@@ -23,14 +23,8 @@ const useApi = (endpoint, options = {}) => {
         const csrfResponse = await axios.get('/api/csrf-token');
         axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfResponse.data.csrf_token;
         
-        // Modify endpoint for markets to get more data
-        let url = endpoint;
-        if (endpoint === '/api/crypto/markets') {
-          url = endpoint + '?per_page=50';
-        }
-        
-        // Fetch data with params
-        const response = await axios.get(url, { params });
+        // Just use the endpoint as provided
+        const response = await axios.get(endpoint, { params });
         setData(response.data);
         
         // Extract cache metadata from headers
