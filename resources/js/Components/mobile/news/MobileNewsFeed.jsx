@@ -12,6 +12,7 @@ const MobileNewsFeed = () => {
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(null);
   const observer = useRef();
   const lastArticleRef = useRef();
 
@@ -40,6 +41,14 @@ const MobileNewsFeed = () => {
       
       setHasMore(response.data.has_more);
       setPage(pageNum);
+      
+      // Update last fetch time
+      const lastUpdatedHeader = response.headers['x-last-updated'];
+      if (lastUpdatedHeader) {
+        setLastUpdated(new Date(lastUpdatedHeader));
+      } else if (pageNum === 1 || isRefresh) {
+        setLastUpdated(new Date());
+      }
     } catch (err) {
       console.error('Failed to fetch news:', err);
       setError('Failed to load news articles');
@@ -91,6 +100,8 @@ const MobileNewsFeed = () => {
       <MobileSectionHeader
         title="News"
         icon={BsNewspaper}
+        lastUpdated={lastUpdated}
+        error={error}
       >
         <button 
           className="refresh-btn"

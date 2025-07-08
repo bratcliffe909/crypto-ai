@@ -1,14 +1,21 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Form, InputGroup } from 'react-bootstrap';
 import { BsSearch } from 'react-icons/bs';
 import useApi from '../../../hooks/useApi';
 import LoadingSpinner from '../../common/LoadingSpinner';
 import { formatPrice, formatPercentage, formatMarketCap } from '../../../utils/formatters';
 
-const MobileMarketOverview = () => {
+const MobileMarketOverview = ({ onDataLoad }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const { data, loading, error } = useApi('/api/crypto/markets?per_page=100');
+  const { data, loading, error, lastFetch } = useApi('/api/crypto/markets?per_page=100');
   const coins = data || [];
+
+  // Notify parent of data updates
+  useEffect(() => {
+    if (onDataLoad) {
+      onDataLoad(lastFetch, error);
+    }
+  }, [lastFetch, error, onDataLoad]);
 
   const filteredCoins = useMemo(() => {
     if (!coins || !Array.isArray(coins)) return [];

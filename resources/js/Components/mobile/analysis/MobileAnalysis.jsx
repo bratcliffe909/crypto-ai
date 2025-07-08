@@ -1,4 +1,4 @@
-import React, { useState, lazy, Suspense } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { 
   BsGraphUp, 
   BsGraphDown,
@@ -21,6 +21,8 @@ const MobileAltcoinSeason = lazy(() => import('./MobileAltcoinSeason'));
 
 const MobileAnalysis = () => {
   const [activeChartIndex, setActiveChartIndex] = useState(0);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [error, setError] = useState(null);
 
   const charts = [
     { id: 'bullmarket', label: 'Bull Market Band', component: BullMarketBand, icon: BsBandaid },
@@ -33,11 +35,19 @@ const MobileAnalysis = () => {
 
   const ActiveChartComponent = charts[activeChartIndex].component;
 
+  // Update last updated time when component mounts or chart changes
+  useEffect(() => {
+    setLastUpdated(new Date());
+    setError(null);
+  }, [activeChartIndex]);
+
   return (
     <div className="mobile-section mobile-analysis">
       <MobileSectionHeader
         title="Charts"
         icon={BsGraphUp}
+        lastUpdated={lastUpdated}
+        error={error}
       />
 
       <div className="chart-menu">
