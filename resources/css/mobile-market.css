@@ -109,6 +109,8 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  flex: 1;
+  overflow: hidden;
 }
 
 /* Search Container */
@@ -140,6 +142,9 @@
 .coin-list {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Coin Row */

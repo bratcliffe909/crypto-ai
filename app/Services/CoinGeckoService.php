@@ -574,39 +574,71 @@ class CoinGeckoService
         $idArray = explode(',', $ids);
         $result = [];
         
-        // Try to find these coins in other market data caches
-        $redis = new \Redis();
-        $redis->connect('crypto-graph-redis', 6379);
-        $redis->select(1);
-        
-        // Look for market data cache keys that might contain our coins
-        $marketKeys = $redis->keys('*coingecko_markets_usd_*');
-        
-        foreach ($marketKeys as $key) {
-            // Skip meta keys
-            if (strpos($key, '_meta') !== false) {
-                continue;
-            }
+        try {
+            // Use Laravel's cache store to get all keys
+            $cacheStore = \Cache::store();
             
-            $cachedData = $redis->get($key);
-            if ($cachedData) {
-                $data = unserialize($cachedData);
-                if (is_array($data)) {
-                    foreach ($data as $coin) {
-                        if (in_array($coin['id'], $idArray) && !isset($result[$coin['id']])) {
-                            // Only use data that has complete market information
-                            if (isset($coin['market_cap']) && $coin['market_cap'] !== null) {
-                                $result[$coin['id']] = $coin;
+            // Get the Redis instance from the cache store
+            if (method_exists($cacheStore, 'getRedis')) {
+                $redis = $cacheStore->getRedis();
+                $prefix = config('cache.prefix');
+                
+                // Look for market data cache keys
+                $pattern = "{$prefix}coingecko_markets_usd_*";
+                $marketKeys = $redis->keys($pattern);
+                
+                foreach ($marketKeys as $key) {
+                    // Skip meta keys
+                    if (strpos($key, '_meta') !== false) {
+                        continue;
+                    }
+                    
+                    // Remove prefix to get the actual cache key
+                    $cacheKey = str_replace($prefix, '', $key);
+                    
+                    // Use Laravel's Cache facade to get the data
+                    $data = \Cache::get($cacheKey);
+                    if (is_array($data)) {
+                        foreach ($data as $coin) {
+                            if (in_array($coin['id'], $idArray) && !isset($result[$coin['id']])) {
+                                // Only use data that has complete market information
+                                if (isset($coin['market_cap']) && $coin['market_cap'] !== null) {
+                                    $result[$coin['id']] = $coin;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // If we found all coins, stop searching
+                    if (count($result) === count($idArray)) {
+                        break;
+                    }
+                }
+            } else {
+                // Fallback: try known cache key patterns
+                $possibleKeys = [
+                    'coingecko_markets_usd_250',
+                    'coingecko_markets_usd_100',
+                    'coingecko_markets_usd_500'
+                ];
+                
+                foreach ($possibleKeys as $cacheKey) {
+                    $data = \Cache::get($cacheKey);
+                    if (is_array($data)) {
+                        foreach ($data as $coin) {
+                            if (in_array($coin['id'], $idArray) && !isset($result[$coin['id']])) {
+                                if (isset($coin['market_cap']) && $coin['market_cap'] !== null) {
+                                    $result[$coin['id']] = $coin;
+                                }
                             }
                         }
                     }
                 }
             }
-            
-            // If we found all coins, stop searching
-            if (count($result) === count($idArray)) {
-                break;
-            }
+        } catch (\Exception $e) {
+            Log::error('Error in buildFromMarketDataCaches', [
+                'error' => $e->getMessage()
+            ]);
         }
         
         // Log only if some coins are missing
