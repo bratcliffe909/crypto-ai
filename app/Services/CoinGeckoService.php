@@ -121,10 +121,48 @@ class CoinGeckoService
      */
     public function getWalletCoins($vsCurrency = 'usd', $ids = null, $perPage = 250)
     {
-        $cacheKey = "coingecko_markets_{$vsCurrency}_{$perPage}" . ($ids ? "_{$ids}" : "");
+        // First try to get from the general market cache (without specific IDs)
+        // This is what the scheduled task updates every 5 minutes
+        $generalCacheKey = "coingecko_markets_{$vsCurrency}_{$perPage}";
+        $generalCache = $this->cacheService->getCachedWithMetadataPublic($generalCacheKey);
         
-        // First check if we have this exact cache key
-        $cachedData = $this->cacheService->getCachedWithMetadataPublic($cacheKey);
+        if ($generalCache && $ids) {
+            // We have the general market cache, filter it for requested coins
+            $requestedIds = explode(',', $ids);
+            $filteredData = [];
+            
+            if (is_array($generalCache['data'])) {
+                foreach ($generalCache['data'] as $coin) {
+                    if (isset($coin['id']) && in_array($coin['id'], $requestedIds)) {
+                        $filteredData[] = $coin;
+                    }
+                }
+            }
+            
+            // Check if we found all requested coins
+            $foundIds = array_map(function($coin) { return $coin['id']; }, $filteredData);
+            $missingIds = array_diff($requestedIds, $foundIds);
+            
+            if (empty($missingIds)) {
+                // Found all coins in general cache
+                return $this->cacheService->formatResponsePublic(
+                    $filteredData, 
+                    $generalCache['timestamp'], 
+                    $generalCache['age'], 
+                    'cache'
+                );
+            } else {
+                Log::debug('Some coins missing from general cache', [
+                    'missing_ids' => $missingIds,
+                    'found_ids' => $foundIds
+                ]);
+            }
+        }
+        
+        // If general cache doesn't have all coins, try specific cache key
+        $specificCacheKey = "coingecko_markets_{$vsCurrency}_{$perPage}" . ($ids ? "_{$ids}" : "");
+        $cachedData = $this->cacheService->getCachedWithMetadataPublic($specificCacheKey);
+        
         if ($cachedData && $ids) {
             // Validate that the cache contains all requested coins
             $requestedIds = explode(',', $ids);
@@ -148,20 +186,7 @@ class CoinGeckoService
                     $cachedData['age'], 
                     'cache'
                 );
-            } else {
-                // Cache is incomplete, continue to buildFromMarketDataCaches
-                Log::debug('Exact cache match is incomplete, will try other caches', [
-                    'missing_ids' => $missingIds
-                ]);
             }
-        } elseif ($cachedData && !$ids) {
-            // No specific IDs requested, return the cache
-            return $this->cacheService->formatResponsePublic(
-                $cachedData['data'], 
-                $cachedData['timestamp'], 
-                $cachedData['age'], 
-                'cache'
-            );
         }
         
         // If no exact match or incomplete cache, try to build from individual full market data caches
