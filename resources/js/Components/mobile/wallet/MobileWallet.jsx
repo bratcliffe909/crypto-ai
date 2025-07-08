@@ -12,7 +12,6 @@ import useInterval from '../../../hooks/useInterval';
 import axios from 'axios';
 
 const MobileWallet = () => {
-  const [favorites, setFavorites] = useState([]);
   const [portfolio, setPortfolio] = useLocalStorage('portfolio', {});
   const [walletData, setWalletData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -28,38 +27,6 @@ const MobileWallet = () => {
   const [editingCoin, setEditingCoin] = useState(null);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [cachedWalletData, setCachedWalletData] = useLocalStorage('cachedWalletData', {}); // Share cache with desktop
-  
-  // Load favorites from localStorage
-  useEffect(() => {
-    const savedFavorites = localStorage.getItem('favorites');
-    if (savedFavorites) {
-      setFavorites(JSON.parse(savedFavorites));
-    }
-  }, []);
-
-  // Listen for changes to favorites
-  useEffect(() => {
-    const handleStorageChange = () => {
-      const savedFavorites = localStorage.getItem('favorites');
-      if (savedFavorites) {
-        setFavorites(JSON.parse(savedFavorites));
-      }
-    };
-
-    const handleFavoritesUpdate = (event) => {
-      if (event.detail && event.detail.favorites) {
-        setFavorites(event.detail.favorites);
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('favoritesUpdated', handleFavoritesUpdate);
-    
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('favoritesUpdated', handleFavoritesUpdate);
-    };
-  }, []);
 
   // Fetch exchange rate
   const fetchExchangeRate = async () => {
@@ -75,7 +42,8 @@ const MobileWallet = () => {
 
   // Fetch wallet data
   const fetchWalletData = async () => {
-    if (!favorites.length) {
+    const portfolioCoins = Object.keys(portfolio);
+    if (!portfolioCoins.length) {
       setWalletData([]);
       setTotalValue(0);
       setTotalChange(0);
@@ -91,7 +59,7 @@ const MobileWallet = () => {
       const csrfResponse = await axios.get('/api/csrf-token');
       axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfResponse.data.csrf_token;
       
-      const requestIds = favorites.includes('bitcoin') ? favorites : [...favorites, 'bitcoin'];
+      const requestIds = portfolioCoins.includes('bitcoin') ? portfolioCoins : [...portfolioCoins, 'bitcoin'];
       const response = await axios.get(`/api/crypto/wallet-coins?ids=${requestIds.join(',')}`);
       const data = response.data;
       
@@ -108,25 +76,69 @@ const MobileWallet = () => {
       let total = 0;
       let totalPrevious = 0;
       
-      const enrichedData = data
-        .filter(coin => favorites.includes(coin.id))
-        .map(coin => {
-          const balance = portfolio[coin.id]?.balance || 0;
-          const value = balance * coin.current_price;
-          const previousPrice = coin.current_price / (1 + coin.price_change_percentage_24h / 100);
+      // Create a map of returned data for quick lookup
+      const dataMap = {};
+      data.forEach(coin => {
+        dataMap[coin.id] = coin;
+      });
+      
+      // Build enriched data for ALL portfolio coins, not just returned coins
+      const enrichedData = portfolioCoins.map(coinId => {
+        const coinData = dataMap[coinId];
+        const balance = portfolio[coinId]?.balance || 0;
+        
+        if (coinData) {
+          // We have fresh data for this coin
+          const value = balance * coinData.current_price;
+          const previousPrice = coinData.current_price / (1 + coinData.price_change_percentage_24h / 100);
           const previousValue = balance * previousPrice;
           
           total += value;
           totalPrevious += previousValue;
           
           return {
-            ...coin,
+            ...coinData,
             balance,
             value,
             previousValue,
             isLoaded: true
           };
-        });
+        } else {
+          // No data returned for this coin - check cache
+          const cached = cachedWalletData[coinId];
+          if (cached) {
+            const value = balance * (cached.current_price || 0);
+            const previousPrice = cached.current_price / (1 + (cached.price_change_percentage_24h || 0) / 100);
+            const previousValue = balance * previousPrice;
+            
+            total += value;
+            totalPrevious += previousValue;
+            
+            return {
+              ...cached,
+              balance,
+              value,
+              previousValue,
+              isLoaded: true,
+              isStale: true
+            };
+          } else {
+            // No data at all - show placeholder
+            return {
+              id: coinId,
+              name: coinId,
+              symbol: coinId,
+              current_price: 0,
+              price_change_percentage_24h: 0,
+              balance,
+              value: 0,
+              previousValue: 0,
+              isLoaded: false,
+              isError: true
+            };
+          }
+        }
+      });
       
       setWalletData(enrichedData);
       setTotalValue(total);
@@ -152,7 +164,7 @@ const MobileWallet = () => {
       
       // Load from cache if available
       if (Object.keys(cachedWalletData).length > 0) {
-        const cachedEnrichedData = favorites
+        const cachedEnrichedData = portfolioCoins
           .filter(id => cachedWalletData[id])
           .map(id => {
             const cached = cachedWalletData[id];
@@ -198,8 +210,9 @@ const MobileWallet = () => {
 
   // Load cached data on mount if available
   useEffect(() => {
-    if (favorites.length > 0 && Object.keys(cachedWalletData).length > 0) {
-      const cachedEnrichedData = favorites
+    const portfolioCoins = Object.keys(portfolio);
+    if (portfolioCoins.length > 0 && Object.keys(cachedWalletData).length > 0) {
+      const cachedEnrichedData = portfolioCoins
         .filter(id => cachedWalletData[id])
         .map(id => {
           const cached = cachedWalletData[id];
@@ -244,10 +257,10 @@ const MobileWallet = () => {
 
   useEffect(() => {
     fetchWalletData();
-  }, [favorites, portfolio]);
+  }, [portfolio]);
 
   useInterval(() => {
-    if (favorites.length > 0) {
+    if (Object.keys(portfolio).length > 0) {
       fetchWalletData();
       fetchExchangeRate();
     }
@@ -267,18 +280,16 @@ const MobileWallet = () => {
   };
   
   const addCoinToWallet = (coin) => {
-    const newFavorites = [...favorites, coin.id];
-    setFavorites(newFavorites);
-    localStorage.setItem('favorites', JSON.stringify(newFavorites));
-    
-    window.dispatchEvent(new CustomEvent('favoritesUpdated', { 
-      detail: { favorites: newFavorites } 
-    }));
-    
-    // If coin has initial balance, set it
-    if (coin.initialBalance > 0) {
-      updateBalance(coin.id, coin.initialBalance);
-    }
+    // Add coin to portfolio with initial balance
+    const initialBalance = coin.initialBalance || 0;
+    const newPortfolio = {
+      ...portfolio,
+      [coin.id]: {
+        balance: initialBalance,
+        addedAt: new Date().toISOString()
+      }
+    };
+    setPortfolio(newPortfolio);
     
     // Add placeholder data immediately while waiting for API
     const placeholderCoin = {
@@ -313,14 +324,6 @@ const MobileWallet = () => {
 
   const removeFromWallet = (coinId) => {
     if (window.confirm('Are you sure you want to remove this coin from your wallet?')) {
-      const newFavorites = favorites.filter(id => id !== coinId);
-      setFavorites(newFavorites);
-      localStorage.setItem('favorites', JSON.stringify(newFavorites));
-      
-      window.dispatchEvent(new CustomEvent('favoritesUpdated', { 
-        detail: { favorites: newFavorites } 
-      }));
-      
       const newPortfolio = { ...portfolio };
       delete newPortfolio[coinId];
       setPortfolio(newPortfolio);
@@ -412,7 +415,7 @@ const MobileWallet = () => {
       </div>
 
       <div className="wallet-content">
-        {loading && favorites.length > 0 && walletData.length === 0 ? (
+        {loading && Object.keys(portfolio).length > 0 && walletData.length === 0 ? (
           <div className="loading-container">
             <LoadingSpinner />
           </div>
@@ -487,7 +490,7 @@ const MobileWallet = () => {
               ))}
             </div>
           </div>
-        ) : favorites.length === 0 ? (
+        ) : Object.keys(portfolio).length === 0 ? (
           <div className="empty-state">
             <BsWallet2 size={48} className="text-muted mb-3" />
             <div className="empty-title">Your wallet is empty</div>
@@ -510,7 +513,7 @@ const MobileWallet = () => {
         show={showAddCoinModal}
         onHide={() => setShowAddCoinModal(false)}
         onAddCoin={addCoinToWallet}
-        existingCoins={favorites}
+        existingCoins={Object.keys(portfolio)}
       />
       
       <EditBalanceModal
