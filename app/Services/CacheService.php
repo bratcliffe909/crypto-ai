@@ -106,6 +106,22 @@ class CacheService
     }
     
     /**
+     * Get cached data with metadata - public version
+     */
+    public function getCachedWithMetadataPublic(string $key): ?array
+    {
+        return $this->getCachedWithMetadata($key);
+    }
+    
+    /**
+     * Format response with metadata - public version
+     */
+    public function formatResponsePublic($data, $timestamp, int $age, string $source): array
+    {
+        return $this->formatResponse($data, $timestamp, $age, $source);
+    }
+    
+    /**
      * Store data with metadata
      */
     public function storeWithMetadata(string $key, $data): void

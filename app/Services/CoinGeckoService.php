@@ -67,6 +67,21 @@ class CoinGeckoService
                 Log::warning('CoinGecko rate limit hit, building from individual caches');
                 $data = $this->buildFromIndividualCaches($ids);
                 if (!empty($data)) {
+                    // Check if we got all requested coins
+                    $requestedIds = explode(',', $ids);
+                    $returnedIds = array_map(function($coin) { return $coin['id'] ?? ''; }, $data);
+                    $missingIds = array_diff($requestedIds, $returnedIds);
+                    
+                    if (!empty($missingIds)) {
+                        Log::warning('Rate limit fallback returned incomplete data', [
+                            'requested' => $requestedIds,
+                            'returned' => $returnedIds,
+                            'missing' => $missingIds
+                        ]);
+                        // Don't cache incomplete data - throw exception to prevent caching
+                        throw new \Exception('Incomplete data from rate limit fallback');
+                    }
+                    
                     return $data;
                 }
             }
@@ -84,51 +99,57 @@ class CoinGeckoService
     {
         $cacheKey = "coingecko_markets_{$vsCurrency}_{$perPage}" . ($ids ? "_{$ids}" : "");
         
-        return $this->cacheService->rememberWithoutFreshness($cacheKey, function () use ($vsCurrency, $ids, $perPage) {
-            $params = [
-                'vs_currency' => $vsCurrency,
-                'order' => 'market_cap_desc',
-                'per_page' => $perPage,
-                'page' => 1,
-                'sparkline' => false,
-                'price_change_percentage' => '24h,7d,30d,90d'
-            ];
-
-            if ($ids) {
-                $params['ids'] = $ids;
-            }
-
-            $response = Http::timeout(30)->get("{$this->baseUrl}/coins/markets", $params);
-
-            if ($response->successful()) {
-                $data = $response->json();
-                
-                // Cache each coin individually for future use
-                if ($ids && is_array($data)) {
-                    foreach ($data as $coin) {
-                        $this->cacheIndividualCoin($coin);
+        // First check if we have this exact cache key
+        $cachedData = $this->cacheService->getCachedWithMetadataPublic($cacheKey);
+        if ($cachedData && $ids) {
+            // Validate that the cache contains all requested coins
+            $requestedIds = explode(',', $ids);
+            $cachedIds = [];
+            if (is_array($cachedData['data'])) {
+                foreach ($cachedData['data'] as $coin) {
+                    if (isset($coin['id'])) {
+                        $cachedIds[] = $coin['id'];
                     }
                 }
-                
-                return $data;
             }
-
-            Log::error('CoinGecko API error', [
-                'status' => $response->status(),
-                'body' => $response->body()
-            ]);
-
-            // If rate limited and we have specific IDs, try to build from individual caches
-            if ($response->status() === 429 && $ids) {
-                Log::warning('CoinGecko rate limit hit, building from individual caches');
-                $data = $this->buildFromIndividualCaches($ids);
-                if (!empty($data)) {
-                    return $data;
-                }
+            
+            // Check if all requested coins are in the cache
+            $missingIds = array_diff($requestedIds, $cachedIds);
+            
+            if (empty($missingIds)) {
+                // Cache is complete, return it
+                return $this->cacheService->formatResponsePublic(
+                    $cachedData['data'], 
+                    $cachedData['timestamp'], 
+                    $cachedData['age'], 
+                    'cache'
+                );
+            } else {
+                // Cache is incomplete, continue to buildFromMarketDataCaches
+                Log::debug('Exact cache match is incomplete, will try other caches', [
+                    'missing_ids' => $missingIds
+                ]);
             }
-
-            throw new \Exception('CoinGecko API failed');
-        });
+        } elseif ($cachedData && !$ids) {
+            // No specific IDs requested, return the cache
+            return $this->cacheService->formatResponsePublic(
+                $cachedData['data'], 
+                $cachedData['timestamp'], 
+                $cachedData['age'], 
+                'cache'
+            );
+        }
+        
+        // If no exact match or incomplete cache, try to build from individual full market data caches
+        if ($ids) {
+            $result = $this->buildFromMarketDataCaches($ids);
+            if (!empty($result)) {
+                return $this->cacheService->formatResponsePublic($result, now(), 0, 'cache_combined');
+            }
+        }
+        
+        // No cache available at all
+        return $this->cacheService->formatResponsePublic([], now(), 0, 'none');
     }
 
     /**
@@ -261,6 +282,86 @@ class CoinGeckoService
         });
     }
 
+    /**
+     * Force fetch fresh market data - used by wallet cache update cron job
+     * This bypasses cache and always tries to get fresh data from APIs
+     */
+    public function fetchFreshMarketData($vsCurrency = 'usd', $ids = null, $perPage = 250)
+    {
+        Log::info('Fetching fresh market data', ['ids' => $ids]);
+        
+        $params = [
+            'vs_currency' => $vsCurrency,
+            'order' => 'market_cap_desc',
+            'per_page' => $perPage,
+            'page' => 1,
+            'sparkline' => false,
+            'price_change_percentage' => '24h,7d,30d,90d'
+        ];
+
+        if ($ids) {
+            $params['ids'] = $ids;
+        }
+
+        try {
+            $response = Http::timeout(30)->get("{$this->baseUrl}/coins/markets", $params);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                
+                // Store in cache
+                $cacheKey = "coingecko_markets_{$vsCurrency}_{$perPage}" . ($ids ? "_{$ids}" : "");
+                $this->cacheService->storeWithMetadata($cacheKey, $data);
+                
+                // Cache each coin individually for future use
+                if ($ids && is_array($data)) {
+                    foreach ($data as $coin) {
+                        $this->cacheIndividualCoin($coin);
+                    }
+                }
+                
+                Log::info('Successfully fetched fresh market data', [
+                    'coin_count' => count($data),
+                    'cache_key' => $cacheKey
+                ]);
+                
+                return ['success' => true, 'data' => $data];
+            }
+
+            Log::error('CoinGecko API error', [
+                'status' => $response->status(),
+                'body' => $response->body()
+            ]);
+
+            // If rate limited, try fallback APIs
+            if ($response->status() === 429) {
+                Log::warning('CoinGecko rate limit hit, trying fallback APIs');
+                
+                // Try AlphaVantage for major cryptos
+                if ($ids) {
+                    $fallbackData = $this->tryAlphaVantageForCoins(explode(',', $ids));
+                    if (!empty($fallbackData)) {
+                        // Don't cache partial data with the full request key
+                        if (count($fallbackData) < count(explode(',', $ids))) {
+                            Log::warning('Fallback API returned partial data, not caching with full key');
+                        } else {
+                            $this->cacheService->storeWithMetadata($cacheKey, $fallbackData);
+                        }
+                        return ['success' => true, 'data' => $fallbackData, 'source' => 'fallback'];
+                    }
+                }
+            }
+
+            return ['success' => false, 'error' => 'API failed', 'status' => $response->status()];
+            
+        } catch (\Exception $e) {
+            Log::error('Exception fetching market data', [
+                'error' => $e->getMessage()
+            ]);
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+    
     /**
      * Force refresh specific coin data - used when adding new coins to wallet
      * This ensures fresh price data is available for newly added coins
@@ -414,6 +515,61 @@ class CoinGeckoService
         ], 2592000);
         
         Log::debug("Cached individual coin data", ['coin' => $coinData['id']]);
+    }
+    
+    /**
+     * Build from properly cached market data (not from incomplete individual caches)
+     */
+    private function buildFromMarketDataCaches($ids)
+    {
+        $idArray = explode(',', $ids);
+        $result = [];
+        
+        // Try to find these coins in other market data caches
+        $redis = new \Redis();
+        $redis->connect('crypto-graph-redis', 6379);
+        $redis->select(1);
+        
+        // Look for market data cache keys that might contain our coins
+        $marketKeys = $redis->keys('*coingecko_markets_usd_*');
+        
+        foreach ($marketKeys as $key) {
+            // Skip meta keys
+            if (strpos($key, '_meta') !== false) {
+                continue;
+            }
+            
+            $cachedData = $redis->get($key);
+            if ($cachedData) {
+                $data = unserialize($cachedData);
+                if (is_array($data)) {
+                    foreach ($data as $coin) {
+                        if (in_array($coin['id'], $idArray) && !isset($result[$coin['id']])) {
+                            // Only use data that has complete market information
+                            if (isset($coin['market_cap']) && $coin['market_cap'] !== null) {
+                                $result[$coin['id']] = $coin;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // If we found all coins, stop searching
+            if (count($result) === count($idArray)) {
+                break;
+            }
+        }
+        
+        // Log only if some coins are missing
+        $foundIds = array_keys($result);
+        $missingIds = array_diff($idArray, $foundIds);
+        if (!empty($missingIds)) {
+            Log::debug('Some wallet coins not found in any cache', [
+                'missing_ids' => $missingIds
+            ]);
+        }
+        
+        return array_values($result);
     }
     
     /**

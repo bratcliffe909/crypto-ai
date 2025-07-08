@@ -29,6 +29,29 @@ const Wallet = () => {
   const [loadingCoins, setLoadingCoins] = useState({}); // Track loading state per coin
   const [cachedWalletData, setCachedWalletData] = useLocalStorage('cachedWalletData', {}); // Cache wallet data
   
+  // Clear old cached data if it has incomplete structure
+  useEffect(() => {
+    const cached = localStorage.getItem('cachedWalletData');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        // Check if any cached coin has null market_cap (indicating old incomplete data)
+        const hasIncompleteData = Object.values(parsed).some(coin => 
+          coin && coin.market_cap === null && coin.price_change_percentage_24h === 0
+        );
+        if (hasIncompleteData) {
+          console.log('Clearing old incomplete cached wallet data');
+          localStorage.removeItem('cachedWalletData');
+          setCachedWalletData({});
+        }
+      } catch (e) {
+        // Invalid cache, clear it
+        localStorage.removeItem('cachedWalletData');
+        setCachedWalletData({});
+      }
+    }
+  }, []);
+  
   // Load favorites from localStorage
   useEffect(() => {
     const savedFavorites = localStorage.getItem('favorites');
@@ -126,6 +149,7 @@ const Wallet = () => {
           const value = balance * coin.current_price;
           const previousPrice = coin.current_price / (1 + coin.price_change_percentage_24h / 100);
           const previousValue = balance * previousPrice;
+          
           
           total += value;
           totalPrevious += previousValue;

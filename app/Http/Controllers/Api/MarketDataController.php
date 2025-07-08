@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Services\CoinGeckoService;
 use App\Services\WalletCacheService;
+use Illuminate\Support\Facades\Log;
 
 class MarketDataController extends Controller
 {

@@ -72,13 +72,21 @@ class WalletCacheService
         
         foreach ($chunks as $chunk) {
             try {
-                // Use the simple price endpoint which is more efficient
+                // Use fetchFreshMarketData to bypass cache and get fresh data
                 $ids = implode(',', $chunk);
-                $prices = $this->coinGeckoService->getSimplePrice($ids);
+                $response = $this->coinGeckoService->fetchFreshMarketData('usd', $ids, 250);
                 
-                if ($prices && isset($prices['data'])) {
+                if ($response['success'] && isset($response['data']) && is_array($response['data'])) {
+                    // Count how many coins we got data for
+                    $foundCoins = [];
+                    foreach ($response['data'] as $coin) {
+                        if (isset($coin['id'])) {
+                            $foundCoins[] = $coin['id'];
+                        }
+                    }
+                    
                     foreach ($chunk as $coinId) {
-                        if (isset($prices['data'][$coinId])) {
+                        if (in_array($coinId, $foundCoins)) {
                             $results['updated']++;
                             $results['coins'][$coinId] = 'updated';
                         } else {
@@ -88,9 +96,14 @@ class WalletCacheService
                     }
                 } else {
                     $results['failed'] += count($chunk);
+                    $error = $response['error'] ?? 'unknown_error';
                     foreach ($chunk as $coinId) {
-                        $results['coins'][$coinId] = 'api_error';
+                        $results['coins'][$coinId] = 'api_error: ' . $error;
                     }
+                    Log::warning('Failed to fetch fresh market data', [
+                        'error' => $error,
+                        'coins' => $chunk
+                    ]);
                 }
                 
                 // Small delay between batches to avoid rate limits
