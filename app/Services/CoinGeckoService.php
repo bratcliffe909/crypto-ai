@@ -186,6 +186,27 @@ class CoinGeckoService
                     'missing_ids' => $missingIds,
                     'found_ids' => $foundIds
                 ]);
+                
+                // Try to get missing coins from individual caches
+                foreach ($missingIds as $missingId) {
+                    $individualKey = "coin_data_{$missingId}";
+                    $individualCoin = \Cache::get($individualKey);
+                    
+                    if ($individualCoin) {
+                        $filteredData[] = $individualCoin;
+                        Log::debug("Found {$missingId} in individual cache");
+                    }
+                }
+                
+                // If we now have all coins, return them
+                if (count($filteredData) === count($requestedIds)) {
+                    return $this->cacheService->formatResponsePublic(
+                        $filteredData, 
+                        $generalCache['timestamp'], 
+                        $generalCache['age'], 
+                        'cache'
+                    );
+                }
             }
         }
         
@@ -224,6 +245,12 @@ class CoinGeckoService
             $result = $this->buildFromMarketDataCaches($ids);
             if (!empty($result)) {
                 return $this->cacheService->formatResponsePublic($result, now(), 0, 'cache_combined');
+            }
+            
+            // Last resort: check individual coin caches
+            $individualResult = $this->buildFromIndividualCaches($ids);
+            if (!empty($individualResult)) {
+                return $this->cacheService->formatResponsePublic($individualResult, now(), 0, 'cache_individual');
             }
         }
         

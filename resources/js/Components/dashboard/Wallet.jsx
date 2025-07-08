@@ -128,7 +128,16 @@ const Wallet = () => {
           };
         });
       
-      setWalletData(enrichedData);
+      // Preserve any placeholders that were recently added (needsRefresh flag)
+      const currentPlaceholders = walletData.filter(coin => coin.needsRefresh && !enrichedData.find(c => c.id === coin.id));
+      
+      // Add placeholder values to totals
+      currentPlaceholders.forEach(placeholder => {
+        total += placeholder.value || 0;
+        totalPrevious += placeholder.previousValue || 0;
+      });
+      
+      setWalletData([...enrichedData, ...currentPlaceholders]);
       setTotalValue(total);
       setTotalChange(total - totalPrevious);
       
@@ -290,6 +299,11 @@ const Wallet = () => {
   const addCoinToWallet = async (coin) => {
     // Add coin to portfolio with initial balance
     const initialBalance = coin.initialBalance || 0;
+    
+    // Close modal
+    setShowAddCoinModal(false);
+    
+    // Update portfolio first
     const newPortfolio = {
       ...portfolio,
       [coin.id]: {
@@ -299,14 +313,10 @@ const Wallet = () => {
     };
     setPortfolio(newPortfolio);
     
-    // Close modal
-    setShowAddCoinModal(false);
-    
     // Try to get coin data from cache first
     const cachedCoin = cachedWalletData[coin.id];
     if (cachedCoin) {
       // Use cached data immediately
-      console.log(`Using cached data for ${coin.id}`);
       const enrichedCoin = {
         ...cachedCoin,
         balance: initialBalance,
@@ -382,14 +392,12 @@ const Wallet = () => {
           name: coin.name,
           image: coin.large || coin.thumb
         });
-        console.log(`Triggered refresh for ${coin.id}`);
         
         // Wait a bit then fetch wallet data
         setTimeout(() => {
           fetchWalletData();
-        }, 1000);
+        }, 2000); // Increased to 2 seconds to ensure refresh completes
       } catch (err) {
-        console.error(`Failed to refresh data for ${coin.id}:`, err);
       }
     }
   };
@@ -552,6 +560,7 @@ const Wallet = () => {
               const coin = walletData.find(c => c.id === coinId);
               const isLoading = loadingCoins[coinId];
               
+              
               // Show loading placeholder for coins being fetched
               if (!coin && isLoading) {
                 return (
@@ -593,6 +602,7 @@ const Wallet = () => {
               if (!coin) {
                 const cachedCoin = cachedWalletData[coinId];
                 const balance = portfolio[coinId]?.balance || 0;
+                
                 
                 // Create minimal coin object for display
                 const minimalCoin = {

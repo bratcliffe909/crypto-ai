@@ -145,7 +145,16 @@ const MobileWallet = () => {
         }
       });
       
-      setWalletData(enrichedData);
+      // Preserve any placeholders that were recently added (needsRefresh flag)
+      const currentPlaceholders = walletData.filter(coin => coin.needsRefresh && !enrichedData.find(c => c.id === coin.id));
+      
+      // Add placeholder values to totals
+      currentPlaceholders.forEach(placeholder => {
+        total += placeholder.value || 0;
+        totalPrevious += placeholder.previousValue || 0;
+      });
+      
+      setWalletData([...enrichedData, ...currentPlaceholders]);
       setTotalValue(total);
       setTotalChange(total - totalPrevious);
       setInitialLoadComplete(true);
