@@ -294,7 +294,7 @@ const MobileWallet = () => {
     setPortfolio(newPortfolio);
   };
   
-  const addCoinToWallet = (coin) => {
+  const addCoinToWallet = async (coin) => {
     // Add coin to portfolio with initial balance
     const initialBalance = coin.initialBalance || 0;
     const newPortfolio = {
@@ -306,6 +306,97 @@ const MobileWallet = () => {
     };
     setPortfolio(newPortfolio);
     setShowAddCoinModal(false);
+    
+    // Try to get coin data from cache first
+    const cachedCoin = cachedWalletData[coin.id];
+    if (cachedCoin) {
+      // Use cached data immediately
+      console.log(`Using cached data for ${coin.id}`);
+      const enrichedCoin = {
+        ...cachedCoin,
+        balance: initialBalance,
+        value: initialBalance * (cachedCoin.current_price || 0),
+        previousValue: initialBalance * (cachedCoin.current_price || 0)
+      };
+      
+      setWalletData(prevData => {
+        const filtered = prevData.filter(c => c.id !== coin.id);
+        return [...filtered, enrichedCoin];
+      });
+    } else {
+      // No cache, create placeholder with proper format
+      const placeholderCoin = {
+        id: coin.id,
+        symbol: coin.symbol.toLowerCase(), // API returns lowercase
+        name: coin.name,
+        image: coin.large || coin.thumb || coin.image,
+        current_price: 0,
+        market_cap: 0,
+        market_cap_rank: coin.market_cap_rank || null,
+        fully_diluted_valuation: null,
+        total_volume: 0,
+        high_24h: 0,
+        low_24h: 0,
+        price_change_24h: 0,
+        price_change_percentage_24h: 0,
+        market_cap_change_24h: 0,
+        market_cap_change_percentage_24h: 0,
+        circulating_supply: null,
+        total_supply: null,
+        max_supply: null,
+        ath: 0,
+        ath_change_percentage: 0,
+        ath_date: null,
+        atl: 0,
+        atl_change_percentage: 0,
+        atl_date: null,
+        roi: null,
+        last_updated: new Date().toISOString(),
+        price_change_percentage_24h_in_currency: 0,
+        price_change_percentage_30d_in_currency: 0,
+        price_change_percentage_7d_in_currency: 0,
+        balance: initialBalance,
+        value: 0,
+        previousValue: 0,
+        needsRefresh: true
+      };
+      
+      // Add to wallet data
+      setWalletData(prevData => {
+        const filtered = prevData.filter(c => c.id !== coin.id);
+        return [...filtered, placeholderCoin];
+      });
+      
+      // Cache this placeholder
+      setCachedWalletData(prev => ({
+        ...prev,
+        [coin.id]: {
+          ...placeholderCoin,
+          cachedAt: new Date().toISOString()
+        }
+      }));
+      
+      // Try to refresh from API
+      try {
+        // Get CSRF token
+        const csrfResponse = await axios.get('/api/csrf-token');
+        axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfResponse.data.csrf_token;
+        
+        await axios.post(`/api/crypto/refresh-coin/${coin.id}`, {
+          symbol: coin.symbol,
+          name: coin.name,
+          image: coin.large || coin.thumb
+        });
+        console.log(`Triggered refresh for ${coin.id}`);
+        
+        // Wait a bit then fetch wallet data
+        setTimeout(() => {
+          fetchWalletData();
+        }, 1000);
+      } catch (err) {
+        console.error(`Failed to refresh data for ${coin.id}:`, err);
+      }
+    }
   };
 
   const removeFromWallet = (coinId) => {
@@ -422,7 +513,7 @@ const MobileWallet = () => {
                       className="coin-image"
                       loading="lazy"
                     />
-                    <span className="coin-symbol">{coin.symbol.toUpperCase()}</span>
+                    <span className="coin-symbol">{(coin.symbol || coin.id.slice(0, 3)).toUpperCase()}</span>
                   </div>
                   
                   <div className="col-price">
@@ -442,7 +533,7 @@ const MobileWallet = () => {
                   <div className="col-holdings">
                     <div className="holdings-value">{formatPrice(coin.value)}</div>
                     <div className="holdings-amount">
-                      {coin.balance || 0} {coin.symbol.toUpperCase()}
+                      {coin.balance || 0} {(coin.symbol || coin.id.slice(0, 3)).toUpperCase()}
                     </div>
                   </div>
                   

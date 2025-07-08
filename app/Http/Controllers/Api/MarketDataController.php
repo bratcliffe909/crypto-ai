@@ -120,13 +120,27 @@ class MarketDataController extends Controller
             // Track this coin as being used in wallet
             $this->walletCacheService->trackWalletCoin($coinId);
             
+            // Get placeholder data from request
+            $symbol = $request->input('symbol');
+            $name = $request->input('name');
+            $image = $request->input('image');
+            
             // Force refresh the coin data
-            $refreshed = $this->coinGeckoService->refreshCoinData($coinId);
+            $refreshed = $this->coinGeckoService->refreshCoinData($coinId, $symbol, $name, $image);
             
             if ($refreshed) {
                 return response()->json([
                     'success' => true,
                     'message' => 'Coin data refreshed successfully'
+                ]);
+            }
+            
+            // If refresh failed but we have placeholder data, still return success
+            // The cron job will pick it up later
+            if ($symbol && $name) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Coin added with placeholder data'
                 ]);
             }
             

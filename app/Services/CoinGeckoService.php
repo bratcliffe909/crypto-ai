@@ -445,7 +445,7 @@ class CoinGeckoService
      * Force refresh specific coin data - used when adding new coins to wallet
      * This ensures fresh price data is available for newly added coins
      */
-    public function refreshCoinData($coinId)
+    public function refreshCoinData($coinId, $symbol = null, $name = null, $image = null)
     {
         $cacheKey = "coingecko_markets_usd_250_{$coinId}";
         
@@ -478,6 +478,52 @@ class CoinGeckoService
             }
         } catch (\Exception $e) {
             Log::error("Failed to refresh coin data for {$coinId}", ['error' => $e->getMessage()]);
+        }
+        
+        // If API failed but we have placeholder data, create and cache a placeholder
+        if ($symbol && $name) {
+            $placeholderData = [[
+                'id' => $coinId,
+                'symbol' => strtolower($symbol), // Ensure lowercase
+                'name' => $name,
+                'image' => $image ?: 'https://via.placeholder.com/150',
+                'current_price' => 0,
+                'market_cap' => 0,
+                'market_cap_rank' => null,
+                'fully_diluted_valuation' => null,
+                'total_volume' => 0,
+                'high_24h' => 0,
+                'low_24h' => 0,
+                'price_change_24h' => 0,
+                'price_change_percentage_24h' => 0,
+                'market_cap_change_24h' => 0,
+                'market_cap_change_percentage_24h' => 0,
+                'circulating_supply' => null,
+                'total_supply' => null,
+                'max_supply' => null,
+                'ath' => 0,
+                'ath_change_percentage' => 0,
+                'ath_date' => null,
+                'atl' => 0,
+                'atl_change_percentage' => 0,
+                'atl_date' => null,
+                'roi' => null,
+                'last_updated' => now()->toIso8601String(),
+                'price_change_percentage_24h_in_currency' => 0,
+                'price_change_percentage_30d_in_currency' => 0,
+                'price_change_percentage_7d_in_currency' => 0
+            ]];
+            
+            // Store placeholder in cache
+            $this->cacheService->storeWithMetadata($cacheKey, $placeholderData);
+            $this->cacheIndividualCoin($placeholderData[0]);
+            
+            Log::info("Created placeholder data for {$coinId}", [
+                'symbol' => $symbol,
+                'name' => $name
+            ]);
+            
+            return true;
         }
         
         return false;
