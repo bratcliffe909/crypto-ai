@@ -305,36 +305,7 @@ const MobileWallet = () => {
       }
     };
     setPortfolio(newPortfolio);
-    
-    // Add placeholder data immediately while waiting for API
-    const placeholderCoin = {
-      id: coin.id,
-      name: coin.name,
-      symbol: coin.symbol,
-      image: coin.thumb || coin.image,
-      current_price: 0,
-      price_change_percentage_24h: 0,
-      balance: coin.initialBalance || 0,
-      value: 0,
-      previousValue: 0,
-      isLoaded: false
-    };
-    
-    // Check if coin already exists in wallet data
-    setWalletData(prevData => {
-      const exists = prevData.find(c => c.id === coin.id);
-      if (exists) {
-        return prevData;
-      }
-      return [...prevData, placeholderCoin];
-    });
-    
     setShowAddCoinModal(false);
-    
-    // Immediately fetch fresh data from API
-    setTimeout(() => {
-      fetchWalletData();
-    }, 100);
   };
 
   const removeFromWallet = (coinId) => {
@@ -462,20 +433,10 @@ const MobileWallet = () => {
                         title="Using cached data"
                       />
                     )}
-                    {(coin.current_price === 0 || coin.needsRefresh) ? (
-                      <div className="price-loading">
-                        <div className="spinner-border spinner-border-sm text-light" role="status">
-                          <span className="visually-hidden">Loading...</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="current-price">{formatPrice(coin.current_price)}</div>
-                        <div className={`price-change ${coin.price_change_percentage_24h >= 0 ? 'positive' : 'negative'}`}>
-                          {formatPercentage(coin.price_change_percentage_24h)}
-                        </div>
-                      </>
-                    )}
+                    <div className="current-price">{formatPrice(coin.current_price)}</div>
+                    <div className={`price-change ${coin.price_change_percentage_24h >= 0 ? 'positive' : 'negative'}`}>
+                      {formatPercentage(coin.price_change_percentage_24h)}
+                    </div>
                   </div>
                   
                   <div className="col-holdings">
