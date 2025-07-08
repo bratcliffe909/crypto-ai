@@ -41,8 +41,8 @@ const MobileWallet = () => {
   };
 
   // Fetch wallet data
-  const fetchWalletData = async () => {
-    const portfolioCoins = Object.keys(portfolio);
+  const fetchWalletData = async (portfolioOverride = null) => {
+    const portfolioCoins = Object.keys(portfolioOverride || portfolio);
     if (!portfolioCoins.length) {
       setWalletData([]);
       setTotalValue(0);
@@ -124,37 +124,38 @@ const MobileWallet = () => {
             };
           } else {
             // No data at all - show placeholder
-            // Try to extract symbol from coinId (e.g., "world-mobile-token" -> "WMT")
-            const symbol = coinId.split('-').map(word => word[0]).join('').toUpperCase() || coinId.toUpperCase();
+            // Read from localStorage directly to get the most up-to-date data
+            let currentCachedData = cachedWalletData;
+            try {
+              const localStorageData = localStorage.getItem('cachedWalletData');
+              if (localStorageData) {
+                currentCachedData = JSON.parse(localStorageData);
+              }
+            } catch (e) {
+              console.error('Error reading cachedWalletData from localStorage:', e);
+            }
+            
+            const cachedCoin = currentCachedData[coinId];
             
             return {
               id: coinId,
-              name: coinId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
-              symbol: symbol,
-              image: '/images/placeholder-coin.png', // Default placeholder image
-              current_price: 0,
-              price_change_percentage_24h: 0,
+              name: cachedCoin?.name || coinId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
+              symbol: cachedCoin?.symbol || coinId.split('-').map(word => word[0]).join('').toUpperCase() || coinId.toUpperCase(),
+              image: cachedCoin?.image || '/images/placeholder-coin.png',
+              current_price: cachedCoin?.current_price || 0,
+              price_change_percentage_24h: cachedCoin?.price_change_percentage_24h || 0,
               balance,
-              value: 0,
-              previousValue: 0,
+              value: balance * (cachedCoin?.current_price || 0),
+              previousValue: balance * (cachedCoin?.current_price || 0),
               isLoaded: false,
-              isError: true,
+              isError: !cachedCoin,
               needsRefresh: true
             };
           }
         }
       });
       
-      // Preserve any placeholders that were recently added (needsRefresh flag)
-      const currentPlaceholders = walletData.filter(coin => coin.needsRefresh && !enrichedData.find(c => c.id === coin.id));
-      
-      // Add placeholder values to totals
-      currentPlaceholders.forEach(placeholder => {
-        total += placeholder.value || 0;
-        totalPrevious += placeholder.previousValue || 0;
-      });
-      
-      setWalletData([...enrichedData, ...currentPlaceholders]);
+      setWalletData(enrichedData);
       setTotalValue(total);
       setTotalChange(total - totalPrevious);
       setInitialLoadComplete(true);
@@ -306,6 +307,33 @@ const MobileWallet = () => {
   const addCoinToWallet = async (coin) => {
     // Add coin to portfolio with initial balance
     const initialBalance = coin.initialBalance || 0;
+    
+    // Close modal
+    setShowAddCoinModal(false);
+    
+    // Create placeholder data with correct format from search results
+    const placeholderData = {
+      id: coin.id,
+      symbol: coin.symbol.toLowerCase(), // API returns lowercase
+      name: coin.name,
+      image: coin.large || coin.thumb || coin.image,
+      current_price: 0,
+      market_cap: 0,
+      market_cap_rank: coin.market_cap_rank || null,
+      price_change_percentage_24h: 0,
+      balance: initialBalance,
+      value: 0,
+      previousValue: 0,
+      cachedAt: new Date().toISOString()
+    };
+    
+    // Update cached wallet data first
+    setCachedWalletData(prev => ({
+      ...prev,
+      [coin.id]: placeholderData
+    }));
+    
+    // Update portfolio - this will trigger fetchWalletData
     const newPortfolio = {
       ...portfolio,
       [coin.id]: {
@@ -314,97 +342,35 @@ const MobileWallet = () => {
       }
     };
     setPortfolio(newPortfolio);
-    setShowAddCoinModal(false);
     
-    // Try to get coin data from cache first
-    const cachedCoin = cachedWalletData[coin.id];
-    if (cachedCoin) {
-      // Use cached data immediately
-      console.log(`Using cached data for ${coin.id}`);
-      const enrichedCoin = {
-        ...cachedCoin,
-        balance: initialBalance,
-        value: initialBalance * (cachedCoin.current_price || 0),
-        previousValue: initialBalance * (cachedCoin.current_price || 0)
-      };
+    // Try to refresh from API
+    try {
+      // Get CSRF token
+      const csrfResponse = await axios.get('/api/csrf-token');
+      axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfResponse.data.csrf_token;
       
-      setWalletData(prevData => {
-        const filtered = prevData.filter(c => c.id !== coin.id);
-        return [...filtered, enrichedCoin];
-      });
-    } else {
-      // No cache, create placeholder with proper format
-      const placeholderCoin = {
-        id: coin.id,
-        symbol: coin.symbol.toLowerCase(), // API returns lowercase
+      const refreshResponse = await axios.post(`/api/crypto/refresh-coin/${coin.id}`, {
+        symbol: coin.symbol,
         name: coin.name,
-        image: coin.large || coin.thumb || coin.image,
-        current_price: 0,
-        market_cap: 0,
-        market_cap_rank: coin.market_cap_rank || null,
-        fully_diluted_valuation: null,
-        total_volume: 0,
-        high_24h: 0,
-        low_24h: 0,
-        price_change_24h: 0,
-        price_change_percentage_24h: 0,
-        market_cap_change_24h: 0,
-        market_cap_change_percentage_24h: 0,
-        circulating_supply: null,
-        total_supply: null,
-        max_supply: null,
-        ath: 0,
-        ath_change_percentage: 0,
-        ath_date: null,
-        atl: 0,
-        atl_change_percentage: 0,
-        atl_date: null,
-        roi: null,
-        last_updated: new Date().toISOString(),
-        price_change_percentage_24h_in_currency: 0,
-        price_change_percentage_30d_in_currency: 0,
-        price_change_percentage_7d_in_currency: 0,
-        balance: initialBalance,
-        value: 0,
-        previousValue: 0,
-        needsRefresh: true
-      };
-      
-      // Add to wallet data
-      setWalletData(prevData => {
-        const filtered = prevData.filter(c => c.id !== coin.id);
-        return [...filtered, placeholderCoin];
+        image: coin.large || coin.thumb
       });
       
-      // Cache this placeholder
-      setCachedWalletData(prev => ({
-        ...prev,
-        [coin.id]: {
-          ...placeholderCoin,
-          cachedAt: new Date().toISOString()
-        }
-      }));
-      
-      // Try to refresh from API
-      try {
-        // Get CSRF token
-        const csrfResponse = await axios.get('/api/csrf-token');
-        axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfResponse.data.csrf_token;
-        
-        await axios.post(`/api/crypto/refresh-coin/${coin.id}`, {
-          symbol: coin.symbol,
-          name: coin.name,
-          image: coin.large || coin.thumb
-        });
-        console.log(`Triggered refresh for ${coin.id}`);
-        
-        // Wait a bit then fetch wallet data
-        setTimeout(() => {
-          fetchWalletData();
-        }, 1000);
-      } catch (err) {
-        console.error(`Failed to refresh data for ${coin.id}:`, err);
+      // If we got fresh data, update the cache
+      if (refreshResponse.data && refreshResponse.data.id === coin.id) {
+        const freshData = refreshResponse.data;
+        setCachedWalletData(prev => ({
+          ...prev,
+          [coin.id]: {
+            ...freshData,
+            balance: initialBalance,
+            value: initialBalance * freshData.current_price,
+            previousValue: initialBalance * (freshData.current_price / (1 + freshData.price_change_percentage_24h / 100)),
+            cachedAt: new Date().toISOString()
+          }
+        }));
       }
+    } catch (err) {
+      console.error('Failed to refresh coin data:', err);
     }
   };
 

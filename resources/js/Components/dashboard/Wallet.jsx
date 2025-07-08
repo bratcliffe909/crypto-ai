@@ -66,8 +66,8 @@ const Wallet = () => {
   };
 
   // Fetch wallet data
-  const fetchWalletData = async () => {
-    const portfolioCoins = Object.keys(portfolio);
+  const fetchWalletData = async (portfolioOverride = null) => {
+    const portfolioCoins = Object.keys(portfolioOverride || portfolio);
     if (!portfolioCoins.length) {
       setWalletData([]);
       setTotalValue(0);
@@ -128,16 +128,46 @@ const Wallet = () => {
           };
         });
       
-      // Preserve any placeholders that were recently added (needsRefresh flag)
-      const currentPlaceholders = walletData.filter(coin => coin.needsRefresh && !enrichedData.find(c => c.id === coin.id));
+      // Check for any portfolio coins not in the API response
+      const missingCoins = portfolioCoins.filter(coinId => !enrichedData.find(c => c.id === coinId));
+      
+      // Create placeholders for missing coins
+      // Read from localStorage directly to get the most up-to-date data
+      let currentCachedData = cachedWalletData;
+      try {
+        const localStorageData = localStorage.getItem('cachedWalletData');
+        if (localStorageData) {
+          currentCachedData = JSON.parse(localStorageData);
+        }
+      } catch (e) {
+        console.error('Error reading cachedWalletData from localStorage:', e);
+      }
+      
+      const placeholders = missingCoins.map(coinId => {
+        const cachedCoin = currentCachedData[coinId];
+        const balance = portfolio[coinId]?.balance || 0;
+        
+        return {
+          id: coinId,
+          symbol: cachedCoin?.symbol || coinId.slice(0, 3).toLowerCase(),
+          name: cachedCoin?.name || coinId.charAt(0).toUpperCase() + coinId.slice(1).replace(/-/g, ' '),
+          image: cachedCoin?.image || null,
+          current_price: cachedCoin?.current_price || 0,
+          price_change_percentage_24h: cachedCoin?.price_change_percentage_24h || 0,
+          balance: balance,
+          value: balance * (cachedCoin?.current_price || 0),
+          previousValue: balance * (cachedCoin?.current_price || 0),
+          needsRefresh: true
+        };
+      });
       
       // Add placeholder values to totals
-      currentPlaceholders.forEach(placeholder => {
+      placeholders.forEach(placeholder => {
         total += placeholder.value || 0;
         totalPrevious += placeholder.previousValue || 0;
       });
       
-      setWalletData([...enrichedData, ...currentPlaceholders]);
+      setWalletData([...enrichedData, ...placeholders]);
       setTotalValue(total);
       setTotalChange(total - totalPrevious);
       
@@ -303,7 +333,29 @@ const Wallet = () => {
     // Close modal
     setShowAddCoinModal(false);
     
-    // Update portfolio first
+    // Create placeholder data with correct format from search results
+    const placeholderData = {
+      id: coin.id,
+      symbol: coin.symbol.toLowerCase(), // API returns lowercase
+      name: coin.name,
+      image: coin.large || coin.thumb || coin.image,
+      current_price: 0,
+      market_cap: 0,
+      market_cap_rank: coin.market_cap_rank || null,
+      price_change_percentage_24h: 0,
+      balance: initialBalance,
+      value: 0,
+      previousValue: 0,
+      cachedAt: new Date().toISOString()
+    };
+    
+    // Update cached wallet data first
+    setCachedWalletData(prev => ({
+      ...prev,
+      [coin.id]: placeholderData
+    }));
+    
+    // Update portfolio - this will trigger fetchWalletData
     const newPortfolio = {
       ...portfolio,
       [coin.id]: {
@@ -313,92 +365,34 @@ const Wallet = () => {
     };
     setPortfolio(newPortfolio);
     
-    // Try to get coin data from cache first
-    const cachedCoin = cachedWalletData[coin.id];
-    if (cachedCoin) {
-      // Use cached data immediately
-      const enrichedCoin = {
-        ...cachedCoin,
-        balance: initialBalance,
-        value: initialBalance * (cachedCoin.current_price || 0),
-        previousValue: initialBalance * (cachedCoin.current_price || 0)
-      };
+    // Try to refresh from API
+    try {
+      // Get CSRF token
+      const csrfResponse = await axios.get('/api/csrf-token');
+      axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfResponse.data.csrf_token;
       
-      setWalletData(prevData => {
-        const filtered = prevData.filter(c => c.id !== coin.id);
-        return [...filtered, enrichedCoin];
-      });
-    } else {
-      // No cache, create placeholder with proper format
-      const placeholderCoin = {
-        id: coin.id,
-        symbol: coin.symbol.toLowerCase(), // API returns lowercase
+      const refreshResponse = await axios.post(`/api/crypto/refresh-coin/${coin.id}`, {
+        symbol: coin.symbol,
         name: coin.name,
-        image: coin.large || coin.thumb || coin.image,
-        current_price: 0,
-        market_cap: 0,
-        market_cap_rank: coin.market_cap_rank || null,
-        fully_diluted_valuation: null,
-        total_volume: 0,
-        high_24h: 0,
-        low_24h: 0,
-        price_change_24h: 0,
-        price_change_percentage_24h: 0,
-        market_cap_change_24h: 0,
-        market_cap_change_percentage_24h: 0,
-        circulating_supply: null,
-        total_supply: null,
-        max_supply: null,
-        ath: 0,
-        ath_change_percentage: 0,
-        ath_date: null,
-        atl: 0,
-        atl_change_percentage: 0,
-        atl_date: null,
-        roi: null,
-        last_updated: new Date().toISOString(),
-        price_change_percentage_24h_in_currency: 0,
-        price_change_percentage_30d_in_currency: 0,
-        price_change_percentage_7d_in_currency: 0,
-        balance: initialBalance,
-        value: 0,
-        previousValue: 0,
-        needsRefresh: true
-      };
-      
-      // Add to wallet data
-      setWalletData(prevData => {
-        const filtered = prevData.filter(c => c.id !== coin.id);
-        return [...filtered, placeholderCoin];
+        image: coin.large || coin.thumb
       });
       
-      // Cache this placeholder
-      setCachedWalletData(prev => ({
-        ...prev,
-        [coin.id]: {
-          ...placeholderCoin,
-          cachedAt: new Date().toISOString()
-        }
-      }));
-      
-      // Try to refresh from API
-      try {
-        // Get CSRF token
-        const csrfResponse = await axios.get('/api/csrf-token');
-        axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfResponse.data.csrf_token;
-        
-        await axios.post(`/api/crypto/refresh-coin/${coin.id}`, {
-          symbol: coin.symbol,
-          name: coin.name,
-          image: coin.large || coin.thumb
-        });
-        
-        // Wait a bit then fetch wallet data
-        setTimeout(() => {
-          fetchWalletData();
-        }, 2000); // Increased to 2 seconds to ensure refresh completes
-      } catch (err) {
+      // If we got fresh data, update the cache
+      if (refreshResponse.data && refreshResponse.data.id === coin.id) {
+        const freshData = refreshResponse.data;
+        setCachedWalletData(prev => ({
+          ...prev,
+          [coin.id]: {
+            ...freshData,
+            balance: initialBalance,
+            value: initialBalance * freshData.current_price,
+            previousValue: initialBalance * (freshData.current_price / (1 + freshData.price_change_percentage_24h / 100)),
+            cachedAt: new Date().toISOString()
+          }
+        }));
       }
+    } catch (err) {
+      console.error('Failed to refresh coin data:', err);
     }
   };
 
