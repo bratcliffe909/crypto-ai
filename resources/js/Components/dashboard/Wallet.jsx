@@ -109,25 +109,74 @@ const Wallet = () => {
       let total = 0;
       let totalPrevious = 0;
       
-      const enrichedData = data
-        .filter(coin => portfolioCoins.includes(coin.id)) // Only show coins that are actually in portfolio
-        .map(coin => {
-          const balance = portfolio[coin.id]?.balance || 0;
-          const value = balance * coin.current_price;
-          const previousPrice = coin.current_price / (1 + coin.price_change_percentage_24h / 100);
+      // Create a map of returned data for quick lookup
+      const dataMap = {};
+      data.forEach(coin => {
+        dataMap[coin.id] = coin;
+      });
+      
+      // Build enriched data for ALL portfolio coins, not just returned coins
+      const enrichedData = portfolioCoins.map(coinId => {
+        const coinData = dataMap[coinId];
+        const balance = portfolio[coinId]?.balance || 0;
+        
+        if (coinData) {
+          // We have fresh data for this coin
+          const value = balance * coinData.current_price;
+          const previousPrice = coinData.current_price / (1 + coinData.price_change_percentage_24h / 100);
           const previousValue = balance * previousPrice;
-          
           
           total += value;
           totalPrevious += previousValue;
           
           return {
-            ...coin,
+            ...coinData,
             balance,
             value,
-            previousValue
+            previousValue,
+            isLoaded: true
           };
-        });
+        } else {
+          // No data returned for this coin - check cache
+          const cached = cachedWalletData[coinId];
+          if (cached) {
+            const value = balance * (cached.current_price || 0);
+            const previousPrice = cached.current_price / (1 + (cached.price_change_percentage_24h || 0) / 100);
+            const previousValue = balance * previousPrice;
+            
+            total += value;
+            totalPrevious += previousValue;
+            
+            return {
+              ...cached,
+              balance,
+              value,
+              previousValue,
+              isLoaded: true,
+              isStale: true
+            };
+          } else {
+            // No data at all - show placeholder
+            // Try to extract symbol from coinId (e.g., "world-mobile-token" -> "WMT")
+            const symbol = coinId.split('-').map(word => word[0]).join('').toUpperCase() || coinId.toUpperCase();
+            
+            return {
+              id: coinId,
+              name: coinId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
+              symbol: symbol,
+              image: '/images/placeholder-coin.png', // Default placeholder image
+              current_price: 0,
+              price_change_percentage_24h: 0,
+              balance,
+              value: 0,
+              previousValue: 0,
+              isLoaded: false,
+              isError: true,
+              needsRefresh: true
+            };
+          }
+        }
+      });
       
       setWalletData(enrichedData);
       setTotalValue(total);
@@ -142,6 +191,16 @@ const Wallet = () => {
         };
       });
       setCachedWalletData(prev => ({ ...prev, ...newCachedData }));
+      
+      // Track coins that need refresh for cron job
+      const coinsNeedingRefresh = enrichedData.filter(coin => coin.needsRefresh || coin.current_price === 0);
+      if (coinsNeedingRefresh.length > 0) {
+        // Call endpoint to track these coins
+        coinsNeedingRefresh.forEach(coin => {
+          axios.post(`/api/crypto/refresh-coin/${coin.id}`)
+            .catch(err => console.log(`Failed to trigger refresh for ${coin.id}`));
+        });
+      }
       
       // Clear loading state for all fetched coins
       setLoadingCoins(prev => {
@@ -300,8 +359,29 @@ const Wallet = () => {
     };
     setPortfolio(newPortfolio);
     
-    // Mark this coin as loading
-    setLoadingCoins(prev => ({ ...prev, [coin.id]: true }));
+    // Add placeholder data immediately while waiting for API
+    const placeholderCoin = {
+      id: coin.id,
+      name: coin.name,
+      symbol: coin.symbol,
+      image: coin.thumb || coin.image,
+      current_price: 0,
+      price_change_percentage_24h: 0,
+      balance: coin.initialBalance || 0,
+      value: 0,
+      previousValue: 0,
+      isLoaded: false,
+      needsRefresh: true
+    };
+    
+    // Check if coin already exists in wallet data
+    setWalletData(prevData => {
+      const exists = prevData.find(c => c.id === coin.id);
+      if (exists) {
+        return prevData;
+      }
+      return [...prevData, placeholderCoin];
+    });
     
     // Close modal
     setShowAddCoinModal(false);
@@ -314,6 +394,11 @@ const Wallet = () => {
       console.error(`Failed to refresh data for ${coin.id}:`, err);
       // Not critical - wallet fetch will still work with cached or stale data
     }
+    
+    // Immediately fetch fresh data from API
+    setTimeout(() => {
+      fetchWalletData();
+    }, 100);
   };
 
   // Remove from wallet
@@ -470,9 +555,8 @@ const Wallet = () => {
               <div className="text-end" style={{ minWidth: '90px' }}>Value</div>
             </div>
             <ListGroup variant="flush">
-            {Object.keys(portfolio).map(coinId => {
-              const coin = walletData.find(c => c.id === coinId);
-              const isLoading = loadingCoins[coinId];
+            {walletData.map(coin => {
+              const isLoading = loadingCoins[coin.id];
               
               // Show loading placeholder for coins being fetched
               if (!coin && isLoading) {
@@ -511,46 +595,22 @@ const Wallet = () => {
                 );
               }
               
-              // If no coin data, create a minimal display with portfolio data
-              if (!coin) {
-                const cachedCoin = cachedWalletData[coinId];
-                const balance = portfolio[coinId]?.balance || 0;
-                
-                // Create minimal coin object for display
-                const minimalCoin = {
-                  id: coinId,
-                  name: cachedCoin?.name || coinId.charAt(0).toUpperCase() + coinId.slice(1).replace(/-/g, ' '),
-                  symbol: cachedCoin?.symbol || coinId.slice(0, 3).toUpperCase(),
-                  image: cachedCoin?.image || null,
-                  current_price: cachedCoin?.current_price || 0,
-                  price_change_percentage_24h: cachedCoin?.price_change_percentage_24h || 0,
-                  balance: balance,
-                  value: balance * (cachedCoin?.current_price || 0),
-                  isStale: true,
-                  isUnavailable: !cachedCoin
-                };
-                
+              // Show loading placeholder for coins with price 0 or needsRefresh
+              if ((coin.current_price === 0 || coin.needsRefresh) && !coin.isStale) {
                 return (
-                  <ListGroup.Item key={coinId} className="px-2 py-1" style={{ opacity: 0.6 }}>
+                  <ListGroup.Item key={coin.id} className="px-2 py-1">
                     <div className="d-flex justify-content-between align-items-center mb-1">
                       <div className="d-flex align-items-center flex-grow-1">
-                        {minimalCoin.image ? (
-                          <img 
-                            src={minimalCoin.image} 
-                            alt={minimalCoin.name} 
-                            width="24" 
-                            height="24" 
-                            className="me-2" 
-                          />
-                        ) : (
-                          <div className="bg-secondary rounded-circle me-2" style={{ width: 24, height: 24 }} />
-                        )}
+                        <img 
+                          src={coin.image || '/images/placeholder-coin.png'} 
+                          alt={coin.name} 
+                          width="24" 
+                          height="24" 
+                          className="me-2" 
+                        />
                         <div className="flex-grow-1">
-                          <span className="fw-medium small">{minimalCoin.name}</span>
-                          <span className="text-muted small ms-1">{minimalCoin.symbol}</span>
-                          <Tooltip content={minimalCoin.isUnavailable ? "Price data unavailable" : "Using cached data"}>
-                            <BsExclamationTriangle className="ms-1 text-warning" size={12} />
-                          </Tooltip>
+                          <span className="fw-medium small">{coin.name}</span>
+                          <span className="text-muted small ms-1">{coin.symbol.toUpperCase()}</span>
                         </div>
                       </div>
                       <div className="d-flex gap-1">
@@ -558,7 +618,7 @@ const Wallet = () => {
                           variant="link"
                           size="sm"
                           className="p-1 text-white"
-                          onClick={() => openEditBalance({ id: coinId, balance: balance })}
+                          onClick={() => openEditBalance(coin)}
                           title="Edit balance"
                         >
                           <BsPencil size={14} />
@@ -567,7 +627,7 @@ const Wallet = () => {
                           variant="link"
                           size="sm"
                           className="p-1 text-white"
-                          onClick={() => removeFromWallet(coinId)}
+                          onClick={() => removeFromWallet(coin.id)}
                           title="Remove from wallet"
                         >
                           <BsTrash size={14} />
@@ -577,17 +637,17 @@ const Wallet = () => {
                     <div className="d-flex align-items-center gap-2">
                       <div className="flex-fill">
                         <div className="font-monospace small text-center">
-                          {balance} {minimalCoin.symbol}
+                          {coin.balance || 0} {coin.symbol.toUpperCase()}
                         </div>
                       </div>
                       <div className="text-center" style={{ minWidth: '90px' }}>
-                        <div className="font-monospace small">
-                          {minimalCoin.isUnavailable ? '--' : `$${minimalCoin.current_price.toFixed(2)}`}
+                        <div className="spinner-border spinner-border-sm text-light" role="status">
+                          <span className="visually-hidden">Loading...</span>
                         </div>
                       </div>
                       <div className="text-end" style={{ minWidth: '90px' }}>
-                        <div className="font-monospace small">
-                          {minimalCoin.isUnavailable ? '--' : `$${minimalCoin.value.toFixed(2)}`}
+                        <div className="spinner-border spinner-border-sm text-light" role="status">
+                          <span className="visually-hidden">Loading...</span>
                         </div>
                       </div>
                     </div>

@@ -124,17 +124,22 @@ const MobileWallet = () => {
             };
           } else {
             // No data at all - show placeholder
+            // Try to extract symbol from coinId (e.g., "world-mobile-token" -> "WMT")
+            const symbol = coinId.split('-').map(word => word[0]).join('').toUpperCase() || coinId.toUpperCase();
+            
             return {
               id: coinId,
-              name: coinId,
-              symbol: coinId,
+              name: coinId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
+              symbol: symbol,
+              image: '/images/placeholder-coin.png', // Default placeholder image
               current_price: 0,
               price_change_percentage_24h: 0,
               balance,
               value: 0,
               previousValue: 0,
               isLoaded: false,
-              isError: true
+              isError: true,
+              needsRefresh: true
             };
           }
         }
@@ -154,6 +159,16 @@ const MobileWallet = () => {
         };
       });
       setCachedWalletData(prev => ({ ...prev, ...newCachedData }));
+      
+      // Track coins that need refresh for cron job
+      const coinsNeedingRefresh = enrichedData.filter(coin => coin.needsRefresh || coin.current_price === 0);
+      if (coinsNeedingRefresh.length > 0) {
+        // Call endpoint to track these coins
+        coinsNeedingRefresh.forEach(coin => {
+          axios.post(`/api/crypto/refresh-coin/${coin.id}`)
+            .catch(err => console.log(`Failed to trigger refresh for ${coin.id}`));
+        });
+      }
       
       if (!response.headers['x-last-updated']) {
         setLastUpdated(new Date());
@@ -447,9 +462,9 @@ const MobileWallet = () => {
                         title="Using cached data"
                       />
                     )}
-                    {(!initialLoadComplete || (coin.current_price === 0 && !coin.isLoaded)) ? (
+                    {(coin.current_price === 0 || coin.needsRefresh) ? (
                       <div className="price-loading">
-                        <div className="spinner-border spinner-border-sm text-primary" role="status">
+                        <div className="spinner-border spinner-border-sm text-light" role="status">
                           <span className="visually-hidden">Loading...</span>
                         </div>
                       </div>
