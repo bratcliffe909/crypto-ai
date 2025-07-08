@@ -18,6 +18,7 @@ Route::prefix('crypto')->group(function () {
     Route::get('/trending', [MarketDataController::class, 'trending']);
     Route::get('/search', [MarketDataController::class, 'search']);
     Route::get('/wallet-coins', [MarketDataController::class, 'walletCoins']);
+    Route::post('/refresh-coin/{coinId}', [MarketDataController::class, 'refreshCoin']);
     
     // Chart data endpoints
     Route::get('/ohlc/{id}', [ChartController::class, 'ohlc']);

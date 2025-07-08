@@ -108,11 +108,11 @@ class CacheService
     /**
      * Store data with metadata
      */
-    private function storeWithMetadata(string $key, $data): void
+    public function storeWithMetadata(string $key, $data): void
     {
         $metaKey = $key . '_meta';
         
-        // Store data for 24 hours
+        // Store data for 30 days
         Cache::put($key, $data, self::STALE_CACHE_DURATION);
         
         // Store metadata

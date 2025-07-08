@@ -296,7 +296,7 @@ const Wallet = () => {
   };
   
   // Add coin to wallet
-  const addCoinToWallet = (coin) => {
+  const addCoinToWallet = async (coin) => {
     const newFavorites = [...favorites, coin.id];
     setFavorites(newFavorites);
     localStorage.setItem('favorites', JSON.stringify(newFavorites));
@@ -316,6 +316,15 @@ const Wallet = () => {
     
     // Close modal
     setShowAddCoinModal(false);
+    
+    // Refresh the coin data to ensure cache is populated with fresh data
+    try {
+      await axios.post(`/api/crypto/refresh-coin/${coin.id}`);
+      console.log(`Refreshed data for ${coin.id}`);
+    } catch (err) {
+      console.error(`Failed to refresh data for ${coin.id}:`, err);
+      // Not critical - wallet fetch will still work with cached or stale data
+    }
   };
 
   // Remove from wallet

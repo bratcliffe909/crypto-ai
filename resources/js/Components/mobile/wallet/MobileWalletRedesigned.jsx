@@ -25,6 +25,8 @@ const MobileWalletRedesigned = () => {
   const [showAddCoinModal, setShowAddCoinModal] = useState(false);
   const [showEditBalanceModal, setShowEditBalanceModal] = useState(false);
   const [editingCoin, setEditingCoin] = useState(null);
+  const [loadingCoins, setLoadingCoins] = useState({}); // Track loading state per coin
+  const [cachedWalletData, setCachedWalletData] = useLocalStorage('cachedWalletData', {}); // Cache wallet data
   
   // Load favorites from localStorage
   useEffect(() => {
@@ -167,7 +169,7 @@ const MobileWalletRedesigned = () => {
     setPortfolio(newPortfolio);
   };
   
-  const addCoinToWallet = (coin) => {
+  const addCoinToWallet = async (coin) => {
     const newFavorites = [...favorites, coin.id];
     setFavorites(newFavorites);
     localStorage.setItem('favorites', JSON.stringify(newFavorites));
@@ -182,6 +184,15 @@ const MobileWalletRedesigned = () => {
     }
     
     setShowAddCoinModal(false);
+    
+    // Refresh the coin data to ensure cache is populated with fresh data
+    try {
+      await axios.post(`/api/crypto/refresh-coin/${coin.id}`);
+      console.log(`Refreshed data for ${coin.id}`);
+    } catch (err) {
+      console.error(`Failed to refresh data for ${coin.id}:`, err);
+      // Not critical - wallet fetch will still work with cached or stale data
+    }
   };
 
   const removeFromWallet = (coinId) => {

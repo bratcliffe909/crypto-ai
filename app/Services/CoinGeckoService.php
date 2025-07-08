@@ -76,6 +76,62 @@ class CoinGeckoService
     }
 
     /**
+     * Get market data for wallet coins - always returns cache if available
+     * This method is specifically for wallet display where we want to show cached prices
+     * even if they're stale, rather than failing
+     */
+    public function getWalletCoins($vsCurrency = 'usd', $ids = null, $perPage = 250)
+    {
+        $cacheKey = "coingecko_markets_{$vsCurrency}_{$perPage}" . ($ids ? "_{$ids}" : "");
+        
+        return $this->cacheService->rememberWithoutFreshness($cacheKey, function () use ($vsCurrency, $ids, $perPage) {
+            $params = [
+                'vs_currency' => $vsCurrency,
+                'order' => 'market_cap_desc',
+                'per_page' => $perPage,
+                'page' => 1,
+                'sparkline' => false,
+                'price_change_percentage' => '24h,7d,30d,90d'
+            ];
+
+            if ($ids) {
+                $params['ids'] = $ids;
+            }
+
+            $response = Http::timeout(30)->get("{$this->baseUrl}/coins/markets", $params);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                
+                // Cache each coin individually for future use
+                if ($ids && is_array($data)) {
+                    foreach ($data as $coin) {
+                        $this->cacheIndividualCoin($coin);
+                    }
+                }
+                
+                return $data;
+            }
+
+            Log::error('CoinGecko API error', [
+                'status' => $response->status(),
+                'body' => $response->body()
+            ]);
+
+            // If rate limited and we have specific IDs, try to build from individual caches
+            if ($response->status() === 429 && $ids) {
+                Log::warning('CoinGecko rate limit hit, building from individual caches');
+                $data = $this->buildFromIndividualCaches($ids);
+                if (!empty($data)) {
+                    return $data;
+                }
+            }
+
+            throw new \Exception('CoinGecko API failed');
+        });
+    }
+
+    /**
      * Get simple price data
      */
     public function getSimplePrice($ids, $vsCurrencies = 'usd')
@@ -206,6 +262,48 @@ class CoinGeckoService
     }
 
     /**
+     * Force refresh specific coin data - used when adding new coins to wallet
+     * This ensures fresh price data is available for newly added coins
+     */
+    public function refreshCoinData($coinId)
+    {
+        $cacheKey = "coingecko_markets_usd_250_{$coinId}";
+        
+        try {
+            $response = Http::timeout(30)->get("{$this->baseUrl}/coins/markets", [
+                'vs_currency' => 'usd',
+                'ids' => $coinId,
+                'order' => 'market_cap_desc',
+                'per_page' => 1,
+                'page' => 1,
+                'sparkline' => false,
+                'price_change_percentage' => '24h,7d,30d,90d'
+            ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                
+                if (!empty($data)) {
+                    // Store in cache with metadata
+                    $this->cacheService->storeWithMetadata($cacheKey, $data);
+                    
+                    // Also cache individually
+                    if (isset($data[0])) {
+                        $this->cacheIndividualCoin($data[0]);
+                    }
+                    
+                    Log::info("Refreshed coin data for {$coinId}");
+                    return true;
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error("Failed to refresh coin data for {$coinId}", ['error' => $e->getMessage()]);
+        }
+        
+        return false;
+    }
+
+    /**
      * Search coins
      */
     public function searchCoins($query)
@@ -308,12 +406,12 @@ class CoinGeckoService
         $cacheKey = "coin_data_{$coinData['id']}";
         $metaKey = $cacheKey . '_meta';
         
-        // Cache for 5 minutes
-        \Cache::put($cacheKey, $coinData, 300);
+        // Cache for 30 days (same as main cache duration)
+        \Cache::put($cacheKey, $coinData, 2592000);
         \Cache::put($metaKey, [
             'timestamp' => now()->toIso8601String(),
             'source' => 'coingecko'
-        ], 300);
+        ], 2592000);
         
         Log::debug("Cached individual coin data", ['coin' => $coinData['id']]);
     }

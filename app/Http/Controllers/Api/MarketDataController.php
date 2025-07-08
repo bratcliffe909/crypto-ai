@@ -100,12 +100,48 @@ class MarketDataController extends Controller
             $this->walletCacheService->trackWalletCoin(trim($coinId));
         }
         
-        $result = $this->coinGeckoService->getMarkets('usd', $ids, 250);
+        // Use the wallet-specific method that always returns cache if available
+        $result = $this->coinGeckoService->getWalletCoins('usd', $ids, 250);
         
         return response()->json($result['data'] ?? [])
             ->header('X-Cache-Age', $result['metadata']['cacheAge'] ?? 0)
             ->header('X-Data-Source', $result['metadata']['source'] ?? 'unknown')
             ->header('X-Last-Updated', $result['metadata']['lastUpdated'] ?? now()->toIso8601String());
+    }
+    
+    /**
+     * Refresh data for a specific coin - used when adding new coins to wallet
+     */
+    public function refreshCoin(Request $request, $coinId)
+    {
+        try {
+            // Track this coin as being used in wallet
+            $this->walletCacheService->trackWalletCoin($coinId);
+            
+            // Force refresh the coin data
+            $refreshed = $this->coinGeckoService->refreshCoinData($coinId);
+            
+            if ($refreshed) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Coin data refreshed successfully'
+                ]);
+            }
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to refresh coin data'
+            ], 500);
+            
+        } catch (\Exception $e) {
+            \Log::error('Refresh coin error', ['coinId' => $coinId, 'error' => $e->getMessage()]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to refresh coin data',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
     
     /**
