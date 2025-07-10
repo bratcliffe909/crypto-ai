@@ -503,6 +503,30 @@ class CoinGeckoService
                     Log::info("Refreshed coin data for {$coinId}");
                     return true;
                 }
+            } else if ($response->status() === 429 && $symbol) {
+                // Rate limited - try AlphaVantage as fallback
+                Log::warning("CoinGecko rate limited for {$coinId}, trying AlphaVantage with symbol {$symbol}");
+                
+                try {
+                    $alphaVantage = app(\App\Services\AlphaVantageService::class);
+                    $exchangeRate = $alphaVantage->getCryptoExchangeRate(strtoupper($symbol), 'USD');
+                    
+                    if ($exchangeRate && isset($exchangeRate['data'])) {
+                        $coinInfo = ['symbol' => strtoupper($symbol), 'name' => $name ?? $coinId];
+                        $coinData = $this->convertAlphaVantageToCoinGecko($coinId, $coinInfo, $exchangeRate['data']);
+                        
+                        if ($coinData) {
+                            // Store as array to match expected format
+                            $this->cacheService->storeWithMetadata($cacheKey, [$coinData]);
+                            $this->cacheIndividualCoin($coinData);
+                            
+                            Log::info("Refreshed coin data for {$coinId} using AlphaVantage fallback");
+                            return true;
+                        }
+                    }
+                } catch (\Exception $alphaError) {
+                    Log::error("AlphaVantage fallback also failed for {$coinId}", ['error' => $alphaError->getMessage()]);
+                }
             }
         } catch (\Exception $e) {
             Log::error("Failed to refresh coin data for {$coinId}", ['error' => $e->getMessage()]);
@@ -794,41 +818,68 @@ class CoinGeckoService
     }
     
     /**
-     * Try to get coin data from AlphaVantage for major cryptocurrencies
+     * Try to get coin data from AlphaVantage as fallback
+     * Can accept either coin IDs (will look up symbols) or arrays with coin data including symbols
      */
     private function tryAlphaVantageForCoins($coinIds)
     {
         $result = [];
-        
-        // Mapping of CoinGecko IDs to AlphaVantage symbols
-        $supportedCoins = [
-            'bitcoin' => ['symbol' => 'BTC', 'name' => 'Bitcoin'],
-            'ethereum' => ['symbol' => 'ETH', 'name' => 'Ethereum'],
-            'litecoin' => ['symbol' => 'LTC', 'name' => 'Litecoin'],
-            'ripple' => ['symbol' => 'XRP', 'name' => 'XRP'],
-            'bitcoin-cash' => ['symbol' => 'BCH', 'name' => 'Bitcoin Cash']
-        ];
-        
         $alphaVantage = app(\App\Services\AlphaVantageService::class);
         
         foreach ($coinIds as $coinId) {
-            if (isset($supportedCoins[$coinId])) {
-                try {
-                    $symbol = $supportedCoins[$coinId]['symbol'];
-                    $exchangeRate = $alphaVantage->getCryptoExchangeRate($symbol, 'USD');
-                    
-                    if ($exchangeRate && isset($exchangeRate['data'])) {
-                        // Convert AlphaVantage format to CoinGecko format
-                        $coinData = $this->convertAlphaVantageToCoinGecko($coinId, $supportedCoins[$coinId], $exchangeRate['data']);
-                        if ($coinData) {
-                            $result[] = $coinData;
-                            // Cache this data for future use
-                            $this->cacheIndividualCoin($coinData);
+            try {
+                // First try to get symbol from cached coin data
+                $coinCacheKey = "coin_data_{$coinId}";
+                $cachedCoin = Cache::get($coinCacheKey);
+                
+                $symbol = null;
+                $name = null;
+                
+                if ($cachedCoin && isset($cachedCoin['symbol'])) {
+                    $symbol = strtoupper($cachedCoin['symbol']);
+                    $name = $cachedCoin['name'] ?? $coinId;
+                } else {
+                    // Try to get from any market cache that might have this coin
+                    $marketCaches = Cache::get('coingecko_markets_*');
+                    if ($marketCaches) {
+                        foreach ($marketCaches as $cache) {
+                            if (is_array($cache)) {
+                                foreach ($cache as $coin) {
+                                    if (isset($coin['id']) && $coin['id'] === $coinId) {
+                                        $symbol = strtoupper($coin['symbol'] ?? '');
+                                        $name = $coin['name'] ?? $coinId;
+                                        break 2;
+                                    }
+                                }
+                            }
                         }
                     }
-                } catch (\Exception $e) {
-                    Log::warning("Failed to get {$coinId} from AlphaVantage", ['error' => $e->getMessage()]);
                 }
+                
+                // Skip if we couldn't find a symbol
+                if (!$symbol) {
+                    Log::warning("No symbol found for coin {$coinId}, skipping AlphaVantage fallback");
+                    continue;
+                }
+                
+                // Try to get exchange rate from AlphaVantage
+                $exchangeRate = $alphaVantage->getCryptoExchangeRate($symbol, 'USD');
+                
+                if ($exchangeRate && isset($exchangeRate['data'])) {
+                    // Convert AlphaVantage format to CoinGecko format
+                    $coinInfo = ['symbol' => $symbol, 'name' => $name];
+                    $coinData = $this->convertAlphaVantageToCoinGecko($coinId, $coinInfo, $exchangeRate['data']);
+                    if ($coinData) {
+                        $result[] = $coinData;
+                        // Cache this data for future use
+                        $this->cacheIndividualCoin($coinData);
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning("Failed to get {$coinId} from AlphaVantage", [
+                    'error' => $e->getMessage(),
+                    'symbol' => $symbol ?? 'unknown'
+                ]);
             }
         }
         
@@ -979,6 +1030,34 @@ class CoinGeckoService
                         'cacheAge' => 0
                     ]
                 ];
+            }
+            
+            // Check if rate limited
+            if ($response->status() === 429) {
+                Log::warning('CoinGecko rate limit hit for specific coins, trying fallback APIs');
+                
+                // Try Alpha Vantage as fallback
+                $fallbackData = $this->tryAlphaVantageForCoins(is_array($coinIds) ? $coinIds : explode(',', $ids));
+                if (!empty($fallbackData)) {
+                    // Store each coin individually in cache
+                    foreach ($fallbackData as $coin) {
+                        if (isset($coin['id'])) {
+                            $coinCacheKey = "coin_data_{$coin['id']}";
+                            Cache::put($coinCacheKey, $coin, 300); // 5 minutes
+                            Cache::put("{$coinCacheKey}_meta", ['timestamp' => now()->timestamp], 300);
+                        }
+                    }
+                    
+                    return [
+                        'success' => true,
+                        'data' => $fallbackData,
+                        'metadata' => [
+                            'source' => 'fallback',
+                            'lastUpdated' => now()->toIso8601String(),
+                            'cacheAge' => 0
+                        ]
+                    ];
+                }
             }
             
             throw new \Exception("Failed to fetch market data for coins: {$ids}");
