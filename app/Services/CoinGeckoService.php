@@ -475,6 +475,24 @@ class CoinGeckoService
      */
     public function refreshCoinData($coinId, $symbol = null, $name = null, $image = null)
     {
+        // Check if we already have recent data for this coin
+        $existingData = Cache::get("coin_data_{$coinId}");
+        $existingMeta = Cache::get("coin_data_{$coinId}_meta");
+        
+        // If we have data that's less than 5 minutes old and has a price, don't refresh
+        if ($existingData && isset($existingData['current_price']) && $existingData['current_price'] > 0) {
+            if ($existingMeta && isset($existingMeta['timestamp'])) {
+                $age = time() - $existingMeta['timestamp'];
+                if ($age < 300) { // Less than 5 minutes old
+                    Log::info("Skipping refresh for {$coinId} - already have recent data", [
+                        'price' => $existingData['current_price'],
+                        'age_seconds' => $age
+                    ]);
+                    return true;
+                }
+            }
+        }
+        
         $cacheKey = "coingecko_markets_usd_250_{$coinId}";
         
         try {
@@ -534,24 +552,28 @@ class CoinGeckoService
         
         // If API failed but we have placeholder data, create and cache a placeholder
         if ($symbol && $name) {
+            // IMPORTANT: Check if we already have price data for this coin
+            $existingCoinData = Cache::get("coin_data_{$coinId}");
+            
             $placeholderData = [[
                 'id' => $coinId,
                 'symbol' => strtolower($symbol), // Ensure lowercase
                 'name' => $name,
                 'image' => $image ?: 'https://via.placeholder.com/150',
-                'current_price' => 0,
-                'market_cap' => 0,
-                'market_cap_rank' => null,
-                'fully_diluted_valuation' => null,
-                'total_volume' => 0,
-                'high_24h' => 0,
-                'low_24h' => 0,
-                'price_change_24h' => 0,
-                'price_change_percentage_24h' => 0,
-                'market_cap_change_24h' => 0,
-                'market_cap_change_percentage_24h' => 0,
-                'circulating_supply' => null,
-                'total_supply' => null,
+                // Preserve existing price data if available, otherwise use 0
+                'current_price' => $existingCoinData['current_price'] ?? 0,
+                'market_cap' => $existingCoinData['market_cap'] ?? 0,
+                'market_cap_rank' => $existingCoinData['market_cap_rank'] ?? null,
+                'fully_diluted_valuation' => $existingCoinData['fully_diluted_valuation'] ?? null,
+                'total_volume' => $existingCoinData['total_volume'] ?? 0,
+                'high_24h' => $existingCoinData['high_24h'] ?? 0,
+                'low_24h' => $existingCoinData['low_24h'] ?? 0,
+                'price_change_24h' => $existingCoinData['price_change_24h'] ?? 0,
+                'price_change_percentage_24h' => $existingCoinData['price_change_percentage_24h'] ?? 0,
+                'market_cap_change_24h' => $existingCoinData['market_cap_change_24h'] ?? 0,
+                'market_cap_change_percentage_24h' => $existingCoinData['market_cap_change_percentage_24h'] ?? 0,
+                'circulating_supply' => $existingCoinData['circulating_supply'] ?? null,
+                'total_supply' => $existingCoinData['total_supply'] ?? null,
                 'max_supply' => null,
                 'ath' => 0,
                 'ath_change_percentage' => 0,
@@ -572,7 +594,9 @@ class CoinGeckoService
             
             Log::info("Created placeholder data for {$coinId}", [
                 'symbol' => $symbol,
-                'name' => $name
+                'name' => $name,
+                'preserved_price' => $existingCoinData['current_price'] ?? 0,
+                'had_existing_data' => !empty($existingCoinData)
             ]);
             
             return true;
