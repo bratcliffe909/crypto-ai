@@ -74,9 +74,9 @@ class RainbowChartService
     public function getRainbowChartData($days = 'max')
     {
         try {
-            // Get historical data (cached for 30 days with intelligent gap filling)
+            // Get historical data (cached FOREVER since historical prices never change)
             $historicalKey = "rainbow_chart_historical_v2";
-            $historicalResult = $this->cacheService->rememberHistorical($historicalKey, function($fromDate, $toDate) {
+            $historicalResult = $this->cacheService->rememberHistoricalForever($historicalKey, function($fromDate, $toDate) {
                 $allPrices = [];
                 
                 // First try CryptoCompare for maximum historical data
@@ -416,7 +416,8 @@ class RainbowChartService
             'fsym' => 'BTC',
             'tsym' => 'USD',
             'limit' => 2000, // Maximum allowed by free tier
-            'aggregate' => 1
+            'aggregate' => 1,
+            'api_key' => config('services.cryptocompare.key')
         ];
         
         try {

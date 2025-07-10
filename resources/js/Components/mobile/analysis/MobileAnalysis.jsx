@@ -6,7 +6,8 @@ import {
   BsActivity,
   BsBandaid,
   BsRainbow,
-  BsCurrencyExchange
+  BsCurrencyExchange,
+  BsChatDots
 } from 'react-icons/bs';
 import LoadingSpinner from '../../common/LoadingSpinner';
 import MobileSectionHeader from '../common/MobileSectionHeader';
@@ -18,6 +19,7 @@ const PiCycleTop = lazy(() => import('../../dashboard/PiCycleTop'));
 const FearGreedIndex = lazy(() => import('../../dashboard/FearGreedIndex'));
 const TechnicalIndicators = lazy(() => import('../../dashboard/TechnicalIndicators'));
 const MobileAltcoinSeason = lazy(() => import('./MobileAltcoinSeason'));
+const MobileMarketSentiment = lazy(() => import('../indicators/MobileMarketSentiment'));
 
 const MobileAnalysis = () => {
   const [activeChartIndex, setActiveChartIndex] = useState(0);
@@ -29,6 +31,7 @@ const MobileAnalysis = () => {
     { id: 'rainbow', label: 'Rainbow Chart', component: RainbowChart, icon: BsRainbow },
     { id: 'picycle', label: 'Pi Cycle Top', component: PiCycleTop, icon: BsGraphDown },
     { id: 'feargreed', label: 'Fear & Greed', component: FearGreedIndex, icon: BsSpeedometer },
+    { id: 'sentiment', label: 'Market Sentiment', component: MobileMarketSentiment, icon: BsChatDots },
     { id: 'altseason', label: 'Altcoin Season', component: MobileAltcoinSeason, icon: BsCurrencyExchange },
     { id: 'rsi', label: 'RSI & Indicators', component: TechnicalIndicators, icon: BsActivity }
   ];

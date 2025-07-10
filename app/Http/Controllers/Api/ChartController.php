@@ -8,6 +8,7 @@ use App\Services\CoinGeckoService;
 use App\Services\AlphaVantageService;
 use App\Services\RainbowChartService;
 use App\Services\CacheService;
+use App\Services\CycleLowMultipleService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
@@ -17,18 +18,21 @@ class ChartController extends Controller
     private AlphaVantageService $alphaVantageService;
     private RainbowChartService $rainbowChartService;
     private CacheService $cacheService;
+    private CycleLowMultipleService $cycleLowMultipleService;
     
     public function __construct(
         CoinGeckoService $coinGeckoService, 
         AlphaVantageService $alphaVantageService,
         RainbowChartService $rainbowChartService,
-        CacheService $cacheService
+        CacheService $cacheService,
+        CycleLowMultipleService $cycleLowMultipleService
     )
     {
         $this->coinGeckoService = $coinGeckoService;
         $this->alphaVantageService = $alphaVantageService;
         $this->rainbowChartService = $rainbowChartService;
         $this->cacheService = $cacheService;
+        $this->cycleLowMultipleService = $cycleLowMultipleService;
     }
     
     /**
@@ -53,9 +57,9 @@ class ChartController extends Controller
     public function bullMarketBand(Request $request)
     {
         try {
-            // Get historical weekly data (cached for 30 days)
+            // Get historical weekly data (cached FOREVER since historical prices never change)
             $historicalKey = "bull_market_band_historical_v3";
-            $historicalResult = $this->cacheService->rememberHistorical($historicalKey, function($fromDate, $toDate) {
+            $historicalResult = $this->cacheService->rememberHistoricalForever($historicalKey, function($fromDate, $toDate) {
                 // Try Alpha Vantage first for historical weekly data
                 $weeklyData = [];
                 
@@ -389,16 +393,19 @@ class ChartController extends Controller
                 
                 // If market chart fails or has no data, try OHLC
                 if (empty($dailyPrices)) {
-                    $ohlcData = $this->coinGeckoService->getOHLC('bitcoin', 'usd', 365);
+                    $ohlcResult = $this->coinGeckoService->getOHLC('bitcoin', 'usd', 365);
+                    $ohlcData = $ohlcResult['data'] ?? $ohlcResult; // Handle both wrapped and raw responses
                     
-                    if (!empty($ohlcData)) {
+                    if (!empty($ohlcData) && is_array($ohlcData)) {
                         foreach ($ohlcData as $candle) {
-                            $timestamp = $candle[0] / 1000;
-                            $dailyPrices[] = [
-                                'date' => date('Y-m-d', $timestamp),
-                                'timestamp' => $timestamp,
-                                'price' => $candle[4] // close price
-                            ];
+                            if (is_array($candle) && count($candle) >= 5) {
+                                $timestamp = $candle[0] / 1000;
+                                $dailyPrices[] = [
+                                    'date' => date('Y-m-d', $timestamp),
+                                    'timestamp' => $timestamp,
+                                    'price' => $candle[4] // close price
+                                ];
+                            }
                         }
                         \Log::info("Got " . count($dailyPrices) . " days of price data from OHLC");
                     }
@@ -497,7 +504,8 @@ class ChartController extends Controller
             'fsym' => 'BTC',
             'tsym' => 'USD',
             'limit' => 2000, // Maximum allowed by free tier
-            'aggregate' => 1
+            'aggregate' => 1,
+            'api_key' => config('services.cryptocompare.key')
         ];
         
         try {
@@ -574,6 +582,32 @@ class ChartController extends Controller
             \Log::error('Rainbow chart status error: ' . $e->getMessage());
             return response()->json([
                 'error' => 'Failed to fetch rainbow chart status',
+                'message' => config('app.debug') ? $e->getMessage() : 'Please try again later'
+            ], 500);
+        }
+    }
+    
+    /**
+     * Get Bitcoin Cycle Low Multiple data
+     */
+    public function cycleLowMultiple(Request $request)
+    {
+        try {
+            $days = $request->get('days', 'max');
+            
+            // Validate days parameter
+            $validDays = ['365', '730', '1826', 'max'];
+            if (!in_array($days, $validDays)) {
+                $days = 'max';
+            }
+            
+            $data = $this->cycleLowMultipleService->getCycleLowMultipleData($days);
+            
+            return response()->json($data);
+        } catch (\Exception $e) {
+            \Log::error('Cycle Low Multiple error: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Failed to fetch Cycle Low Multiple data',
                 'message' => config('app.debug') ? $e->getMessage() : 'Please try again later'
             ], 500);
         }

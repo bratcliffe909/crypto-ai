@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\IndicatorController;
 use App\Http\Controllers\Api\MarketMetricsController;
 use App\Http\Controllers\Api\AltcoinSeasonController;
 use App\Http\Controllers\Api\SystemStatusController;
+use App\Http\Controllers\Api\SentimentController;
 use Illuminate\Support\Facades\Route;
 
 // Apply web middleware group to enable sessions and CSRF
@@ -26,6 +27,7 @@ Route::prefix('crypto')->group(function () {
     Route::get('/pi-cycle-top', [ChartController::class, 'piCycleTop']);
     Route::get('/rainbow-chart', [ChartController::class, 'rainbowChart']);
     Route::get('/rainbow-chart/status', [ChartController::class, 'rainbowChartStatus']);
+    Route::get('/cycle-low-multiple', [ChartController::class, 'cycleLowMultiple']);
     
     // Indicator endpoints
     Route::get('/fear-greed', [IndicatorController::class, 'fearGreed']);
@@ -46,6 +48,12 @@ Route::prefix('crypto')->group(function () {
     
     // System status
     Route::get('/system-status', [SystemStatusController::class, 'index']);
+    
+    // Sentiment and social data
+    Route::get('/market-sentiment', [SentimentController::class, 'marketSentiment']);
+    Route::get('/social-activity', [SentimentController::class, 'socialActivity']);
+    Route::post('/market-sentiment/update', [SentimentController::class, 'updateMarketSentiment']);
+    Route::post('/social-activity/update', [SentimentController::class, 'updateSocialActivity']);
 });
 
 // Test route

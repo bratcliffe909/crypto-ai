@@ -56,3 +56,11 @@ Schedule::command('cache:update-indicators')
     ->withoutOverlapping()
     ->runInBackground()
     ->appendOutputTo(storage_path('logs/indicator-cache.log'));
+
+// Update market sentiment and social activity cache every hour (45 minutes offset)
+Schedule::command('sentiment:update-cache')
+    ->hourlyAt(45)
+    ->name('sentiment-cache-update')
+    ->withoutOverlapping()
+    ->runInBackground()
+    ->appendOutputTo(storage_path('logs/sentiment-cache.log'));

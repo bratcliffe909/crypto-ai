@@ -169,7 +169,8 @@ class CycleLowMultipleService
             'fsym' => 'BTC',
             'tsym' => 'USD',
             'limit' => 2000, // Maximum allowed by free tier
-            'aggregate' => 1
+            'aggregate' => 1,
+            'api_key' => config('services.cryptocompare.key')
         ];
         
         try {

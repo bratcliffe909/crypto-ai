@@ -55,6 +55,12 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(\App\Services\CacheService::class)
             );
         });
+
+        $this->app->singleton(\App\Services\CryptoCompareService::class, function ($app) {
+            return new \App\Services\CryptoCompareService(
+                $app->make(\App\Services\CacheService::class)
+            );
+        });
     }
 
     /**

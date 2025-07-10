@@ -564,13 +564,13 @@ class CoinGeckoService
     }
     
     /**
-     * Get market chart data with intelligent historical caching
+     * Get market chart data with intelligent historical caching (cached forever)
      */
     public function getMarketChartHistorical($id, $vsCurrency = 'usd', $days = 'max')
     {
         $cacheKey = "historical_chart_{$id}_{$vsCurrency}_{$days}";
         
-        return $this->cacheService->rememberHistorical($cacheKey, function($fromDate, $toDate) use ($id, $vsCurrency, $days) {
+        return $this->cacheService->rememberHistoricalForever($cacheKey, function($fromDate, $toDate) use ($id, $vsCurrency, $days) {
             // If we have a specific date range, calculate the days
             if ($fromDate && $toDate) {
                 $from = \Carbon\Carbon::parse($fromDate);
@@ -981,8 +981,9 @@ class CoinGeckoService
                     if (isset($coin['id'])) {
                         $foundIds[] = $coin['id'];
                         $coinCacheKey = "coin_data_{$coin['id']}";
-                        Cache::put($coinCacheKey, $coin, 300); // 5 minutes
-                        Cache::put("{$coinCacheKey}_meta", ['timestamp' => now()->timestamp], 300);
+                        // Cache for 30 days - same as other market data
+                        Cache::put($coinCacheKey, $coin, 2592000); // 30 days
+                        Cache::put("{$coinCacheKey}_meta", ['timestamp' => now()->timestamp], 2592000);
                     }
                 }
                 
@@ -1033,8 +1034,8 @@ class CoinGeckoService
                         if (isset($coin['id'])) {
                             $foundIds[] = $coin['id'];
                             $coinCacheKey = "coin_data_{$coin['id']}";
-                            Cache::put($coinCacheKey, $coin, 300); // 5 minutes
-                            Cache::put("{$coinCacheKey}_meta", ['timestamp' => now()->timestamp], 300);
+                            Cache::put($coinCacheKey, $coin, 2592000); // 30 days
+                            Cache::put("{$coinCacheKey}_meta", ['timestamp' => now()->timestamp], 2592000);
                         }
                     }
                 }

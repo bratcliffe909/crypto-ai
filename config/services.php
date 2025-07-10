@@ -60,4 +60,9 @@ return [
         'base_url' => 'https://api.tradingeconomics.com',
     ],
 
+    'cryptocompare' => [
+        'key' => env('CRYPTOCOMPARE_KEY'),
+        'base_url' => 'https://min-api.cryptocompare.com/data',
+    ],
+
 ];

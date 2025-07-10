@@ -10,7 +10,6 @@ use App\Services\CacheService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
-use Carbon\Carbon;
 
 class UpdateIndicatorCache extends Command
 {
@@ -166,107 +165,40 @@ class UpdateIndicatorCache extends Command
     private function updatePiCycleTop()
     {
         $cacheKey = "pi_cycle_top_bitcoin_v2";
-        $historicalCacheKey = "pi_cycle_historical_prices";
         
-        // Get existing historical price data
-        $existingPrices = Cache::get($historicalCacheKey, []);
-        $lastDate = null;
-        $daysToFetch = 14; // Default to last 14 days
+        // Force update by clearing existing cache
+        Cache::forget($cacheKey);
         
-        if (!empty($existingPrices)) {
-            // Find the most recent date in our cache
-            $lastPrice = end($existingPrices);
-            $lastDate = $lastPrice['date'] ?? null;
-            
-            if ($lastDate) {
-                // Calculate days since last update
-                $daysSinceUpdate = Carbon::parse($lastDate)->diffInDays(now());
-                $daysToFetch = min($daysSinceUpdate + 2, 2000); // Add 2 days buffer, max 2000
-                
-                Log::info("Pi Cycle: Last cached date is {$lastDate}, fetching {$daysToFetch} days");
-            }
-        } else {
-            // No existing data, need full historical fetch
-            $daysToFetch = 2000;
-            Log::info("Pi Cycle: No existing cache, fetching full history ({$daysToFetch} days)");
-        }
+        // Fetch and cache new data
+        $dailyPrices = [];
         
-        // Fetch only the needed data
-        $newPrices = [];
-        
+        // Try to get historical data from CryptoCompare (free, up to 2000 days)
         try {
-            if ($daysToFetch <= 365) {
-                // For recent updates, use CoinGecko
-                $marketResult = $this->coinGeckoService->getMarketChart('bitcoin', 'usd', $daysToFetch, 'daily');
-                $marketData = $marketResult['data'] ?? [];
-                
-                if (!empty($marketData['prices'])) {
-                    foreach ($marketData['prices'] as $pricePoint) {
-                        $timestamp = $pricePoint[0] / 1000;
-                        $date = date('Y-m-d', $timestamp);
-                        
-                        // Only add if it's newer than our last cached date
-                        if (!$lastDate || $date > $lastDate) {
-                            $newPrices[] = [
-                                'date' => $date,
-                                'timestamp' => $timestamp,
-                                'price' => $pricePoint[1]
-                            ];
-                        }
-                    }
-                }
-                Log::info("Pi Cycle: Got " . count($newPrices) . " new days from CoinGecko");
-            } else {
-                // For full history, use CryptoCompare with API key
-                $historicalData = $this->fetchCryptoCompareHistory($daysToFetch);
-                if (!empty($historicalData)) {
-                    // If we have existing data, filter to only new dates
-                    if ($lastDate) {
-                        foreach ($historicalData as $day) {
-                            if ($day['date'] > $lastDate) {
-                                $newPrices[] = $day;
-                            }
-                        }
-                    } else {
-                        $newPrices = $historicalData;
-                    }
-                    Log::info("Pi Cycle: Got " . count($newPrices) . " new days from CryptoCompare");
-                }
+            $historicalData = $this->fetchCryptoCompareHistory();
+            if (!empty($historicalData)) {
+                $dailyPrices = $historicalData;
+                Log::info("Pi Cycle: Got " . count($dailyPrices) . " days from CryptoCompare");
             }
         } catch (\Exception $e) {
-            Log::warning("Failed to fetch new Pi Cycle data: " . $e->getMessage());
+            Log::warning("CryptoCompare failed for Pi Cycle: " . $e->getMessage());
+        }
+        
+        // If CryptoCompare fails, fall back to CoinGecko
+        if (empty($dailyPrices)) {
+            $marketResult = $this->coinGeckoService->getMarketChart('bitcoin', 'usd', 365, 'daily');
+            $marketData = $marketResult['data'] ?? [];
             
-            // If we have existing data and fetch fails, continue with what we have
-            if (empty($existingPrices)) {
-                throw new \Exception("No historical data available and unable to fetch new data");
+            if (!empty($marketData['prices'])) {
+                foreach ($marketData['prices'] as $pricePoint) {
+                    $timestamp = $pricePoint[0] / 1000;
+                    $dailyPrices[] = [
+                        'date' => date('Y-m-d', $timestamp),
+                        'timestamp' => $timestamp,
+                        'price' => $pricePoint[1]
+                    ];
+                }
             }
         }
-        
-        // Merge new prices with existing ones
-        $dailyPrices = $existingPrices;
-        
-        // Add new prices, avoiding duplicates
-        $existingDates = array_column($existingPrices, 'date');
-        foreach ($newPrices as $newPrice) {
-            if (!in_array($newPrice['date'], $existingDates)) {
-                $dailyPrices[] = $newPrice;
-            }
-        }
-        
-        // Sort by date to ensure chronological order
-        usort($dailyPrices, function($a, $b) {
-            return $a['timestamp'] - $b['timestamp'];
-        });
-        
-        // Keep only last 2000 days to prevent cache from growing too large
-        if (count($dailyPrices) > 2000) {
-            $dailyPrices = array_slice($dailyPrices, -2000);
-        }
-        
-        // Cache the historical prices FOREVER (they don't change)
-        Cache::forever($historicalCacheKey, $dailyPrices);
-        
-        Log::info("Pi Cycle: Total price history: " . count($dailyPrices) . " days");
         
         // Calculate Pi Cycle Top indicators
         $result = [];
@@ -299,7 +231,6 @@ class UpdateIndicatorCache extends Command
                 }
                 $dataPoint['ma350x2'] = round(($sum / 350) * 2, 2);
             }
-            
             // Check for crossover
             if ($i > 349 && $i > 0) {
                 $prev = $result[$i - 1];
@@ -325,7 +256,6 @@ class UpdateIndicatorCache extends Command
             'timestamp' => now()->toIso8601String(),
             'source' => 'api'
         ], 86400);
-        
         return [
             'dataPoints' => count($result),
             'lastDate' => $result[count($result) - 1]['date'] ?? null
@@ -440,26 +370,20 @@ class UpdateIndicatorCache extends Command
         return null;
     }
     
-    private function fetchCryptoCompareHistory($limit = 2000)
+    private function fetchCryptoCompareHistory()
     {
         $url = 'https://min-api.cryptocompare.com/data/v2/histoday';
         $params = [
             'fsym' => 'BTC',
             'tsym' => 'USD',
-            'limit' => $limit,
-            'aggregate' => 1,
-            'api_key' => config('services.cryptocompare.key')
+            'limit' => 2000,
+            'aggregate' => 1
         ];
         
         $response = Http::timeout(30)->get($url, $params);
         
         if ($response->successful()) {
             $data = $response->json();
-            
-            // Check for rate limit
-            if (isset($data['Response']) && $data['Response'] === 'Error') {
-                throw new \Exception("CryptoCompare API error: " . ($data['Message'] ?? 'Unknown error'));
-            }
             
             if (isset($data['Data']['Data']) && is_array($data['Data']['Data'])) {
                 $dailyPrices = [];
@@ -478,7 +402,7 @@ class UpdateIndicatorCache extends Command
             }
         }
         
-        throw new \Exception('Failed to fetch CryptoCompare history: ' . $response->status());
+        return [];
     }
     
     private function calculateRSIFromPrices($prices, $period = 14)

@@ -351,6 +351,126 @@ class CacheService
     }
     
     /**
+     * Remember historical data forever (no expiration)
+     * Perfect for data that never changes (historical prices, past events, etc.)
+     */
+    public function rememberHistoricalForever(string $key, callable $callback, string $dateField = 'date'): array
+    {
+        $metaKey = $key . '_historical_meta';
+        
+        // Get existing cached data
+        $cachedData = Cache::get($key, []);
+        $metadata = Cache::get($metaKey, [
+            'lastDate' => null,
+            'firstDate' => null,
+            'lastUpdated' => null
+        ]);
+        
+        $now = now();
+        $today = $now->format('Y-m-d');
+        
+        // If we have cached data and it's up to date (last date is today or yesterday), return it
+        if (!empty($cachedData) && isset($metadata['lastDate'])) {
+            $lastDate = Carbon::parse($metadata['lastDate']);
+            $daysSinceLastUpdate = $lastDate->diffInDays($now);
+            
+            if ($daysSinceLastUpdate <= 1) {
+                Log::info("Historical data for {$key} is up to date", [
+                    'lastDate' => $metadata['lastDate'],
+                    'dataPoints' => count($cachedData)
+                ]);
+                return $this->formatResponse($cachedData, $metadata['lastUpdated'], 
+                    Carbon::parse($metadata['lastUpdated'])->diffInSeconds($now), 'cache');
+            }
+        }
+        
+        try {
+            // Determine date range for fetching new data
+            $fromDate = null;
+            $toDate = $today;
+            
+            if (!empty($cachedData) && isset($metadata['lastDate'])) {
+                // We have existing data, just fetch what's missing
+                $fromDate = Carbon::parse($metadata['lastDate'])->addDay()->format('Y-m-d');
+                Log::info("Fetching incremental historical data for {$key}", [
+                    'fromDate' => $fromDate,
+                    'toDate' => $toDate
+                ]);
+            } else {
+                Log::info("Fetching full historical data for {$key}");
+            }
+            
+            // Call the callback with date range
+            $newData = $callback($fromDate, $toDate);
+            
+            if ($newData && !empty($newData)) {
+                // If we have existing data, merge it
+                if (!empty($cachedData)) {
+                    // Create a map of existing data by date for efficient merging
+                    $existingDataMap = [];
+                    foreach ($cachedData as $item) {
+                        if (isset($item[$dateField])) {
+                            $existingDataMap[$item[$dateField]] = $item;
+                        }
+                    }
+                    
+                    // Add new data to the map (overwriting any duplicates)
+                    foreach ($newData as $item) {
+                        if (isset($item[$dateField])) {
+                            $existingDataMap[$item[$dateField]] = $item;
+                        }
+                    }
+                    
+                    // Convert back to array and sort by date
+                    $mergedData = array_values($existingDataMap);
+                    usort($mergedData, function($a, $b) use ($dateField) {
+                        return strtotime($a[$dateField]) - strtotime($b[$dateField]);
+                    });
+                } else {
+                    $mergedData = $newData;
+                }
+                
+                // Update metadata
+                $firstItem = reset($mergedData);
+                $lastItem = end($mergedData);
+                
+                $newMetadata = [
+                    'firstDate' => $firstItem[$dateField] ?? null,
+                    'lastDate' => $lastItem[$dateField] ?? null,
+                    'lastUpdated' => $now->toIso8601String(),
+                    'dataPoints' => count($mergedData)
+                ];
+                
+                // Store the merged data FOREVER
+                Cache::forever($key, $mergedData);
+                Cache::forever($metaKey, $newMetadata);
+                
+                Log::info("Updated historical cache for {$key} (stored forever)", $newMetadata);
+                
+                return $this->formatResponse($mergedData, $now, 0, 'merged');
+            }
+            
+            // If no new data but we have cached data, return it
+            if (!empty($cachedData)) {
+                return $this->formatResponse($cachedData, $metadata['lastUpdated'], 
+                    Carbon::parse($metadata['lastUpdated'])->diffInSeconds($now), 'cache');
+            }
+            
+        } catch (\Exception $e) {
+            Log::warning("Failed to fetch historical data for {$key}", ['error' => $e->getMessage()]);
+            
+            // Return cached data if available
+            if (!empty($cachedData)) {
+                return $this->formatResponse($cachedData, $metadata['lastUpdated'], 
+                    Carbon::parse($metadata['lastUpdated'])->diffInSeconds($now), 'cache_on_error');
+            }
+        }
+        
+        // No data available
+        return $this->formatResponse([], $now, 0, 'none');
+    }
+    
+    /**
      * Record a request for statistics
      */
     private function recordRequest(): void

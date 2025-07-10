@@ -7,6 +7,8 @@ import MarketOverview from '../Components/dashboard/MarketOverview';
 import Wallet from '../Components/dashboard/Wallet';
 import BullMarketBand from '../Components/dashboard/BullMarketBand';
 import FearGreedIndex from '../Components/dashboard/FearGreedIndex';
+import MarketSentiment from '../Components/desktop/indicators/MarketSentiment';
+import SocialActivity from '../Components/desktop/indicators/SocialActivity';
 import TrendingCoins from '../Components/dashboard/TrendingCoins';
 import TechnicalIndicators from '../Components/dashboard/TechnicalIndicators';
 import PiCycleTop from '../Components/dashboard/PiCycleTop';
@@ -66,6 +68,8 @@ function Dashboard() {
           <div className="col-lg-3">
             <Wallet />
             <FearGreedIndex />
+            <MarketSentiment />
+            <SocialActivity />
             <MarketStats />
             <TrendingCoins />
           </div>
