@@ -191,7 +191,7 @@ class CoinGeckoService
                 // Try to get missing coins from individual caches
                 foreach ($missingIds as $missingId) {
                     $individualKey = "coin_data_{$missingId}";
-                    $individualCoin = \Cache::get($individualKey);
+                    $individualCoin = Cache::get($individualKey);
                     
                     if ($individualCoin) {
                         $filteredData[] = $individualCoin;
@@ -709,8 +709,8 @@ class CoinGeckoService
         $metaKey = $cacheKey . '_meta';
         
         // Cache for 30 days (same as main cache duration)
-        \Cache::put($cacheKey, $coinData, 2592000);
-        \Cache::put($metaKey, [
+        Cache::put($cacheKey, $coinData, 2592000);
+        Cache::put($metaKey, [
             'timestamp' => now()->toIso8601String(),
             'source' => 'coingecko'
         ], 2592000);
@@ -728,7 +728,7 @@ class CoinGeckoService
         
         try {
             // Use Laravel's cache store to get all keys
-            $cacheStore = \Cache::store();
+            $cacheStore = Cache::store();
             
             // Get the Redis instance from the cache store
             if (method_exists($cacheStore, 'getRedis')) {
@@ -749,7 +749,7 @@ class CoinGeckoService
                     $cacheKey = str_replace($prefix, '', $key);
                     
                     // Use Laravel's Cache facade to get the data
-                    $data = \Cache::get($cacheKey);
+                    $data = Cache::get($cacheKey);
                     if (is_array($data)) {
                         foreach ($data as $coin) {
                             if (in_array($coin['id'], $idArray) && !isset($result[$coin['id']])) {
@@ -775,7 +775,7 @@ class CoinGeckoService
                 ];
                 
                 foreach ($possibleKeys as $cacheKey) {
-                    $data = \Cache::get($cacheKey);
+                    $data = Cache::get($cacheKey);
                     if (is_array($data)) {
                         foreach ($data as $coin) {
                             if (in_array($coin['id'], $idArray) && !isset($result[$coin['id']])) {
@@ -817,7 +817,7 @@ class CoinGeckoService
         foreach ($idArray as $coinId) {
             $coinId = trim($coinId);
             $cacheKey = "coin_data_{$coinId}";
-            $cachedCoin = \Cache::get($cacheKey);
+            $cachedCoin = Cache::get($cacheKey);
             
             if ($cachedCoin) {
                 $result[] = $cachedCoin;
