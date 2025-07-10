@@ -1020,6 +1020,7 @@ class CoinGeckoService
     public function getSpecificCoinsMarketData($coinIds, $vsCurrency = 'usd')
     {
         $ids = is_array($coinIds) ? implode(',', $coinIds) : $coinIds;
+        $requestedIds = is_array($coinIds) ? $coinIds : explode(',', $ids);
         
         try {
             // Use the markets endpoint with specific IDs to get full data
@@ -1035,13 +1036,29 @@ class CoinGeckoService
 
             if ($response->successful()) {
                 $data = $response->json();
+                $foundIds = [];
                 
                 // Store each coin individually in cache
                 foreach ($data as $coin) {
                     if (isset($coin['id'])) {
+                        $foundIds[] = $coin['id'];
                         $coinCacheKey = "coin_data_{$coin['id']}";
                         Cache::put($coinCacheKey, $coin, 300); // 5 minutes
                         Cache::put("{$coinCacheKey}_meta", ['timestamp' => now()->timestamp], 300);
+                    }
+                }
+                
+                // Check for missing coins (not in top 250)
+                $missingIds = array_diff($requestedIds, $foundIds);
+                
+                // For missing coins, preserve existing cache data if available
+                foreach ($missingIds as $missingId) {
+                    $existingData = Cache::get("coin_data_{$missingId}");
+                    if ($existingData) {
+                        $data[] = $existingData;
+                        Log::info("Preserved existing cache data for {$missingId} (not in top 250)");
+                    } else {
+                        Log::warning("No data found for {$missingId} - not in top 250 and no cache");
                     }
                 }
                 
@@ -1062,16 +1079,33 @@ class CoinGeckoService
                 
                 // Try Alpha Vantage as fallback
                 $fallbackData = $this->tryAlphaVantageForCoins(is_array($coinIds) ? $coinIds : explode(',', $ids));
+                $foundIds = [];
+                
                 if (!empty($fallbackData)) {
                     // Store each coin individually in cache
                     foreach ($fallbackData as $coin) {
                         if (isset($coin['id'])) {
+                            $foundIds[] = $coin['id'];
                             $coinCacheKey = "coin_data_{$coin['id']}";
                             Cache::put($coinCacheKey, $coin, 300); // 5 minutes
                             Cache::put("{$coinCacheKey}_meta", ['timestamp' => now()->timestamp], 300);
                         }
                     }
-                    
+                }
+                
+                // Check for missing coins even after fallback
+                $missingIds = array_diff($requestedIds, $foundIds);
+                
+                // For missing coins, preserve existing cache data if available
+                foreach ($missingIds as $missingId) {
+                    $existingData = Cache::get("coin_data_{$missingId}");
+                    if ($existingData) {
+                        $fallbackData[] = $existingData;
+                        Log::info("Preserved existing cache data for {$missingId} after rate limit");
+                    }
+                }
+                
+                if (!empty($fallbackData)) {
                     return [
                         'success' => true,
                         'data' => $fallbackData,
@@ -1091,6 +1125,29 @@ class CoinGeckoService
                 'error' => $e->getMessage(),
                 'coins' => $ids
             ]);
+            
+            // Even on failure, try to return existing cached data
+            $cachedData = [];
+            foreach ($requestedIds as $coinId) {
+                $existingData = Cache::get("coin_data_{$coinId}");
+                if ($existingData) {
+                    $cachedData[] = $existingData;
+                    Log::info("Returning cached data for {$coinId} after API failure");
+                }
+            }
+            
+            if (!empty($cachedData)) {
+                return [
+                    'success' => true,
+                    'data' => $cachedData,
+                    'metadata' => [
+                        'source' => 'cache',
+                        'lastUpdated' => now()->toIso8601String(),
+                        'cacheAge' => 0,
+                        'note' => 'API failed, returning cached data'
+                    ]
+                ];
+            }
             
             return [
                 'success' => false,

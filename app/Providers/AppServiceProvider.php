@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Inertia\Inertia;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -61,6 +62,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Share donation address with all Inertia responses
+        Inertia::share([
+            'ethDonationAddress' => config('app.eth_donation_address'),
+        ]);
     }
 }

@@ -1,6 +1,4 @@
 import React from 'react';
-import TimeAgo from '../../common/TimeAgo';
-import { BsExclamationTriangle } from 'react-icons/bs';
 
 const MobileSectionHeader = ({ 
   title, 
@@ -19,10 +17,6 @@ const MobileSectionHeader = ({
         </div>
         <div className="header-actions">
           {children}
-          <div className="d-flex align-items-center gap-2">
-            {lastUpdated && <TimeAgo date={lastUpdated} />}
-            {error && <BsExclamationTriangle className="text-warning" size={16} title={error} />}
-          </div>
         </div>
       </div>
     </div>

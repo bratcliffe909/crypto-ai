@@ -123,4 +123,16 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Donation Settings
+    |--------------------------------------------------------------------------
+    |
+    | These values are used to configure donation functionality in the app.
+    | Set the ETH_DONATION_ADDRESS in your .env file to enable donations.
+    |
+    */
+
+    'eth_donation_address' => env('ETH_DONATION_ADDRESS', ''),
+
 ];
