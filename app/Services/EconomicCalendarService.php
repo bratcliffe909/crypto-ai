@@ -304,6 +304,156 @@ class EconomicCalendarService
     }
     
     /**
+     * Get events directly from APIs and update cache
+     * This method bypasses cache reading and always fetches fresh data
+     * Used by background cache update jobs
+     */
+    public function getEventsDirect($from, $to)
+    {
+        // Handle null dates
+        if (!$from || !$to) {
+            throw new \Exception('Invalid date range: from and to dates are required');
+        }
+        
+        // Convert dates to Carbon if they're strings
+        $startDate = is_string($from) ? Carbon::parse($from) : $from;
+        $endDate = is_string($to) ? Carbon::parse($to) : $to;
+        
+        $cacheKey = "economic_calendar_{$from}_{$to}";
+        
+        try {
+            Log::info('Fetching economic calendar directly from APIs', [
+                'from' => $from,
+                'to' => $to,
+                'cacheKey' => $cacheKey
+            ]);
+            
+            $events = [];
+            $source = 'none';
+            
+            // Try FRED first if configured
+            if ($this->fredService && $this->fredService->isConfigured()) {
+                try {
+                    $fredEvents = $this->getFREDEvents($startDate, $endDate);
+                    if (!empty($fredEvents)) {
+                        $events = $fredEvents;
+                        $source = 'FRED';
+                        Log::info('Fetched events from FRED', ['count' => count($fredEvents)]);
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('FRED API failed in getEventsDirect', ['error' => $e->getMessage()]);
+                }
+            }
+            
+            // Try Finnhub as fallback if no FRED events
+            if (empty($events) && $this->finnhubService && $this->finnhubService->isConfigured()) {
+                try {
+                    // Call Finnhub directly, not through cache wrapper
+                    $response = Http::timeout(30)->get("https://finnhub.io/api/v1/calendar/economic", [
+                        'from' => $startDate->format('Y-m-d'),
+                        'to' => $endDate->format('Y-m-d'),
+                        'token' => config('services.finnhub.key')
+                    ]);
+                    
+                    if ($response->successful()) {
+                        $data = $response->json();
+                        
+                        // Map Finnhub format to our standard format
+                        $mappedEvents = [];
+                        $finnhubEvents = isset($data['economicCalendar']) ? $data['economicCalendar'] : $data;
+                        
+                        if (is_array($finnhubEvents)) {
+                            foreach ($finnhubEvents as $event) {
+                                $mappedEvents[] = $this->mapFinnhubEventDirect($event);
+                            }
+                        }
+                        
+                        if (!empty($mappedEvents)) {
+                            $events = $mappedEvents;
+                            $source = 'Finnhub';
+                            Log::info('Fetched events from Finnhub', ['count' => count($mappedEvents)]);
+                        }
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('Finnhub API failed in getEventsDirect', ['error' => $e->getMessage()]);
+                }
+            }
+            
+            // If still no events, use static data
+            if (empty($events)) {
+                $events = array_merge(
+                    $this->getStaticFOMCDates($startDate, $endDate),
+                    $this->getStaticCryptoEvents($startDate, $endDate),
+                    $this->getStaticMajorEvents($startDate, $endDate)
+                );
+                $source = 'static';
+                Log::info('Using static events', ['count' => count($events)]);
+            }
+            
+            // Process events (deduplicate, sort, etc.)
+            $processedEvents = $this->processEvents($events);
+            
+            $responseData = [
+                'data' => $processedEvents,
+                'metadata' => [
+                    'source' => $source,
+                    'lastUpdated' => now()->toIso8601String(),
+                    'cacheAge' => 0
+                ]
+            ];
+            
+            // Store fresh data in cache
+            $this->cacheService->storeWithMetadata($cacheKey, $responseData);
+            
+            Log::info('Economic calendar cache updated successfully', [
+                'from' => $from,
+                'to' => $to,
+                'eventCount' => count($processedEvents),
+                'source' => $source
+            ]);
+            
+            return $responseData;
+            
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch economic calendar directly', [
+                'from' => $from,
+                'to' => $to,
+                'error' => $e->getMessage()
+            ]);
+            throw $e;
+        }
+    }
+    
+    /**
+     * Map Finnhub event to standard format (direct version for getEventsDirect)
+     */
+    private function mapFinnhubEventDirect($finnhubEvent)
+    {
+        // Map impact levels
+        $impactMap = [
+            '3' => 'high',
+            '2' => 'medium',
+            '1' => 'low',
+            '0' => 'low'
+        ];
+
+        $impact = $impactMap[$finnhubEvent['impact'] ?? '0'] ?? 'medium';
+
+        return [
+            'event' => $finnhubEvent['event'] ?? 'Unknown Event',
+            'date' => Carbon::createFromTimestamp($finnhubEvent['time'] ?? time())->format('Y-m-d'),
+            'impact' => $impact,
+            'country' => $finnhubEvent['country'] ?? 'Unknown',
+            'description' => $finnhubEvent['event'] ?? '',
+            'actual' => $finnhubEvent['actual'] ?? null,
+            'estimate' => $finnhubEvent['estimate'] ?? null,
+            'previous' => $finnhubEvent['prev'] ?? null,
+            'unit' => $finnhubEvent['unit'] ?? '',
+            'source' => 'Finnhub'
+        ];
+    }
+    
+    /**
      * Fetch from Trading Economics API (if you want to implement)
      * Requires API key from https://tradingeconomics.com/api
      */

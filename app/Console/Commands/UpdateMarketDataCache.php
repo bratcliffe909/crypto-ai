@@ -53,7 +53,7 @@ class UpdateMarketDataCache extends Command
         // Update Fear & Greed Index
         try {
             $this->info('Updating Fear & Greed Index...');
-            $fearGreedData = $this->alternativeService->getFearGreedIndex();
+            $fearGreedData = $this->alternativeService->getFearGreedIndexDirect();
             
             if (isset($fearGreedData['data']) && !empty($fearGreedData['data'])) {
                 $currentValue = $fearGreedData['data'][0]['value'] ?? null;
@@ -78,7 +78,7 @@ class UpdateMarketDataCache extends Command
         // Update Global Market Stats
         try {
             $this->info('Updating Global Market Stats...');
-            $globalData = $this->coinGeckoService->getGlobalData();
+            $globalData = $this->coinGeckoService->getGlobalDataDirect();
             
             if (isset($globalData['data']) && !empty($globalData['data'])) {
                 $marketCap = $globalData['data']['data']['total_market_cap']['usd'] ?? 0;
@@ -106,7 +106,7 @@ class UpdateMarketDataCache extends Command
         // Update Trending Coins
         try {
             $this->info('Updating Trending Coins...');
-            $trendingData = $this->coinGeckoService->getTrending();
+            $trendingData = $this->coinGeckoService->getTrendingDirect();
             
             if (isset($trendingData['data']) && isset($trendingData['data']['coins'])) {
                 $trendingCoins = $trendingData['data']['coins'];

@@ -161,6 +161,51 @@ class FinnhubService
     }
 
     /**
+     * Get market news directly from API and update cache
+     * This method bypasses cache reading and always fetches fresh data
+     * Used by background cache update jobs
+     */
+    public function getMarketNewsDirect($category = 'crypto')
+    {
+        $cacheKey = "finnhub_market_news_{$category}";
+        
+        try {
+            Log::info('Fetching market news directly from Finnhub API', [
+                'category' => $category,
+                'cacheKey' => $cacheKey
+            ]);
+            
+            $response = Http::timeout(30)->get("{$this->baseUrl}/news", [
+                'category' => $category,
+                'token' => $this->apiKey
+            ]);
+
+            if ($response->successful()) {
+                $newsData = $response->json();
+                
+                // Store fresh data in cache using the same key structure
+                $this->cacheService->storeWithMetadata($cacheKey, $newsData);
+                
+                Log::info('Market news cache updated successfully', [
+                    'category' => $category,
+                    'articleCount' => is_array($newsData) ? count($newsData) : 0
+                ]);
+                
+                // Return in the same format as the cached version
+                return $this->cacheService->formatResponsePublic($newsData, now(), 0, 'primary');
+            }
+
+            throw new \Exception('Finnhub market news request failed: ' . $response->status());
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch market news directly', [
+                'category' => $category,
+                'error' => $e->getMessage()
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
      * Get crypto exchanges
      */
     public function getCryptoExchanges()

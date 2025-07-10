@@ -52,7 +52,7 @@ class UpdateNewsFeedCache extends Command
         // Update news feed cache
         try {
             $this->info('Updating news feed cache...');
-            $newsData = $this->finnhubService->getMarketNews('crypto');
+            $newsData = $this->finnhubService->getMarketNewsDirect('crypto');
             
             // Handle CacheService response format
             $articles = isset($newsData['data']) ? $newsData['data'] : $newsData;
@@ -83,7 +83,7 @@ class UpdateNewsFeedCache extends Command
             $startDate = (clone $today)->modify('first day of January this year')->format('Y-m-d');
             $endDate = (clone $today)->modify('last day of December next year')->format('Y-m-d');
             
-            $calendarData = $this->economicCalendarService->getEvents($startDate, $endDate);
+            $calendarData = $this->economicCalendarService->getEventsDirect($startDate, $endDate);
             
             if (isset($calendarData['data']) && is_array($calendarData['data'])) {
                 $events = $calendarData['data'];

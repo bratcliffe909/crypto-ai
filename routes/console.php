@@ -51,7 +51,7 @@ Schedule::command('cache:update-market-data')
 
 // Update indicators (Pi Cycle, Rainbow Chart, Altcoin Season, RSI) daily at midnight
 Schedule::command('cache:update-indicators')
-    ->dailyAt('00:05')
+    ->hourlyAt(30)
     ->name('indicator-cache-update')
     ->withoutOverlapping()
     ->runInBackground()

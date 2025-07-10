@@ -68,6 +68,30 @@ class AlternativeService
         $cacheKey = "fear_greed_index_{$limit}";
         
         $response = Http::timeout(30)->get("{$this->baseUrl}/fng/", [
+            "limit" => $limit,
+            "format" => "json"
+        ]);
+
+        if ($response->successful()) {
+            $data = $response->json();
+            
+            // Store fresh data in cache
+            $this->cacheService->storeWithMetadata($cacheKey, $data);
+            
+            // Return in same format as cached version
+            return $this->cacheService->formatResponsePublic($data, now(), 0, "primary");
+        }
+
+        throw new \Exception("Alternative.me Fear & Greed API request failed");
+    }
+    /**
+     * Get Fear & Greed Index directly from API (bypasses cache - for cache updates)
+     */
+    public function getFearGreedIndexDirect($limit = 30)
+    {
+        $cacheKey = "fear_greed_index_{$limit}";
+        
+        $response = Http::timeout(30)->get("{$this->baseUrl}/fng/", [
             'limit' => $limit,
             'format' => 'json'
         ]);
@@ -83,5 +107,30 @@ class AlternativeService
         }
 
         throw new \Exception('Alternative.me Fear & Greed API request failed');
+    }
+
+    /**
+     * Get Fear & Greed Index directly from API (bypasses cache - for cache updates)
+     */
+    public function getFearGreedIndexDirect($limit = 30)
+    {
+        $cacheKey = "fear_greed_index_{$limit}";
+        
+        $response = Http::timeout(30)->get("{$this->baseUrl}/fng/", [
+            "limit" => $limit,
+            "format" => "json"
+        ]);
+
+        if ($response->successful()) {
+            $data = $response->json();
+            
+            // Store fresh data in cache
+            $this->cacheService->storeWithMetadata($cacheKey, $data);
+            
+            // Return in same format as cached version
+            return $this->cacheService->formatResponsePublic($data, now(), 0, "primary");
+        }
+
+        throw new \Exception("Alternative.me Fear & Greed API request failed");
     }
 }

@@ -890,4 +890,50 @@ class CoinGeckoService
         
         return $images[$coinId] ?? 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png';
     }
+
+
+    /**
+     * Get global data directly from API (bypasses cache - for cache updates)
+     */
+    public function getGlobalDataDirect()
+    {
+        $cacheKey = "global";
+        
+        $response = Http::timeout(30)->get("{$this->baseUrl}/global");
+
+        if ($response->successful()) {
+            $data = $response->json();
+            
+            // Store fresh data in cache
+            $this->cacheService->storeWithMetadata($cacheKey, $data);
+            
+            // Return in same format as cached version
+            return $this->cacheService->formatResponsePublic($data, now(), 0, "primary");
+        }
+
+        throw new \Exception("CoinGecko global data request failed");
+    }
+
+
+    /**
+     * Get trending coins directly from API (bypasses cache - for cache updates)
+     */
+    public function getTrendingDirect()
+    {
+        $cacheKey = "trending";
+        
+        $response = Http::timeout(30)->get("{$this->baseUrl}/search/trending");
+
+        if ($response->successful()) {
+            $data = $response->json();
+            
+            // Store fresh data in cache
+            $this->cacheService->storeWithMetadata($cacheKey, $data);
+            
+            // Return in same format as cached version
+            return $this->cacheService->formatResponsePublic($data, now(), 0, "primary");
+        }
+
+        throw new \Exception("CoinGecko trending request failed");
+    }
 }
