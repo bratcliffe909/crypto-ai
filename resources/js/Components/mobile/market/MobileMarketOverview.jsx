@@ -7,7 +7,7 @@ import { formatPrice, formatPercentage, formatMarketCap } from '../../../utils/f
 
 const MobileMarketOverview = ({ onDataLoad }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const { data, loading, error, lastFetch } = useApi('/api/crypto/markets?per_page=100');
+  const { data, loading, error, lastFetch } = useApi('/api/crypto/markets?per_page=250');
   const coins = data || [];
 
   // Notify parent of data updates
