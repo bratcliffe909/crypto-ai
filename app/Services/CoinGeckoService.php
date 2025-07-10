@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class CoinGeckoService
 {
@@ -935,5 +936,64 @@ class CoinGeckoService
         }
 
         throw new \Exception("CoinGecko trending request failed");
+    }
+    
+    /**
+     * Get full market data for specific coins directly from API (for cache updates)
+     * This fetches complete market data for any coins, not limited to top 250
+     */
+    public function getSpecificCoinsMarketData($coinIds, $vsCurrency = 'usd')
+    {
+        $ids = is_array($coinIds) ? implode(',', $coinIds) : $coinIds;
+        
+        try {
+            // Use the markets endpoint with specific IDs to get full data
+            $response = Http::timeout(30)->get("{$this->baseUrl}/coins/markets", [
+                'vs_currency' => $vsCurrency,
+                'ids' => $ids,
+                'order' => 'market_cap_desc',
+                'per_page' => 250, // Max allowed
+                'page' => 1,
+                'sparkline' => false,
+                'price_change_percentage' => '24h,7d,30d,90d'
+            ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                
+                // Store each coin individually in cache
+                foreach ($data as $coin) {
+                    if (isset($coin['id'])) {
+                        $coinCacheKey = "coin_data_{$coin['id']}";
+                        Cache::put($coinCacheKey, $coin, 300); // 5 minutes
+                        Cache::put("{$coinCacheKey}_meta", ['timestamp' => now()->timestamp], 300);
+                    }
+                }
+                
+                return [
+                    'success' => true,
+                    'data' => $data,
+                    'metadata' => [
+                        'source' => 'primary',
+                        'lastUpdated' => now()->toIso8601String(),
+                        'cacheAge' => 0
+                    ]
+                ];
+            }
+            
+            throw new \Exception("Failed to fetch market data for coins: {$ids}");
+            
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch specific coins market data', [
+                'error' => $e->getMessage(),
+                'coins' => $ids
+            ]);
+            
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+                'data' => []
+            ];
+        }
     }
 }

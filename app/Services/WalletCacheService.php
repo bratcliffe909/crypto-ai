@@ -72,23 +72,25 @@ class WalletCacheService
         
         foreach ($chunks as $chunk) {
             try {
-                // Use fetchFreshMarketData to bypass cache and get fresh data
-                $ids = implode(',', $chunk);
-                $response = $this->coinGeckoService->fetchFreshMarketData('usd', $ids, 250);
+                // Use the new method to get FULL market data for specific coins
+                $response = $this->coinGeckoService->getSpecificCoinsMarketData($chunk, 'usd');
                 
                 if ($response['success'] && isset($response['data']) && is_array($response['data'])) {
-                    // Count how many coins we got data for
-                    $foundCoins = [];
+                    // Map found coins by ID for easy lookup
+                    $foundCoinsMap = [];
                     foreach ($response['data'] as $coin) {
                         if (isset($coin['id'])) {
-                            $foundCoins[] = $coin['id'];
+                            $foundCoinsMap[$coin['id']] = $coin;
                         }
                     }
                     
+                    // Process each requested coin
                     foreach ($chunk as $coinId) {
-                        if (in_array($coinId, $foundCoins)) {
+                        if (isset($foundCoinsMap[$coinId])) {
                             $results['updated']++;
                             $results['coins'][$coinId] = 'updated';
+                            
+                            // Note: Individual coin caching is already handled in getSpecificCoinsMarketData
                         } else {
                             $results['failed']++;
                             $results['coins'][$coinId] = 'not_found';
@@ -100,7 +102,7 @@ class WalletCacheService
                     foreach ($chunk as $coinId) {
                         $results['coins'][$coinId] = 'api_error: ' . $error;
                     }
-                    Log::warning('Failed to fetch fresh market data', [
+                    Log::warning('Failed to fetch market data for wallet coins', [
                         'error' => $error,
                         'coins' => $chunk
                     ]);
