@@ -150,113 +150,46 @@ class CoinGeckoService
      * This method is specifically for wallet display where we want to show cached prices
      * even if they're stale, rather than failing
      */
+    /**
+     * Get wallet coins from cache - ultra-simplified version
+     * For wallet display, we always want to return whatever data we have in cache
+     */
     public function getWalletCoins($vsCurrency = 'usd', $ids = null, $perPage = 250)
     {
-        // First try to get from the general market cache (without specific IDs)
-        // This is what the scheduled task updates every 5 minutes
-        $generalCacheKey = "coingecko_markets_{$vsCurrency}_{$perPage}";
-        $generalCache = $this->cacheService->getCachedWithMetadataPublic($generalCacheKey);
+        if (!$ids) {
+            return $this->cacheService->formatResponsePublic([], now(), 0, 'none');
+        }
         
-        if ($generalCache && $ids) {
-            // We have the general market cache, filter it for requested coins
-            $requestedIds = explode(',', $ids);
-            $filteredData = [];
-            
-            if (is_array($generalCache['data'])) {
-                foreach ($generalCache['data'] as $coin) {
-                    if (isset($coin['id']) && in_array($coin['id'], $requestedIds)) {
-                        $filteredData[] = $coin;
-                    }
-                }
-            }
-            
-            // Check if we found all requested coins
-            $foundIds = array_map(function($coin) { return $coin['id']; }, $filteredData);
-            $missingIds = array_diff($requestedIds, $foundIds);
-            
-            if (empty($missingIds)) {
-                // Found all coins in general cache
-                return $this->cacheService->formatResponsePublic(
-                    $filteredData, 
-                    $generalCache['timestamp'], 
-                    $generalCache['age'], 
-                    'cache'
-                );
-            } else {
-                Log::debug('Some coins missing from general cache', [
-                    'missing_ids' => $missingIds,
-                    'found_ids' => $foundIds
-                ]);
-                
-                // Try to get missing coins from individual caches
-                foreach ($missingIds as $missingId) {
-                    $individualKey = "coin_data_{$missingId}";
-                    $individualCoin = Cache::get($individualKey);
-                    
-                    if ($individualCoin) {
-                        $filteredData[] = $individualCoin;
-                        Log::debug("Found {$missingId} in individual cache");
-                    }
-                }
-                
-                // If we now have all coins, return them
-                if (count($filteredData) === count($requestedIds)) {
-                    return $this->cacheService->formatResponsePublic(
-                        $filteredData, 
-                        $generalCache['timestamp'], 
-                        $generalCache['age'], 
-                        'cache'
-                    );
+        $requestedIds = explode(',', $ids);
+        $result = [];
+        
+        // 1. First check the general market cache
+        $generalCache = Cache::get("coingecko_markets_{$vsCurrency}_{$perPage}");
+        if ($generalCache && is_array($generalCache)) {
+            foreach ($generalCache as $coin) {
+                if (isset($coin['id']) && in_array($coin['id'], $requestedIds)) {
+                    $result[$coin['id']] = $coin;
                 }
             }
         }
         
-        // If general cache doesn't have all coins, try specific cache key
-        $specificCacheKey = "coingecko_markets_{$vsCurrency}_{$perPage}" . ($ids ? "_{$ids}" : "");
-        $cachedData = $this->cacheService->getCachedWithMetadataPublic($specificCacheKey);
-        
-        if ($cachedData && $ids) {
-            // Validate that the cache contains all requested coins
-            $requestedIds = explode(',', $ids);
-            $cachedIds = [];
-            if (is_array($cachedData['data'])) {
-                foreach ($cachedData['data'] as $coin) {
-                    if (isset($coin['id'])) {
-                        $cachedIds[] = $coin['id'];
-                    }
+        // 2. For any missing coins, check individual caches
+        foreach ($requestedIds as $coinId) {
+            if (!isset($result[$coinId])) {
+                $individualData = Cache::get("coin_data_{$coinId}");
+                if ($individualData) {
+                    $result[$coinId] = $individualData;
                 }
             }
-            
-            // Check if all requested coins are in the cache
-            $missingIds = array_diff($requestedIds, $cachedIds);
-            
-            if (empty($missingIds)) {
-                // Cache is complete, return it
-                return $this->cacheService->formatResponsePublic(
-                    $cachedData['data'], 
-                    $cachedData['timestamp'], 
-                    $cachedData['age'], 
-                    'cache'
-                );
-            }
         }
         
-        // If no exact match or incomplete cache, try to build from individual full market data caches
-        if ($ids) {
-            $result = $this->buildFromMarketDataCaches($ids);
-            if (!empty($result)) {
-                return $this->cacheService->formatResponsePublic($result, now(), 0, 'cache_combined');
-            }
-            
-            // Last resort: check individual coin caches
-            $individualResult = $this->buildFromIndividualCaches($ids);
-            if (!empty($individualResult)) {
-                return $this->cacheService->formatResponsePublic($individualResult, now(), 0, 'cache_individual');
-            }
-        }
-        
-        // No cache available at all
-        return $this->cacheService->formatResponsePublic([], now(), 0, 'none');
+        // Return as indexed array
+        return $this->cacheService->formatResponsePublic(
+            array_values($result), 
+            now(), 
+            0, 
+            'cache'
+        );
     }
 
     /**
@@ -1022,6 +955,11 @@ class CoinGeckoService
         $ids = is_array($coinIds) ? implode(',', $coinIds) : $coinIds;
         $requestedIds = is_array($coinIds) ? $coinIds : explode(',', $ids);
         
+        Log::info('getSpecificCoinsMarketData called', [
+            'requested_ids' => $requestedIds,
+            'count' => count($requestedIds)
+        ]);
+        
         try {
             // Use the markets endpoint with specific IDs to get full data
             $response = Http::timeout(30)->get("{$this->baseUrl}/coins/markets", [
@@ -1051,12 +989,20 @@ class CoinGeckoService
                 // Check for missing coins (not in top 250)
                 $missingIds = array_diff($requestedIds, $foundIds);
                 
+                Log::info('API response analysis', [
+                    'requested' => $requestedIds,
+                    'found' => $foundIds,
+                    'missing' => $missingIds
+                ]);
+                
                 // For missing coins, preserve existing cache data if available
                 foreach ($missingIds as $missingId) {
                     $existingData = Cache::get("coin_data_{$missingId}");
                     if ($existingData) {
                         $data[] = $existingData;
-                        Log::info("Preserved existing cache data for {$missingId} (not in top 250)");
+                        Log::info("Preserved existing cache data for {$missingId} (not in top 250)", [
+                            'has_price' => isset($existingData['current_price']) ? $existingData['current_price'] : 'no'
+                        ]);
                     } else {
                         Log::warning("No data found for {$missingId} - not in top 250 and no cache");
                     }
