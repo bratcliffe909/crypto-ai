@@ -9,6 +9,7 @@ use App\Services\AlphaVantageService;
 use App\Services\RainbowChartService;
 use App\Services\CacheService;
 use App\Services\CycleLowMultipleService;
+use App\Repositories\IndicatorRepository;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
@@ -19,13 +20,15 @@ class ChartController extends Controller
     private RainbowChartService $rainbowChartService;
     private CacheService $cacheService;
     private CycleLowMultipleService $cycleLowMultipleService;
+    private IndicatorRepository $indicatorRepository;
     
     public function __construct(
         CoinGeckoService $coinGeckoService, 
         AlphaVantageService $alphaVantageService,
         RainbowChartService $rainbowChartService,
         CacheService $cacheService,
-        CycleLowMultipleService $cycleLowMultipleService
+        CycleLowMultipleService $cycleLowMultipleService,
+        IndicatorRepository $indicatorRepository
     )
     {
         $this->coinGeckoService = $coinGeckoService;
@@ -33,6 +36,7 @@ class ChartController extends Controller
         $this->rainbowChartService = $rainbowChartService;
         $this->cacheService = $cacheService;
         $this->cycleLowMultipleService = $cycleLowMultipleService;
+        $this->indicatorRepository = $indicatorRepository;
     }
     
     /**
@@ -350,198 +354,32 @@ class ChartController extends Controller
      */
     public function piCycleTop(Request $request)
     {
-        // Cache for 6 hours for historical data
-        $cacheKey = "pi_cycle_top_bitcoin_v2";
-        
-        $data = $this->cacheService->rememberWithoutFreshness($cacheKey, function () {
-            try {
-                // Try to get historical data from multiple sources
-                $dailyPrices = [];
-                
-                // First, try to get historical data from CryptoCompare (free, up to 2000 days)
-                try {
-                    $historicalData = $this->fetchCryptoCompareHistory();
-                    if (!empty($historicalData)) {
-                        $dailyPrices = $historicalData;
-                        \Log::info("Got " . count($dailyPrices) . " days from CryptoCompare");
-                    }
-                } catch (\Exception $e) {
-                    \Log::warning("CryptoCompare failed: " . $e->getMessage());
-                }
-                
-                // If CryptoCompare fails, fall back to CoinGecko
-                if (empty($dailyPrices)) {
-                    try {
-                        // Get maximum available data (365 days for free tier)
-                        $marketData = $this->coinGeckoService->getMarketChart('bitcoin', 'usd', 365, 'daily');
-                        
-                        if (!empty($marketData['prices'])) {
-                            foreach ($marketData['prices'] as $pricePoint) {
-                                $timestamp = $pricePoint[0] / 1000;
-                                $dailyPrices[] = [
-                                    'date' => date('Y-m-d', $timestamp),
-                                    'timestamp' => $timestamp,
-                                    'price' => $pricePoint[1]
-                                ];
-                            }
-                            \Log::info("Got " . count($dailyPrices) . " days of price data from CoinGecko");
-                        }
-                    } catch (\Exception $e) {
-                        \Log::warning("Market chart failed, trying OHLC: " . $e->getMessage());
-                    }
-                }
-                
-                // If market chart fails or has no data, try OHLC
-                if (empty($dailyPrices)) {
-                    $ohlcResult = $this->coinGeckoService->getOHLC('bitcoin', 'usd', 365);
-                    $ohlcData = $ohlcResult['data'] ?? $ohlcResult; // Handle both wrapped and raw responses
-                    
-                    if (!empty($ohlcData) && is_array($ohlcData)) {
-                        foreach ($ohlcData as $candle) {
-                            if (is_array($candle) && count($candle) >= 5) {
-                                $timestamp = $candle[0] / 1000;
-                                $dailyPrices[] = [
-                                    'date' => date('Y-m-d', $timestamp),
-                                    'timestamp' => $timestamp,
-                                    'price' => $candle[4] // close price
-                                ];
-                            }
-                        }
-                        \Log::info("Got " . count($dailyPrices) . " days of price data from OHLC");
-                    }
-                }
-                
-                if (empty($dailyPrices)) {
-                    \Log::error("No price data available for Pi Cycle Top");
-                    return [];
-                }
-                
-                // Sort by date
-                usort($dailyPrices, function($a, $b) {
-                    return $a['timestamp'] - $b['timestamp'];
-                });
-                
-                // Calculate moving averages
-                $result = [];
-                foreach ($dailyPrices as $index => $day) {
-                    $dataPoint = [
-                        'date' => $day['date'],
-                        'price' => round($day['price'], 2),
-                        'ma111' => null,
-                        'ma350x2' => null,
-                        'isCrossover' => false
-                    ];
-                    
-                    // Calculate 111 DMA
-                    if ($index >= 110) {
-                        $sum = 0;
-                        for ($i = $index - 110; $i <= $index; $i++) {
-                            $sum += $dailyPrices[$i]['price'];
-                        }
-                        $dataPoint['ma111'] = round($sum / 111, 2);
-                    }
-                    
-                    // Calculate 350 DMA x 2
-                    if ($index >= 349) {
-                        $sum = 0;
-                        for ($i = $index - 349; $i <= $index; $i++) {
-                            $sum += $dailyPrices[$i]['price'];
-                        }
-                        $ma350 = $sum / 350;
-                        $dataPoint['ma350x2'] = round($ma350 * 2, 2);
-                    }
-                    
-                    // Check for crossover
-                    if ($index > 349 && isset($result[$index - 1])) {
-                        $prev = $result[$index - 1];
-                        if ($prev['ma111'] !== null && $prev['ma350x2'] !== null &&
-                            $dataPoint['ma111'] !== null && $dataPoint['ma350x2'] !== null) {
-                            
-                            // Check if 111 DMA crossed above 350 DMA x 2
-                            if ($prev['ma111'] <= $prev['ma350x2'] && 
-                                $dataPoint['ma111'] > $dataPoint['ma350x2']) {
-                                $dataPoint['isCrossover'] = true;
-                                \Log::info("Pi Cycle Top crossover detected on " . $dataPoint['date'] . " at price $" . $dataPoint['price']);
-                            }
-                        }
-                    }
-                    
-                    $result[] = $dataPoint;
-                }
-                
-                // Since we only have 365 days of data, return all of it
-                // Filter out early data points without indicators
-                $filteredResult = array_filter($result, function($item) {
-                    return $item['ma111'] !== null || $item['ma350x2'] !== null || $item['price'] !== null;
-                });
-                
-                \Log::info("Returning " . count($filteredResult) . " data points for Pi Cycle Top");
-                
-                return array_values($filteredResult);
-                
-            } catch (\Exception $e) {
-                \Log::error('Pi Cycle Top error: ' . $e->getMessage());
-                return [];
-            }
-        });
-        
-        // Extract data from cache service wrapper
-        $piCycleData = $data['data'] ?? [];
-        
-        return response()->json($piCycleData)
-            ->header('X-Cache-Age', $data['metadata']['cacheAge'] ?? 0)
-            ->header('X-Data-Source', $data['metadata']['source'] ?? 'cache')
-            ->header('X-Last-Updated', $data['metadata']['lastUpdated'] ?? now()->toIso8601String());
-    }
-    
-    /**
-     * Fetch historical Bitcoin data from CryptoCompare
-     */
-    private function fetchCryptoCompareHistory()
-    {
-        $url = 'https://min-api.cryptocompare.com/data/v2/histoday';
-        $params = [
-            'fsym' => 'BTC',
-            'tsym' => 'USD',
-            'limit' => 2000, // Maximum allowed by free tier
-            'aggregate' => 1,
-            'api_key' => config('services.cryptocompare.key')
-        ];
-        
         try {
-            $response = \Http::timeout(30)->get($url, $params);
+            // Use repository to get Pi Cycle Top data
+            $result = $this->indicatorRepository->getPiCycleTopData();
             
-            if ($response->successful()) {
-                $data = $response->json();
+            // Extract data and metadata
+            $piCycleData = $result['data'] ?? [];
+            $metadata = $result['metadata'] ?? [];
+            
+            // Filter out early data points without indicators for cleaner display
+            $filteredData = array_filter($piCycleData, function($item) {
+                return $item['ma111'] !== null || $item['ma350x2'] !== null || $item['price'] !== null;
+            });
+            
+            return response()->json(array_values($filteredData))
+                ->header('X-Last-Crossover', $metadata['last_crossover'] ?? 'none')
+                ->header('X-Current-Status', $metadata['current_status'] ?? 'unknown')
+                ->header('X-Data-Source', 'repository')
+                ->header('X-Last-Updated', now()->toIso8601String());
                 
-                if (isset($data['Data']['Data']) && is_array($data['Data']['Data'])) {
-                    $dailyPrices = [];
-                    
-                    foreach ($data['Data']['Data'] as $day) {
-                        if (isset($day['time']) && isset($day['close'])) {
-                            $dailyPrices[] = [
-                                'date' => date('Y-m-d', $day['time']),
-                                'timestamp' => $day['time'],
-                                'price' => $day['close']
-                            ];
-                        }
-                    }
-                    
-                    // Sort by date ascending
-                    usort($dailyPrices, function($a, $b) {
-                        return $a['timestamp'] - $b['timestamp'];
-                    });
-                    
-                    return $dailyPrices;
-                }
-            }
-            
-            return [];
         } catch (\Exception $e) {
-            \Log::error('CryptoCompare API error: ' . $e->getMessage());
-            return [];
+            \Log::error('Pi Cycle Top controller error: ' . $e->getMessage());
+            return response()->json([], 500);
         }
     }
+    
+    // fetchCryptoCompareHistory method moved to IndicatorRepository
     
     /**
      * Get Bitcoin Rainbow Chart data
