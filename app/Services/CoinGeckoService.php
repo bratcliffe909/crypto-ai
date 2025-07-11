@@ -36,7 +36,7 @@ class CoinGeckoService
                 'per_page' => $perPage,
                 'page' => 1,
                 'sparkline' => false,
-                'price_change_percentage' => '24h,7d,30d,90d'
+                'price_change_percentage' => '24h,7d,30d,90d,200d'
             ];
 
             if ($ids) {
@@ -436,7 +436,7 @@ class CoinGeckoService
                 'per_page' => 1,
                 'page' => 1,
                 'sparkline' => false,
-                'price_change_percentage' => '24h,7d,30d,90d'
+                'price_change_percentage' => '24h,7d,30d,90d,200d'
             ]);
 
             if ($response->successful()) {
@@ -969,7 +969,7 @@ class CoinGeckoService
                 'per_page' => 250, // Max allowed
                 'page' => 1,
                 'sparkline' => false,
-                'price_change_percentage' => '24h,7d,30d,90d'
+                'price_change_percentage' => '24h,7d,30d,90d,200d'
             ]);
 
             if ($response->successful()) {
@@ -1102,5 +1102,66 @@ class CoinGeckoService
                 'data' => []
             ];
         }
+    }
+    
+    /**
+     * Calculate 90-day performance for top 50 coins using market chart data
+     */
+    public function getTop50With90DayPerformance()
+    {
+        $cacheKey = "coingecko_top50_90d_performance";
+        
+        return $this->cacheService->rememberWithoutFreshness($cacheKey, function () {
+            // First get top 50 coins
+            $marketsResponse = $this->getMarkets('usd', null, 50);
+            $markets = $marketsResponse['data'] ?? [];
+            
+            if (empty($markets)) {
+                throw new \Exception('No market data available');
+            }
+            
+            // For each coin, calculate 90-day performance using market chart
+            $enrichedMarkets = [];
+            
+            foreach ($markets as $coin) {
+                try {
+                    // Get 91 days of data to ensure we have exactly 90 days ago
+                    $chartResponse = Http::timeout(10)->get("{$this->baseUrl}/coins/{$coin['id']}/market_chart", [
+                        'vs_currency' => 'usd',
+                        'days' => 91,
+                        'interval' => 'daily'
+                    ]);
+                    
+                    if ($chartResponse->successful()) {
+                        $chartData = $chartResponse->json();
+                        
+                        if (isset($chartData['prices']) && count($chartData['prices']) > 90) {
+                            $prices = $chartData['prices'];
+                            
+                            // Get price from 90 days ago (index should be around 1)
+                            $price90DaysAgo = $prices[0][1] ?? null;
+                            
+                            // Get current price (last price)
+                            $currentPrice = $prices[count($prices) - 1][1] ?? null;
+                            
+                            if ($price90DaysAgo && $currentPrice && $price90DaysAgo > 0) {
+                                // Calculate percentage change
+                                $change90d = (($currentPrice - $price90DaysAgo) / $price90DaysAgo) * 100;
+                                $coin['price_change_percentage_90d_in_currency'] = round($change90d, 2);
+                                $enrichedMarkets[] = $coin;
+                            }
+                        }
+                    }
+                } catch (\Exception $e) {
+                    Log::warning("Failed to get 90-day data for {$coin['id']}", ['error' => $e->getMessage()]);
+                    // Skip this coin if we can't get its 90-day data
+                }
+                
+                // Rate limit protection - sleep between requests
+                usleep(100000); // 100ms delay
+            }
+            
+            return $enrichedMarkets;
+        });
     }
 }

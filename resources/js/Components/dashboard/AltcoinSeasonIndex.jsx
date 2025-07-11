@@ -12,8 +12,8 @@ const AltcoinSeasonIndex = () => {
 
 
   // Calculate current index and status
-  const { currentIndex, seasonStatus, seasonColor, historicalData } = useMemo(() => {
-    if (!rawData) return { currentIndex: 0, seasonStatus: 'Loading...', seasonColor: 'secondary', historicalData: [] };
+  const { currentIndex, seasonStatus, seasonColor, historicalData, periodUsed, btcPerformance } = useMemo(() => {
+    if (!rawData) return { currentIndex: 0, seasonStatus: 'Loading...', seasonColor: 'secondary', historicalData: [], periodUsed: null, btcPerformance: 0 };
     
     const index = rawData.currentIndex || 0;
     let status, color;
@@ -36,7 +36,9 @@ const AltcoinSeasonIndex = () => {
       currentIndex: index, 
       seasonStatus: status, 
       seasonColor: color,
-      historicalData: rawData.historicalData || []
+      historicalData: rawData.historicalData || [],
+      periodUsed: rawData.periodUsed || null,
+      btcPerformance: rawData.btcPerformance || 0
     };
   }, [rawData]);
 
@@ -94,14 +96,22 @@ const AltcoinSeasonIndex = () => {
       <Card.Header className="d-flex justify-content-between align-items-center">
         <div className="d-flex align-items-center">
           <h5 className="mb-0">Altcoin Season Index</h5>
-          <Tooltip content="The Altcoin Season Index tracks what percentage of the top 50 coins have outperformed Bitcoin over the last 90 days. When 75% or more outperform Bitcoin, it's Altcoin Season. When 25% or less outperform Bitcoin, it's Bitcoin Season.">
+          <Tooltip content="The Altcoin Season Index tracks what percentage of the top 50 coins have outperformed Bitcoin. When 75% or more outperform Bitcoin, it's Altcoin Season. When 25% or less outperform Bitcoin, it's Bitcoin Season.">
             <BsInfoCircleFill className="ms-2 text-muted" style={{ cursor: 'help' }} />
           </Tooltip>
         </div>
         {lastFetch && <TimeAgo date={lastFetch} />}
       </Card.Header>
       <Card.Body>
-
+        {/* Period indicator */}
+        {periodUsed && (
+          <div className="mb-3 text-center">
+            <small className="text-muted">
+              Based on {periodUsed === '90d' ? '90-day' : periodUsed === '30d' ? '30-day' : periodUsed === '7d' ? '7-day' : '24-hour'} performance data
+              {btcPerformance !== 0 && ` • Bitcoin: ${btcPerformance > 0 ? '+' : ''}${btcPerformance}%`}
+            </small>
+          </div>
+        )}
 
         {/* Visual Scale with Pointer */}
         <div className="mb-4 position-relative" style={{ paddingTop: '35px' }}>

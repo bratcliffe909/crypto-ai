@@ -253,4 +253,156 @@ class CryptoCompareService
         return 'neutral';
     }
     
+    /**
+     * Get market data with 90-day performance from CryptoCompare
+     */
+    public function getTopCoinsWithPerformance($limit = 50)
+    {
+        $cacheKey = "cryptocompare_top_{$limit}_with_90d";
+        
+        return $this->cacheService->rememberWithoutFreshness($cacheKey, function () use ($limit) {
+            try {
+                // Get top coins by market cap with full data
+                $response = Http::timeout(15)->get("{$this->baseUrl}/top/mktcapfull", [
+                    'limit' => $limit,
+                    'tsym' => 'USD',
+                    'api_key' => $this->apiKey
+                ]);
+                
+                if (!$response->successful()) {
+                    throw new \Exception("Failed to get top coins from CryptoCompare");
+                }
+                
+                $data = $response->json();
+                
+                // Check for rate limit
+                if (isset($data['Response']) && $data['Response'] === 'Error') {
+                    throw new \Exception("CryptoCompare API error: " . ($data['Message'] ?? 'Unknown error'));
+                }
+                
+                $coinsWithPerformance = [];
+                
+                if (isset($data['Data'])) {
+                    // Get current timestamp and 90 days ago timestamp
+                    $now = Carbon::now();
+                    $timestamp90DaysAgo = $now->copy()->subDays(90)->timestamp;
+                    
+                    // Collect all symbols for batch historical data request
+                    $symbols = [];
+                    foreach ($data['Data'] as $coin) {
+                        if (isset($coin['CoinInfo']['Name'])) {
+                            $symbols[] = $coin['CoinInfo']['Name'];
+                        }
+                    }
+                    
+                    // Get current prices for all symbols
+                    $symbolsStr = implode(',', $symbols);
+                    $currentPricesResponse = Http::timeout(10)->get("{$this->baseUrl}/pricemulti", [
+                        'fsyms' => $symbolsStr,
+                        'tsyms' => 'USD',
+                        'api_key' => $this->apiKey
+                    ]);
+                    
+                    $currentPrices = [];
+                    if ($currentPricesResponse->successful()) {
+                        $currentPrices = $currentPricesResponse->json();
+                    }
+                    
+                    // Get historical price for each coin at 90 days ago
+                    // We'll batch this by getting daily historical data
+                    foreach ($data['Data'] as $index => $coin) {
+                        if (isset($coin['CoinInfo']['Name'])) {
+                            $symbol = $coin['CoinInfo']['Name'];
+                            $coinId = strtolower($coin['CoinInfo']['Name']);
+                            
+                            // Map common symbols to CoinGecko IDs
+                            $idMapping = [
+                                'btc' => 'bitcoin',
+                                'eth' => 'ethereum',
+                                'usdt' => 'tether',
+                                'bnb' => 'binancecoin',
+                                'xrp' => 'ripple',
+                                'ada' => 'cardano',
+                                'doge' => 'dogecoin',
+                                'sol' => 'solana',
+                                'dot' => 'polkadot',
+                                'matic' => 'polygon-pos',
+                                'shib' => 'shiba-inu',
+                                'trx' => 'tron',
+                                'avax' => 'avalanche-2',
+                                'link' => 'chainlink',
+                                'atom' => 'cosmos',
+                                'ltc' => 'litecoin',
+                                'etc' => 'ethereum-classic',
+                                'xlm' => 'stellar',
+                                'bch' => 'bitcoin-cash'
+                            ];
+                            
+                            $geckoId = $idMapping[$coinId] ?? $coinId;
+                            
+                            // Calculate 90-day performance
+                            $change90d = $this->calculate90DayChange($symbol);
+                            
+                            if ($change90d !== null) {
+                                $coinsWithPerformance[] = [
+                                    'id' => $geckoId,
+                                    'symbol' => strtolower($symbol),
+                                    'name' => $coin['CoinInfo']['FullName'] ?? $symbol,
+                                    'rank' => $index + 1,
+                                    'price_change_percentage_90d_in_currency' => $change90d,
+                                    'current_price' => $currentPrices[$symbol]['USD'] ?? 0
+                                ];
+                            }
+                        }
+                    }
+                }
+                
+                return $coinsWithPerformance;
+                
+            } catch (\Exception $e) {
+                Log::error("Failed to get top coins with performance from CryptoCompare", ['error' => $e->getMessage()]);
+                throw $e;
+            }
+        });
+    }
+    
+    /**
+     * Calculate 90-day change for a specific coin
+     */
+    private function calculate90DayChange($symbol)
+    {
+        try {
+            // Get 90 days of historical data
+            $response = Http::timeout(10)->get("{$this->baseUrl}/v2/histoday", [
+                'fsym' => $symbol,
+                'tsym' => 'USD',
+                'limit' => 90,
+                'api_key' => $this->apiKey
+            ]);
+            
+            if ($response->successful()) {
+                $data = $response->json();
+                
+                if (isset($data['Data']['Data']) && count($data['Data']['Data']) >= 90) {
+                    $historicalData = $data['Data']['Data'];
+                    
+                    // Get price from 90 days ago (first entry)
+                    $price90DaysAgo = $historicalData[0]['close'] ?? null;
+                    
+                    // Get current price (last entry)
+                    $currentPrice = $historicalData[count($historicalData) - 1]['close'] ?? null;
+                    
+                    if ($price90DaysAgo && $currentPrice && $price90DaysAgo > 0) {
+                        // Calculate percentage change
+                        $change = (($currentPrice - $price90DaysAgo) / $price90DaysAgo) * 100;
+                        return round($change, 2);
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            Log::warning("Failed to calculate 90-day change for {$symbol}", ['error' => $e->getMessage()]);
+        }
+        
+        return null;
+    }
 }
