@@ -27,7 +27,6 @@ Route::prefix('crypto')->group(function () {
     Route::get('/pi-cycle-top', [ChartController::class, 'piCycleTop']);
     Route::get('/rainbow-chart', [ChartController::class, 'rainbowChart']);
     Route::get('/rainbow-chart/status', [ChartController::class, 'rainbowChartStatus']);
-    Route::get('/cycle-low-multiple', [ChartController::class, 'cycleLowMultiple']);
     
     // Indicator endpoints
     Route::get('/fear-greed', [IndicatorController::class, 'fearGreed']);

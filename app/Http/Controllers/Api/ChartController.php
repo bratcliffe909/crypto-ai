@@ -8,7 +8,6 @@ use App\Services\CoinGeckoService;
 use App\Services\AlphaVantageService;
 use App\Services\RainbowChartService;
 use App\Services\CacheService;
-use App\Services\CycleLowMultipleService;
 use App\Repositories\IndicatorRepository;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -19,7 +18,6 @@ class ChartController extends Controller
     private AlphaVantageService $alphaVantageService;
     private RainbowChartService $rainbowChartService;
     private CacheService $cacheService;
-    private CycleLowMultipleService $cycleLowMultipleService;
     private IndicatorRepository $indicatorRepository;
     
     public function __construct(
@@ -27,7 +25,6 @@ class ChartController extends Controller
         AlphaVantageService $alphaVantageService,
         RainbowChartService $rainbowChartService,
         CacheService $cacheService,
-        CycleLowMultipleService $cycleLowMultipleService,
         IndicatorRepository $indicatorRepository
     )
     {
@@ -35,7 +32,6 @@ class ChartController extends Controller
         $this->alphaVantageService = $alphaVantageService;
         $this->rainbowChartService = $rainbowChartService;
         $this->cacheService = $cacheService;
-        $this->cycleLowMultipleService = $cycleLowMultipleService;
         $this->indicatorRepository = $indicatorRepository;
     }
     
@@ -425,29 +421,4 @@ class ChartController extends Controller
         }
     }
     
-    /**
-     * Get Bitcoin Cycle Low Multiple data
-     */
-    public function cycleLowMultiple(Request $request)
-    {
-        try {
-            $days = $request->get('days', 'max');
-            
-            // Validate days parameter
-            $validDays = ['365', '730', '1826', 'max'];
-            if (!in_array($days, $validDays)) {
-                $days = 'max';
-            }
-            
-            $data = $this->cycleLowMultipleService->getCycleLowMultipleData($days);
-            
-            return response()->json($data);
-        } catch (\Exception $e) {
-            \Log::error('Cycle Low Multiple error: ' . $e->getMessage());
-            return response()->json([
-                'error' => 'Failed to fetch Cycle Low Multiple data',
-                'message' => config('app.debug') ? $e->getMessage() : 'Please try again later'
-            ], 500);
-        }
-    }
 }

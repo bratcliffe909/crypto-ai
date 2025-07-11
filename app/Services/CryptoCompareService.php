@@ -212,45 +212,22 @@ class CryptoCompareService
 
     /**
      * Calculate sentiment score from price action
+     * @deprecated Use SentimentRepository::calculateSentimentFromPrice() instead
      */
     private function calculateSentimentFromPrice($data)
     {
-        $score = 50; // Neutral baseline
-        
-        // 24h change
-        if (isset($data['CHANGEPCT24HOUR'])) {
-            $change24h = floatval($data['CHANGEPCT24HOUR']);
-            if ($change24h > 5) $score += 15;
-            elseif ($change24h > 2) $score += 10;
-            elseif ($change24h > 0) $score += 5;
-            elseif ($change24h < -5) $score -= 15;
-            elseif ($change24h < -2) $score -= 10;
-            elseif ($change24h < 0) $score -= 5;
-        }
-        
-        // Volume change
-        if (isset($data['VOLUME24HOUR']) && isset($data['VOLUME24HOURTO'])) {
-            $volume = floatval($data['VOLUME24HOURTO']);
-            $avgVolume = floatval($data['VOLUME24HOUR']) * floatval($data['PRICE']);
-            if ($avgVolume > 0 && $volume > $avgVolume * 1.5) $score += 10;
-            elseif ($avgVolume > 0 && $volume < $avgVolume * 0.5) $score -= 10;
-        }
-        
-        // Keep within 0-100 range
-        return max(0, min(100, $score));
+        $sentimentRepository = app(\App\Repositories\SentimentRepository::class);
+        return $sentimentRepository->calculateSentimentFromPrice($data);
     }
     
     /**
      * Get signal from price data
+     * @deprecated Use SentimentRepository::getSignalFromPrice() instead
      */
     private function getSignalFromPrice($data)
     {
-        if (!isset($data['CHANGEPCT24HOUR'])) return 'neutral';
-        
-        $change = floatval($data['CHANGEPCT24HOUR']);
-        if ($change > 2) return 'bullish';
-        if ($change < -2) return 'bearish';
-        return 'neutral';
+        $sentimentRepository = app(\App\Repositories\SentimentRepository::class);
+        return $sentimentRepository->getSignalFromPrice($data);
     }
     
     /**

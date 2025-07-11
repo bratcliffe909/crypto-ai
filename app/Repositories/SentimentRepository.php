@@ -413,4 +413,131 @@ class SentimentRepository extends BaseRepository
         
         return $this->alternativeService->getFearGreedIndexDirect($limit);
     }
+    
+    /**
+     * Calculate sentiment score from price action
+     */
+    public function calculateSentimentFromPrice(array $data): int
+    {
+        $score = 50; // Neutral baseline
+        
+        // 24h change
+        if (isset($data['CHANGEPCT24HOUR'])) {
+            $change24h = floatval($data['CHANGEPCT24HOUR']);
+            if ($change24h > 5) $score += 15;
+            elseif ($change24h > 2) $score += 10;
+            elseif ($change24h > 0) $score += 5;
+            elseif ($change24h < -5) $score -= 15;
+            elseif ($change24h < -2) $score -= 10;
+            elseif ($change24h < 0) $score -= 5;
+        }
+        
+        // Volume change
+        if (isset($data['VOLUME24HOUR']) && isset($data['VOLUME24HOURTO'])) {
+            $volume = floatval($data['VOLUME24HOURTO']);
+            $avgVolume = floatval($data['VOLUME24HOUR']) * floatval($data['PRICE']);
+            if ($avgVolume > 0 && $volume > $avgVolume * 1.5) $score += 10;
+            elseif ($avgVolume > 0 && $volume < $avgVolume * 0.5) $score -= 10;
+        }
+        
+        // Keep within 0-100 range
+        return max(0, min(100, $score));
+    }
+    
+    /**
+     * Get signal from price data
+     */
+    public function getSignalFromPrice(array $data): string
+    {
+        if (!isset($data['CHANGEPCT24HOUR'])) return 'neutral';
+        
+        $change = floatval($data['CHANGEPCT24HOUR']);
+        if ($change > 2) return 'bullish';
+        if ($change < -2) return 'bearish';
+        return 'neutral';
+    }
+    
+    /**
+     * Calculate market-wide sentiment from top coins
+     */
+    public function calculateMarketSentimentFromCoins(array $coinData): array
+    {
+        if (empty($coinData)) {
+            return [
+                'sentiment_score' => 50,
+                'overall_signal' => 'neutral',
+                'bullish_percentage' => 0,
+                'bearish_percentage' => 0,
+                'neutral_percentage' => 100,
+                'top_gainers' => [],
+                'top_losers' => [],
+                'timestamp' => now()->toIso8601String()
+            ];
+        }
+        
+        $bullishCount = 0;
+        $bearishCount = 0;
+        $neutralCount = 0;
+        $totalScore = 0;
+        $topGainers = [];
+        $topLosers = [];
+        
+        foreach ($coinData as $coin) {
+            // Calculate individual sentiment
+            $sentiment = $this->calculateSentimentFromPrice($coin);
+            $signal = $this->getSignalFromPrice($coin);
+            
+            $totalScore += $sentiment;
+            
+            // Count signals
+            switch ($signal) {
+                case 'bullish':
+                    $bullishCount++;
+                    if (isset($coin['CHANGEPCT24HOUR']) && $coin['CHANGEPCT24HOUR'] > 0) {
+                        $topGainers[] = [
+                            'symbol' => $coin['FROMSYMBOL'] ?? '',
+                            'change' => round($coin['CHANGEPCT24HOUR'], 2)
+                        ];
+                    }
+                    break;
+                case 'bearish':
+                    $bearishCount++;
+                    if (isset($coin['CHANGEPCT24HOUR']) && $coin['CHANGEPCT24HOUR'] < 0) {
+                        $topLosers[] = [
+                            'symbol' => $coin['FROMSYMBOL'] ?? '',
+                            'change' => round($coin['CHANGEPCT24HOUR'], 2)
+                        ];
+                    }
+                    break;
+                default:
+                    $neutralCount++;
+            }
+        }
+        
+        $totalCoins = count($coinData);
+        $avgSentiment = $totalCoins > 0 ? round($totalScore / $totalCoins) : 50;
+        
+        // Sort and limit gainers/losers
+        usort($topGainers, fn($a, $b) => $b['change'] <=> $a['change']);
+        usort($topLosers, fn($a, $b) => $a['change'] <=> $b['change']);
+        
+        $topGainers = array_slice($topGainers, 0, 5);
+        $topLosers = array_slice($topLosers, 0, 5);
+        
+        // Determine overall signal
+        $overallSignal = 'neutral';
+        if ($avgSentiment >= 65) $overallSignal = 'bullish';
+        elseif ($avgSentiment <= 35) $overallSignal = 'bearish';
+        
+        return [
+            'sentiment_score' => $avgSentiment,
+            'overall_signal' => $overallSignal,
+            'bullish_percentage' => round(($bullishCount / $totalCoins) * 100),
+            'bearish_percentage' => round(($bearishCount / $totalCoins) * 100),
+            'neutral_percentage' => round(($neutralCount / $totalCoins) * 100),
+            'top_gainers' => $topGainers,
+            'top_losers' => $topLosers,
+            'timestamp' => now()->toIso8601String()
+        ];
+    }
 }

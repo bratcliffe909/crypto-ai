@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use App\Services\FinnhubService;
+use App\Repositories\NewsRepository;
 use App\Services\EconomicCalendarService;
 use Illuminate\Support\Facades\Log;
 
@@ -23,16 +23,16 @@ class UpdateNewsFeedCache extends Command
      */
     protected $description = 'Update Redis cache for news feed and economic calendar';
 
-    protected $finnhubService;
+    protected $newsRepository;
     protected $economicCalendarService;
 
     /**
      * Create a new command instance.
      */
-    public function __construct(FinnhubService $finnhubService, EconomicCalendarService $economicCalendarService)
+    public function __construct(NewsRepository $newsRepository, EconomicCalendarService $economicCalendarService)
     {
         parent::__construct();
-        $this->finnhubService = $finnhubService;
+        $this->newsRepository = $newsRepository;
         $this->economicCalendarService = $economicCalendarService;
     }
 
@@ -52,14 +52,24 @@ class UpdateNewsFeedCache extends Command
         // Update news feed cache
         try {
             $this->info('Updating news feed cache...');
-            $newsData = $this->finnhubService->getMarketNewsDirect('crypto');
+            
+            // Update cache for the first page (most recent news)
+            $newsData = $this->newsRepository->getCryptoNewsFeedDirect(1, 20);
             
             // Handle CacheService response format
-            $articles = isset($newsData['data']) ? $newsData['data'] : $newsData;
-            if (is_array($articles)) {
-                $results['news']['count'] = count($articles);
+            $articles = isset($newsData['data']['articles']) ? $newsData['data']['articles'] : [];
+            $totalCount = isset($newsData['data']['total']) ? $newsData['data']['total'] : 0;
+            
+            if (is_array($articles) && count($articles) > 0) {
+                $results['news']['count'] = $totalCount;
                 $results['news']['status'] = 'success';
-                $this->info('✓ News feed updated: ' . count($articles) . ' articles cached');
+                $this->info('✓ News feed updated: ' . $totalCount . ' total articles, ' . count($articles) . ' cached for page 1');
+                
+                // Also update cache for page 2 if there are more articles
+                if ($totalCount > 20) {
+                    $this->newsRepository->getCryptoNewsFeedDirect(2, 20);
+                    $this->info('✓ Also cached page 2 of news feed');
+                }
             } else {
                 $results['news']['status'] = 'empty';
                 $this->warn('⚠ News feed returned empty response');

@@ -9,6 +9,7 @@ use App\Services\AlternativeService;
 use App\Services\FinnhubService;
 use App\Services\EconomicCalendarService;
 use App\Repositories\SentimentRepository;
+use App\Repositories\NewsRepository;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -20,6 +21,7 @@ class IndicatorController extends Controller
     protected $finnhub;
     protected $economicCalendarService;
     protected $sentimentRepository;
+    protected $newsRepository;
 
     public function __construct(
         AlphaVantageService $alphaVantage, 
@@ -27,7 +29,8 @@ class IndicatorController extends Controller
         AlternativeService $alternative, 
         FinnhubService $finnhub, 
         EconomicCalendarService $economicCalendar,
-        SentimentRepository $sentimentRepository
+        SentimentRepository $sentimentRepository,
+        NewsRepository $newsRepository
     ) {
         $this->alphaVantage = $alphaVantage;
         $this->coinGecko = $coinGecko;
@@ -35,6 +38,7 @@ class IndicatorController extends Controller
         $this->finnhub = $finnhub;
         $this->economicCalendarService = $economicCalendar;
         $this->sentimentRepository = $sentimentRepository;
+        $this->newsRepository = $newsRepository;
     }
 
     /**
@@ -332,50 +336,14 @@ class IndicatorController extends Controller
             // Get pagination parameters
             $page = $request->get('page', 1);
             $perPage = $request->get('per_page', 20);
-            $offset = ($page - 1) * $perPage;
             
-            // Get news from Finnhub (AlphaVantage often rate limited)
-            $finnhubResult = $this->finnhub->getMarketNews('crypto');
+            // Use NewsRepository to get news feed
+            $result = $this->newsRepository->getCryptoNewsFeed($page, $perPage);
             
-            // Handle the cache service response format
-            $finnhubNews = $finnhubResult['data'] ?? [];
-            
-            // Normalize Finnhub news format
-            $normalizedNews = array_map(function($article) {
-                return [
-                    'title' => $article['headline'] ?? '',
-                    'summary' => $article['summary'] ?? '',
-                    'url' => $article['url'] ?? '',
-                    'source' => $article['source'] ?? 'Unknown',
-                    'publishedAt' => isset($article['datetime']) ? date('Y-m-d H:i:s', $article['datetime']) : now()->toDateTimeString(),
-                    'image' => $article['image'] ?? null,
-                    'category' => $article['category'] ?? 'crypto'
-                ];
-            }, $finnhubNews);
-            
-            // Sort by published date (newest first)
-            usort($normalizedNews, function ($a, $b) {
-                $aTime = strtotime($a['publishedAt']);
-                $bTime = strtotime($b['publishedAt']);
-                return $bTime - $aTime;
-            });
-            
-            // Apply pagination
-            $totalArticles = count($normalizedNews);
-            $paginatedNews = array_slice($normalizedNews, $offset, $perPage);
-            
-            return response()->json([
-                'articles' => $paginatedNews,
-                'count' => count($paginatedNews),
-                'total' => $totalArticles,
-                'page' => $page,
-                'per_page' => $perPage,
-                'has_more' => ($offset + $perPage) < $totalArticles,
-                'lastUpdated' => now()->toIso8601String()
-            ])
-            ->header('X-Cache-Age', $finnhubResult['metadata']['cacheAge'] ?? 0)
-            ->header('X-Data-Source', $finnhubResult['metadata']['source'] ?? 'unknown')
-            ->header('X-Last-Updated', $finnhubResult['metadata']['lastUpdated'] ?? now()->toIso8601String());
+            return response()->json($result)
+            ->header('X-Cache-Age', 0)
+            ->header('X-Data-Source', 'cache')
+            ->header('X-Last-Updated', $result['lastUpdated'] ?? now()->toIso8601String());
             
         } catch (\Exception $e) {
             Log::error('News Feed error', ['error' => $e->getMessage()]);
