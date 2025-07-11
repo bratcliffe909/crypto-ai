@@ -7,6 +7,8 @@ use App\Services\RainbowChartService;
 use App\Services\CoinGeckoService;
 use App\Services\AlphaVantageService;
 use App\Services\CacheService;
+use App\Repositories\AltcoinSeasonRepository;
+use App\Repositories\IndicatorRepository;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
@@ -21,12 +23,16 @@ class UpdateIndicatorCache extends Command
     protected $coinGeckoService;
     protected $alphaVantageService;
     protected $cacheService;
+    protected $altcoinSeasonRepository;
+    protected $indicatorRepository;
 
     public function __construct(
         RainbowChartService $rainbowChartService,
         CoinGeckoService $coinGeckoService,
         AlphaVantageService $alphaVantageService,
-        CacheService $cacheService
+        CacheService $cacheService,
+        AltcoinSeasonRepository $altcoinSeasonRepository,
+        IndicatorRepository $indicatorRepository
     )
     {
         parent::__construct();
@@ -34,6 +40,8 @@ class UpdateIndicatorCache extends Command
         $this->coinGeckoService = $coinGeckoService;
         $this->alphaVantageService = $alphaVantageService;
         $this->cacheService = $cacheService;
+        $this->altcoinSeasonRepository = $altcoinSeasonRepository;
+        $this->indicatorRepository = $indicatorRepository;
     }
 
     public function handle()
@@ -91,9 +99,9 @@ class UpdateIndicatorCache extends Command
         // Update Altcoin Season Index
         try {
             $this->info('Updating Altcoin Season Index...');
-            $altcoinData = $this->updateAltcoinSeasonIndex();
+            $altcoinData = $this->altcoinSeasonRepository->calculateAltcoinSeasonIndex();
             
-            if ($altcoinData) {
+            if ($altcoinData && isset($altcoinData['currentIndex'])) {
                 $results['altcoinSeason']['index'] = $altcoinData['currentIndex'];
                 $results['altcoinSeason']['status'] = 'success';
                 $this->info("✓ Altcoin Season Index updated: {$altcoinData['currentIndex']}%");
@@ -332,6 +340,8 @@ class UpdateIndicatorCache extends Command
         ];
     }
     
+    // Moved to AltcoinSeasonRepository
+    /*
     private function updateAltcoinSeasonIndex()
     {
         $cacheKey = 'altcoin_season_index';
@@ -434,6 +444,7 @@ class UpdateIndicatorCache extends Command
         
         return $result['data'] ?? null;
     }
+    */
     
     private function updateRSI()
     {
@@ -519,6 +530,8 @@ class UpdateIndicatorCache extends Command
         throw new \Exception('Failed to fetch CryptoCompare history: ' . $response->status());
     }
     
+    // Moved to AltcoinSeasonRepository
+    /*
     private function generateAltcoinHistoricalData($currentIndex)
     {
         $data = [];
@@ -544,6 +557,7 @@ class UpdateIndicatorCache extends Command
         
         return $data;
     }
+    */
     
     private function calculateRSIFromPrices($prices, $period = 14)
     {
