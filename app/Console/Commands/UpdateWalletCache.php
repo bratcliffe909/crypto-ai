@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use App\Services\WalletCacheService;
+use App\Repositories\WalletRepository;
 
 class UpdateWalletCache extends Command
 {
@@ -21,15 +21,15 @@ class UpdateWalletCache extends Command
      */
     protected $description = 'Update Redis cache for all coins used in wallets';
 
-    protected $walletCacheService;
+    protected $walletRepository;
 
     /**
      * Create a new command instance.
      */
-    public function __construct(WalletCacheService $walletCacheService)
+    public function __construct(WalletRepository $walletRepository)
     {
         parent::__construct();
-        $this->walletCacheService = $walletCacheService;
+        $this->walletRepository = $walletRepository;
     }
 
     /**
@@ -42,8 +42,8 @@ class UpdateWalletCache extends Command
         $startTime = microtime(true);
         
         try {
-            // Get active coins
-            $activeCoins = $this->walletCacheService->getActiveWalletCoinIds();
+            // Get active coins using repository
+            $activeCoins = $this->walletRepository->getActiveWalletCoinIds();
             
             if (empty($activeCoins)) {
                 $this->warn('No active wallet coins found to update.');
@@ -52,8 +52,8 @@ class UpdateWalletCache extends Command
             
             $this->info('Found ' . count($activeCoins) . ' active coins to update: ' . implode(', ', $activeCoins));
             
-            // Update the cache
-            $results = $this->walletCacheService->updateActiveWalletCache();
+            // Update the cache using repository
+            $results = $this->walletRepository->updateActiveWalletCache();
             
             $duration = round(microtime(true) - $startTime, 2);
             

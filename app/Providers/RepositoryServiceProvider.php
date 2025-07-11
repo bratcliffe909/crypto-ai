@@ -23,7 +23,8 @@ class RepositoryServiceProvider extends ServiceProvider
         $this->app->singleton(MarketDataRepository::class, function ($app) {
             return new MarketDataRepository(
                 $app->make(\App\Services\CacheService::class),
-                $app->make(\App\Services\CoinGeckoService::class)
+                $app->make(\App\Services\CoinGeckoService::class),
+                $app->make(\App\Services\WalletCacheService::class)
             );
         });
 
@@ -31,7 +32,8 @@ class RepositoryServiceProvider extends ServiceProvider
         $this->app->singleton(WalletRepository::class, function ($app) {
             return new WalletRepository(
                 $app->make(\App\Services\CacheService::class),
-                $app->make(\App\Services\CoinGeckoService::class)
+                $app->make(\App\Services\CoinGeckoService::class),
+                $app->make(\App\Services\WalletCacheService::class)
             );
         });
 
@@ -66,7 +68,7 @@ class RepositoryServiceProvider extends ServiceProvider
             
             return new SentimentRepository(
                 $app->make(\App\Services\CacheService::class),
-                $app->make(\App\Services\AlternativeMeService::class),
+                $app->make(\App\Services\AlternativeService::class),
                 $cryptoCompareService
             );
         });

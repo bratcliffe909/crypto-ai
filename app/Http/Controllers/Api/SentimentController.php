@@ -3,17 +3,17 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Services\CryptoCompareService;
+use App\Repositories\SentimentRepository;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class SentimentController extends Controller
 {
-    private $cryptoCompareService;
+    private SentimentRepository $sentimentRepository;
 
-    public function __construct(CryptoCompareService $cryptoCompareService)
+    public function __construct(SentimentRepository $sentimentRepository)
     {
-        $this->cryptoCompareService = $cryptoCompareService;
+        $this->sentimentRepository = $sentimentRepository;
     }
 
     /**
@@ -22,8 +22,16 @@ class SentimentController extends Controller
     public function marketSentiment(Request $request)
     {
         try {
-            $data = $this->cryptoCompareService->getMarketSentiment();
-            return response()->json($data);
+            $result = $this->sentimentRepository->getMarketSentiment();
+            
+            // Extract data and metadata for response
+            $data = $result['data'] ?? $result;
+            $metadata = $result['metadata'] ?? [];
+            
+            return response()->json($data)
+                ->header('X-Cache-Age', $metadata['cacheAge'] ?? 0)
+                ->header('X-Data-Source', $metadata['source'] ?? 'unknown')
+                ->header('X-Last-Updated', $metadata['lastUpdated'] ?? now()->toIso8601String());
         } catch (\Exception $e) {
             Log::error('Market sentiment error', ['error' => $e->getMessage()]);
             return response()->json([
@@ -40,8 +48,16 @@ class SentimentController extends Controller
     {
         try {
             $days = $request->input('days', 30);
-            $data = $this->cryptoCompareService->getSocialActivity($days);
-            return response()->json($data);
+            $result = $this->sentimentRepository->getSocialActivityMetrics($days);
+            
+            // Extract data and metadata for response
+            $data = $result['data'] ?? $result;
+            $metadata = $result['metadata'] ?? [];
+            
+            return response()->json($data)
+                ->header('X-Cache-Age', $metadata['cacheAge'] ?? 0)
+                ->header('X-Data-Source', $metadata['source'] ?? 'unknown')
+                ->header('X-Last-Updated', $metadata['lastUpdated'] ?? now()->toIso8601String());
         } catch (\Exception $e) {
             Log::error('Social activity error', ['error' => $e->getMessage()]);
             return response()->json([
@@ -57,8 +73,8 @@ class SentimentController extends Controller
     public function updateMarketSentiment(Request $request)
     {
         try {
-            $data = $this->cryptoCompareService->getMarketSentimentDirect();
-            return response()->json($data);
+            $result = $this->sentimentRepository->getMarketSentimentDirect();
+            return response()->json($result);
         } catch (\Exception $e) {
             Log::error('Market sentiment update error', ['error' => $e->getMessage()]);
             return response()->json([
@@ -75,8 +91,8 @@ class SentimentController extends Controller
     {
         try {
             $days = $request->input('days', 30);
-            $data = $this->cryptoCompareService->getSocialActivityDirect($days);
-            return response()->json($data);
+            $result = $this->sentimentRepository->getSocialActivityDirect($days);
+            return response()->json($result);
         } catch (\Exception $e) {
             Log::error('Social activity update error', ['error' => $e->getMessage()]);
             return response()->json([

@@ -3,21 +3,22 @@
 namespace App\Repositories;
 
 use App\Services\CacheService;
-use App\Services\AlternativeMeService;
+use App\Services\AlternativeService;
 use App\Services\CryptoCompareService;
+use Illuminate\Support\Facades\Log;
 
 class SentimentRepository extends BaseRepository
 {
-    private AlternativeMeService $alternativeMeService;
+    private AlternativeService $alternativeService;
     private ?CryptoCompareService $cryptoCompareService;
 
     public function __construct(
         CacheService $cacheService,
-        AlternativeMeService $alternativeMeService,
+        AlternativeService $alternativeService,
         ?CryptoCompareService $cryptoCompareService = null
     ) {
         parent::__construct($cacheService);
-        $this->alternativeMeService = $alternativeMeService;
+        $this->alternativeService = $alternativeService;
         $this->cryptoCompareService = $cryptoCompareService;
     }
 
@@ -33,7 +34,6 @@ class SentimentRepository extends BaseRepository
 
     /**
      * Get Fear & Greed Index data
-     * Note: In Phase 1, this just provides structure. Logic will be moved in Phase 2.
      *
      * @param int $limit
      * @return array
@@ -42,8 +42,7 @@ class SentimentRepository extends BaseRepository
     {
         $this->logOperation('getFearGreedIndex', ['limit' => $limit]);
         
-        // For now, delegate to service - will be refactored in Phase 2
-        return $this->alternativeMeService->getFearGreedIndex($limit);
+        return $this->alternativeService->getFearGreedIndex($limit);
     }
 
     /**
@@ -55,19 +54,60 @@ class SentimentRepository extends BaseRepository
     {
         $this->logOperation('calculateAggregatedSentiment');
         
-        // Placeholder for Phase 2 implementation
+        $overallSentiment = 50; // Default neutral
+        $components = [
+            'fear_greed' => null,
+            'social_sentiment' => null,
+            'market_momentum' => null,
+            'volatility_index' => null
+        ];
+        $sources = [];
+        
+        try {
+            // Get Fear & Greed Index
+            $fearGreedData = $this->getFearGreedIndex(1);
+            if (isset($fearGreedData['data'][0]['value'])) {
+                $fearGreedValue = intval($fearGreedData['data'][0]['value']);
+                $components['fear_greed'] = $fearGreedValue;
+                $sources[] = 'fear_greed_index';
+            }
+            
+            // Get market sentiment from CryptoCompare
+            if ($this->cryptoCompareService) {
+                try {
+                    $marketSentiment = $this->cryptoCompareService->getMarketSentiment();
+                    if (isset($marketSentiment['data']['sentiment_score'])) {
+                        $components['market_momentum'] = $marketSentiment['data']['sentiment_score'];
+                        $sources[] = 'cryptocompare_sentiment';
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('Failed to get CryptoCompare sentiment', ['error' => $e->getMessage()]);
+                }
+            }
+            
+            // Calculate overall sentiment (weighted average of available components)
+            $validComponents = array_filter($components, function($value) {
+                return $value !== null;
+            });
+            
+            if (count($validComponents) > 0) {
+                $overallSentiment = round(array_sum($validComponents) / count($validComponents));
+            }
+            
+        } catch (\Exception $e) {
+            Log::error('Failed to calculate aggregated sentiment', ['error' => $e->getMessage()]);
+        }
+        
+        $sentimentInfo = $this->interpretSentiment($overallSentiment);
+        
         return [
-            'overall_sentiment' => 50,
-            'sentiment_label' => 'neutral',
-            'components' => [
-                'fear_greed' => 0,
-                'social_sentiment' => 0,
-                'market_momentum' => 0,
-                'volatility_index' => 0
-            ],
+            'overall_sentiment' => $overallSentiment,
+            'sentiment_label' => $sentimentInfo['classification'],
+            'sentiment_description' => $sentimentInfo['description'],
+            'components' => $components,
             'metadata' => [
                 'lastUpdated' => now()->toIso8601String(),
-                'sources' => []
+                'sources' => $sources
             ]
         ];
     }
@@ -75,20 +115,31 @@ class SentimentRepository extends BaseRepository
     /**
      * Get social activity metrics
      *
-     * @param array $coinIds
+     * @param int $days
      * @return array
      */
-    public function getSocialActivityMetrics(array $coinIds = []): array
+    public function getSocialActivityMetrics(int $days = 30): array
     {
-        $this->logOperation('getSocialActivityMetrics', ['coinIds' => $coinIds]);
+        $this->logOperation('getSocialActivityMetrics', ['days' => $days]);
         
-        // Placeholder for Phase 2 implementation
-        return [
-            'total_mentions' => 0,
-            'sentiment_score' => 0,
-            'trending_topics' => [],
-            'coin_mentions' => []
-        ];
+        if (!$this->cryptoCompareService) {
+            return [
+                'error' => 'CryptoCompare service not available',
+                'historical_data' => [],
+                'period_days' => $days
+            ];
+        }
+        
+        try {
+            return $this->cryptoCompareService->getSocialActivity($days);
+        } catch (\Exception $e) {
+            Log::error('Failed to get social activity metrics', ['error' => $e->getMessage()]);
+            return [
+                'error' => 'Failed to fetch social activity',
+                'historical_data' => [],
+                'period_days' => $days
+            ];
+        }
     }
 
     /**
@@ -99,13 +150,78 @@ class SentimentRepository extends BaseRepository
      */
     public function processSentimentIndicators(array $data): array
     {
-        $this->logOperation('processSentimentIndicators');
+        $this->logOperation('processSentimentIndicators', [
+            'dataCount' => count($data)
+        ]);
         
-        // Placeholder for Phase 2 implementation
+        $indicators = [];
+        
+        // Process Fear & Greed data if available
+        if (isset($data['fear_greed']) && is_array($data['fear_greed'])) {
+            $values = array_column($data['fear_greed'], 'value');
+            $indicators['fear_greed'] = [
+                'current' => $values[0] ?? null,
+                'average' => !empty($values) ? round(array_sum($values) / count($values)) : null,
+                'min' => !empty($values) ? min($values) : null,
+                'max' => !empty($values) ? max($values) : null,
+                'trend' => $this->calculateTrend($values)
+            ];
+        }
+        
+        // Process market sentiment if available
+        if (isset($data['market_sentiment'])) {
+            $indicators['market_sentiment'] = [
+                'score' => $data['market_sentiment']['sentiment_score'] ?? null,
+                'bullish_percentage' => $data['market_sentiment']['bullish_percentage'] ?? null,
+                'bearish_percentage' => $data['market_sentiment']['bearish_percentage'] ?? null,
+                'neutral_percentage' => $data['market_sentiment']['neutral_percentage'] ?? null
+            ];
+        }
+        
+        // Process social activity if available
+        if (isset($data['social_activity']) && isset($data['social_activity']['historical_data'])) {
+            $socialData = $data['social_activity']['historical_data'];
+            $normalizedValues = array_column($socialData, 'normalized');
+            
+            $indicators['social_activity'] = [
+                'current' => end($normalizedValues) ?: null,
+                'average' => !empty($normalizedValues) ? round(array_sum($normalizedValues) / count($normalizedValues)) : null,
+                'trend' => $this->calculateTrend($normalizedValues)
+            ];
+        }
+        
         return [
             'processed' => true,
-            'indicators' => []
+            'indicators' => $indicators,
+            'timestamp' => now()->toIso8601String()
         ];
+    }
+    
+    /**
+     * Calculate trend from array of values
+     *
+     * @param array $values
+     * @return string
+     */
+    private function calculateTrend(array $values): string
+    {
+        if (count($values) < 2) {
+            return 'insufficient_data';
+        }
+        
+        // Compare first half average with second half average
+        $midpoint = floor(count($values) / 2);
+        $firstHalf = array_slice($values, 0, $midpoint);
+        $secondHalf = array_slice($values, $midpoint);
+        
+        $firstAvg = array_sum($firstHalf) / count($firstHalf);
+        $secondAvg = array_sum($secondHalf) / count($secondHalf);
+        
+        $change = (($secondAvg - $firstAvg) / $firstAvg) * 100;
+        
+        if ($change > 10) return 'increasing';
+        if ($change < -10) return 'decreasing';
+        return 'stable';
     }
 
     /**
@@ -118,11 +234,43 @@ class SentimentRepository extends BaseRepository
     {
         $this->logOperation('getHistoricalSentiment', ['days' => $days]);
         
-        // Placeholder for Phase 2 implementation
+        $dates = [];
+        $values = [];
+        $labels = [];
+        
+        try {
+            // Get Fear & Greed historical data
+            $fearGreedData = $this->getFearGreedIndex($days);
+            
+            if (isset($fearGreedData['data']) && is_array($fearGreedData['data'])) {
+                foreach ($fearGreedData['data'] as $entry) {
+                    if (isset($entry['timestamp']) && isset($entry['value'])) {
+                        $date = date('Y-m-d', intval($entry['timestamp']));
+                        $dates[] = $date;
+                        $values[] = intval($entry['value']);
+                        $labels[] = $entry['value_classification'] ?? $this->interpretSentiment(intval($entry['value']))['classification'];
+                    }
+                }
+                
+                // Reverse arrays to have oldest date first
+                $dates = array_reverse($dates);
+                $values = array_reverse($values);
+                $labels = array_reverse($labels);
+            }
+            
+        } catch (\Exception $e) {
+            Log::error('Failed to get historical sentiment', ['error' => $e->getMessage()]);
+        }
+        
         return [
-            'dates' => [],
-            'values' => [],
-            'labels' => []
+            'dates' => $dates,
+            'values' => $values,
+            'labels' => $labels,
+            'metadata' => [
+                'source' => 'fear_greed_index',
+                'period_days' => $days,
+                'data_points' => count($dates)
+            ]
         ];
     }
 
@@ -191,5 +339,78 @@ class SentimentRepository extends BaseRepository
             'classification' => $classification,
             'description' => $description
         ];
+    }
+    
+    /**
+     * Get market sentiment data
+     *
+     * @return array
+     */
+    public function getMarketSentiment(): array
+    {
+        $this->logOperation('getMarketSentiment');
+        
+        if (!$this->cryptoCompareService) {
+            return [
+                'error' => 'CryptoCompare service not available',
+                'sentiment_score' => 50,
+                'bullish_percentage' => 0,
+                'bearish_percentage' => 0,
+                'neutral_percentage' => 100
+            ];
+        }
+        
+        try {
+            return $this->cryptoCompareService->getMarketSentiment();
+        } catch (\Exception $e) {
+            Log::error('Failed to get market sentiment', ['error' => $e->getMessage()]);
+            throw $e;
+        }
+    }
+    
+    /**
+     * Get market sentiment directly from API (for cache updates)
+     *
+     * @return array
+     */
+    public function getMarketSentimentDirect(): array
+    {
+        $this->logOperation('getMarketSentimentDirect');
+        
+        if (!$this->cryptoCompareService) {
+            throw new \Exception('CryptoCompare service not available');
+        }
+        
+        return $this->cryptoCompareService->getMarketSentimentDirect();
+    }
+    
+    /**
+     * Get social activity directly from API (for cache updates)
+     *
+     * @param int $days
+     * @return array
+     */
+    public function getSocialActivityDirect(int $days = 30): array
+    {
+        $this->logOperation('getSocialActivityDirect', ['days' => $days]);
+        
+        if (!$this->cryptoCompareService) {
+            throw new \Exception('CryptoCompare service not available');
+        }
+        
+        return $this->cryptoCompareService->getSocialActivityDirect($days);
+    }
+    
+    /**
+     * Get Fear & Greed Index directly from API (for cache updates)
+     *
+     * @param int $limit
+     * @return array
+     */
+    public function getFearGreedIndexDirect(int $limit = 30): array
+    {
+        $this->logOperation('getFearGreedIndexDirect', ['limit' => $limit]);
+        
+        return $this->alternativeService->getFearGreedIndexDirect($limit);
     }
 }

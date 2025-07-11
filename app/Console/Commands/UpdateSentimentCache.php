@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use App\Services\CryptoCompareService;
+use App\Repositories\SentimentRepository;
 use Illuminate\Support\Facades\Log;
 
 class UpdateSentimentCache extends Command
@@ -20,17 +20,17 @@ class UpdateSentimentCache extends Command
      *
      * @var string
      */
-    protected $description = 'Update market sentiment and social activity cache from CryptoCompare API';
+    protected $description = 'Update market sentiment and social activity cache from APIs';
 
-    private $cryptoCompareService;
+    private SentimentRepository $sentimentRepository;
 
     /**
      * Create a new command instance.
      */
-    public function __construct(CryptoCompareService $cryptoCompareService)
+    public function __construct(SentimentRepository $sentimentRepository)
     {
         parent::__construct();
-        $this->cryptoCompareService = $cryptoCompareService;
+        $this->sentimentRepository = $sentimentRepository;
     }
 
     /**
@@ -38,66 +38,111 @@ class UpdateSentimentCache extends Command
      */
     public function handle()
     {
-        $this->info('Starting sentiment and social activity cache update...');
+        $this->info('Starting sentiment cache update...');
         
+        $startTime = microtime(true);
+        $updates = [
+            'fear_greed' => false,
+            'market_sentiment' => false,
+            'social_activity_30' => false,
+            'social_activity_365' => false
+        ];
+        
+        // Update Fear & Greed Index
         try {
-            // Update market sentiment
+            $this->info('Updating Fear & Greed Index...');
+            $fearGreedData = $this->sentimentRepository->getFearGreedIndexDirect(30);
+            
+            if (isset($fearGreedData['data']['data'][0]['value'])) {
+                $currentValue = $fearGreedData['data']['data'][0]['value'];
+                $this->info("Fear & Greed Index updated successfully. Current value: {$currentValue}");
+                $updates['fear_greed'] = true;
+            }
+        } catch (\Exception $e) {
+            $this->warn('Failed to update Fear & Greed Index: ' . $e->getMessage());
+            Log::warning('Fear & Greed Index update failed', ['error' => $e->getMessage()]);
+        }
+        
+        // Update market sentiment
+        try {
             $this->info('Updating market sentiment...');
-            $sentimentData = $this->cryptoCompareService->getMarketSentimentDirect();
+            $sentimentData = $this->sentimentRepository->getMarketSentimentDirect();
             
-            $this->info("Market sentiment updated successfully. Score: " . $sentimentData['data']['sentiment_score']);
-            Log::info('Market sentiment cache updated', [
-                'score' => $sentimentData['data']['sentiment_score'],
-                'timestamp' => now()
-            ]);
-            
+            if (isset($sentimentData['data']['sentiment_score'])) {
+                $score = $sentimentData['data']['sentiment_score'];
+                $this->info("Market sentiment updated successfully. Score: {$score}");
+                $updates['market_sentiment'] = true;
+            }
         } catch (\Exception $e) {
-            // Log the error but don't update cache - keep existing data
-            $this->warn('Failed to update market sentiment (cache preserved): ' . $e->getMessage());
-            Log::warning('Market sentiment cache update failed - existing cache preserved', [
-                'error' => $e->getMessage()
-            ]);
+            $this->warn('Failed to update market sentiment: ' . $e->getMessage());
+            Log::warning('Market sentiment update failed', ['error' => $e->getMessage()]);
         }
         
+        // Update social activity (30 days)
         try {
-            // Update social activity (30 days)
             $this->info('Updating social activity (30 days)...');
-            $socialData30 = $this->cryptoCompareService->getSocialActivityDirect(30);
+            $socialData30 = $this->sentimentRepository->getSocialActivityDirect(30);
             
-            $dataCount = count($socialData30['data']['historical_data']);
-            $this->info("Social activity (30 days) updated successfully. Data points: " . $dataCount);
-            Log::info('Social activity cache updated (30 days)', [
-                'dataPoints' => $dataCount,
-                'timestamp' => now()
-            ]);
-            
+            if (isset($socialData30['data']['historical_data'])) {
+                $dataCount = count($socialData30['data']['historical_data']);
+                $this->info("Social activity (30 days) updated successfully. Data points: {$dataCount}");
+                $updates['social_activity_30'] = true;
+            }
         } catch (\Exception $e) {
-            $this->warn('Failed to update social activity (30 days) - cache preserved: ' . $e->getMessage());
-            Log::warning('Social activity cache update failed (30 days) - existing cache preserved', [
-                'error' => $e->getMessage()
-            ]);
+            $this->warn('Failed to update social activity (30 days): ' . $e->getMessage());
+            Log::warning('Social activity update failed (30 days)', ['error' => $e->getMessage()]);
         }
         
+        // Update social activity (365 days for desktop)
         try {
-            // Update social activity (365 days for desktop)
             $this->info('Updating social activity (365 days)...');
-            $socialData365 = $this->cryptoCompareService->getSocialActivityDirect(365);
+            $socialData365 = $this->sentimentRepository->getSocialActivityDirect(365);
             
-            $dataCount = count($socialData365['data']['historical_data']);
-            $this->info("Social activity (365 days) updated successfully. Data points: " . $dataCount);
-            Log::info('Social activity cache updated (365 days)', [
-                'dataPoints' => $dataCount,
-                'timestamp' => now()
-            ]);
-            
+            if (isset($socialData365['data']['historical_data'])) {
+                $dataCount = count($socialData365['data']['historical_data']);
+                $this->info("Social activity (365 days) updated successfully. Data points: {$dataCount}");
+                $updates['social_activity_365'] = true;
+            }
         } catch (\Exception $e) {
-            $this->warn('Failed to update social activity (365 days) - cache preserved: ' . $e->getMessage());
-            Log::warning('Social activity cache update failed (365 days) - existing cache preserved', [
-                'error' => $e->getMessage()
-            ]);
+            $this->warn('Failed to update social activity (365 days): ' . $e->getMessage());
+            Log::warning('Social activity update failed (365 days)', ['error' => $e->getMessage()]);
         }
         
-        $this->info('Sentiment and social activity cache update completed\!');
+        // Calculate aggregated sentiment
+        try {
+            $this->info('Calculating aggregated sentiment...');
+            $aggregated = $this->sentimentRepository->calculateAggregatedSentiment();
+            
+            if (isset($aggregated['overall_sentiment'])) {
+                $this->info("Aggregated sentiment: {$aggregated['overall_sentiment']} ({$aggregated['sentiment_label']})");
+            }
+        } catch (\Exception $e) {
+            $this->warn('Failed to calculate aggregated sentiment: ' . $e->getMessage());
+        }
+        
+        $duration = round(microtime(true) - $startTime, 2);
+        $successCount = count(array_filter($updates));
+        $totalCount = count($updates);
+        
+        $this->info("Sentiment cache update completed in {$duration} seconds");
+        $this->info("Successfully updated: {$successCount}/{$totalCount} data sources");
+        
+        // Display summary table
+        $this->table(
+            ['Data Source', 'Status'],
+            [
+                ['Fear & Greed Index', $updates['fear_greed'] ? '✓ Updated' : '✗ Failed'],
+                ['Market Sentiment', $updates['market_sentiment'] ? '✓ Updated' : '✗ Failed'],
+                ['Social Activity (30d)', $updates['social_activity_30'] ? '✓ Updated' : '✗ Failed'],
+                ['Social Activity (365d)', $updates['social_activity_365'] ? '✓ Updated' : '✗ Failed'],
+            ]
+        );
+        
+        Log::info('Sentiment cache update completed', [
+            'duration' => $duration,
+            'updates' => $updates,
+            'timestamp' => now()
+        ]);
         
         return Command::SUCCESS;
     }

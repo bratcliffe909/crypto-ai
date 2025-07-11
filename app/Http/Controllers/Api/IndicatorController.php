@@ -8,6 +8,7 @@ use App\Services\CoinGeckoService;
 use App\Services\AlternativeService;
 use App\Services\FinnhubService;
 use App\Services\EconomicCalendarService;
+use App\Repositories\SentimentRepository;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -18,19 +19,22 @@ class IndicatorController extends Controller
     protected $alternative;
     protected $finnhub;
     protected $economicCalendarService;
+    protected $sentimentRepository;
 
     public function __construct(
         AlphaVantageService $alphaVantage, 
         CoinGeckoService $coinGecko, 
         AlternativeService $alternative, 
         FinnhubService $finnhub, 
-        EconomicCalendarService $economicCalendar
+        EconomicCalendarService $economicCalendar,
+        SentimentRepository $sentimentRepository
     ) {
         $this->alphaVantage = $alphaVantage;
         $this->coinGecko = $coinGecko;
         $this->alternative = $alternative;
         $this->finnhub = $finnhub;
         $this->economicCalendarService = $economicCalendar;
+        $this->sentimentRepository = $sentimentRepository;
     }
 
     /**
@@ -233,7 +237,7 @@ class IndicatorController extends Controller
     public function fearGreed()
     {
         try {
-            $result = $this->alternative->getFearGreedIndex(1);
+            $result = $this->sentimentRepository->getFearGreedIndex(1);
             
             if (empty($result['data'])) {
                 return response()->json([
