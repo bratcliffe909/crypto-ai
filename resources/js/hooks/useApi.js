@@ -69,7 +69,7 @@ const useApi = (endpoint, options = {}) => {
     };
   }, [endpoint, refetchInterval, JSON.stringify(params)]);
 
-  return { data, loading, error, lastFetch, cacheAge, dataSource };
+  return { data, loading, error, lastFetch, lastUpdated: lastFetch, cacheAge, dataSource };
 };
 
 export default useApi;

@@ -76,10 +76,10 @@ class CryptoCompareService
     private function fetchMarketSentiment()
     {
         $topCoins = ['BTC', 'ETH', 'BNB', 'XRP', 'ADA', 'SOL', 'DOGE', 'DOT', 'AVAX', 'MATIC'];
-        $sentimentData = [];
+        $coinData = [];
         
         try {
-            // Get price data for top coins
+            // Get comprehensive price and volume data for top coins
             $symbols = implode(',', $topCoins);
             $response = Http::timeout(10)->get("{$this->baseUrl}/pricemultifull", [
                 'fsyms' => $symbols,
@@ -105,46 +105,23 @@ class CryptoCompareService
                 
                 foreach ($topCoins as $symbol) {
                     if (isset($rawData[$symbol]['USD'])) {
-                        $data = $rawData[$symbol]['USD'];
-                        $sentimentData[$symbol] = [
-                            'sentiment' => $this->calculateSentimentFromPrice($data),
-                            'signal' => $this->getSignalFromPrice($data)
-                        ];
+                        $coinData[$symbol] = $rawData[$symbol]['USD'];
                     }
                 }
             }
         } catch (\Exception $e) {
             Log::warning("Failed to get market sentiment", ['error' => $e->getMessage()]);
+            throw $e;
         }
-        
-        // Calculate average sentiment
-        $totalSentiment = 0;
-        $bullishCount = 0;
-        $bearishCount = 0;
-        
-        foreach ($sentimentData as $coin => $data) {
-            $totalSentiment += $data['sentiment'];
-            if ($data['signal'] === 'bullish') $bullishCount++;
-            if ($data['signal'] === 'bearish') $bearishCount++;
-        }
-        
-        $coinsAnalyzed = count($sentimentData);
         
         // If no data was retrieved, throw exception
-        if ($coinsAnalyzed === 0) {
+        if (empty($coinData)) {
             throw new \Exception("No sentiment data could be calculated");
         }
         
-        $avgSentiment = $totalSentiment / $coinsAnalyzed;
-        
-        return [
-            'sentiment_score' => round($avgSentiment, 2),
-            'bullish_percentage' => round(($bullishCount / count($topCoins)) * 100, 2),
-            'bearish_percentage' => round(($bearishCount / count($topCoins)) * 100, 2),
-            'neutral_percentage' => round(((count($topCoins) - $bullishCount - $bearishCount) / count($topCoins)) * 100, 2),
-            'coins_analyzed' => $coinsAnalyzed,
-            'timestamp' => now()->toIso8601String()
-        ];
+        // Use SentimentRepository for comprehensive calculation
+        $sentimentRepository = app(\App\Repositories\SentimentRepository::class);
+        return $sentimentRepository->calculateComprehensiveMarketSentiment($coinData);
     }
 
     /**
@@ -212,45 +189,22 @@ class CryptoCompareService
 
     /**
      * Calculate sentiment score from price action
+     * @deprecated Use SentimentRepository::calculateSentimentFromPrice() instead
      */
     private function calculateSentimentFromPrice($data)
     {
-        $score = 50; // Neutral baseline
-        
-        // 24h change
-        if (isset($data['CHANGEPCT24HOUR'])) {
-            $change24h = floatval($data['CHANGEPCT24HOUR']);
-            if ($change24h > 5) $score += 15;
-            elseif ($change24h > 2) $score += 10;
-            elseif ($change24h > 0) $score += 5;
-            elseif ($change24h < -5) $score -= 15;
-            elseif ($change24h < -2) $score -= 10;
-            elseif ($change24h < 0) $score -= 5;
-        }
-        
-        // Volume change
-        if (isset($data['VOLUME24HOUR']) && isset($data['VOLUME24HOURTO'])) {
-            $volume = floatval($data['VOLUME24HOURTO']);
-            $avgVolume = floatval($data['VOLUME24HOUR']) * floatval($data['PRICE']);
-            if ($avgVolume > 0 && $volume > $avgVolume * 1.5) $score += 10;
-            elseif ($avgVolume > 0 && $volume < $avgVolume * 0.5) $score -= 10;
-        }
-        
-        // Keep within 0-100 range
-        return max(0, min(100, $score));
+        $sentimentRepository = app(\App\Repositories\SentimentRepository::class);
+        return $sentimentRepository->calculateSentimentFromPrice($data);
     }
     
     /**
      * Get signal from price data
+     * @deprecated Use SentimentRepository::getSignalFromPrice() instead
      */
     private function getSignalFromPrice($data)
     {
-        if (!isset($data['CHANGEPCT24HOUR'])) return 'neutral';
-        
-        $change = floatval($data['CHANGEPCT24HOUR']);
-        if ($change > 2) return 'bullish';
-        if ($change < -2) return 'bearish';
-        return 'neutral';
+        $sentimentRepository = app(\App\Repositories\SentimentRepository::class);
+        return $sentimentRepository->getSignalFromPrice($data);
     }
     
     /**
@@ -404,5 +358,48 @@ class CryptoCompareService
         }
         
         return null;
+    }
+    
+    /**
+     * Get historical daily prices for a given symbol
+     */
+    public function getHistoricalDailyPrices($symbol = 'BTC', $currency = 'USD', $limit = 2000)
+    {
+        $cacheKey = "cryptocompare_historical_{$symbol}_{$currency}_{$limit}";
+        
+        return $this->cacheService->rememberHistoricalForever($cacheKey, function ($today) use ($symbol, $currency, $limit) {
+            try {
+                $response = Http::timeout(20)->get("{$this->baseUrl}/v2/histoday", [
+                    'fsym' => $symbol,
+                    'tsym' => $currency,
+                    'limit' => $limit,
+                    'api_key' => $this->apiKey
+                ]);
+                
+                $responseData = $response->json();
+                
+                // Check for rate limit error
+                if (isset($responseData['Response']) && $responseData['Response'] === 'Error') {
+                    Log::warning("CryptoCompare API error for historical prices", [
+                        'message' => $responseData['Message'] ?? 'Unknown error',
+                        'type' => $responseData['Type'] ?? 'Unknown'
+                    ]);
+                    throw new \Exception("CryptoCompare API error: " . ($responseData['Message'] ?? 'Unknown error'));
+                }
+                
+                if ($response->successful() && isset($responseData['Data']['Data'])) {
+                    return $responseData;
+                }
+                
+                throw new \Exception("Invalid response format from CryptoCompare historical API");
+                
+            } catch (\Exception $e) {
+                Log::error("Failed to get historical daily prices from CryptoCompare", [
+                    'symbol' => $symbol,
+                    'error' => $e->getMessage()
+                ]);
+                throw $e;
+            }
+        }, 'timestamp');
     }
 }

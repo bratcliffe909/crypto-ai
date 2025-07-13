@@ -75,20 +75,16 @@ class RepositoryServiceProvider extends ServiceProvider
 
         // Register NewsRepository as singleton
         $this->app->singleton(NewsRepository::class, function ($app) {
-            $newsAggregatorService = null;
-            if ($app->bound(\App\Services\NewsAggregatorService::class)) {
-                $newsAggregatorService = $app->make(\App\Services\NewsAggregatorService::class);
-            }
-            
-            $fredService = null;
-            if ($app->bound(\App\Services\FredService::class)) {
-                $fredService = $app->make(\App\Services\FredService::class);
-            }
-            
             return new NewsRepository(
                 $app->make(\App\Services\CacheService::class),
-                $newsAggregatorService,
-                $fredService
+                $app->make(\App\Services\FinnhubService::class)
+            );
+        });
+        
+        // Register RainbowChartService with IndicatorRepository dependency
+        $this->app->singleton(\App\Services\RainbowChartService::class, function ($app) {
+            return new \App\Services\RainbowChartService(
+                $app->make(IndicatorRepository::class)
             );
         });
     }

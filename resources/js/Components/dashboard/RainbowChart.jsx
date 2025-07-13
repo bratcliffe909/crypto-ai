@@ -14,23 +14,21 @@ const RainbowChart = () => {
 
   // Process data for the chart
   const chartData = useMemo(() => {
-    if (!rawData?.data || !Array.isArray(rawData.data)) return [];
-    
-    // Filter data based on time range
-    let filteredData = rawData.data;
-    if (timeRange !== 'max') {
-      const now = new Date();
-      const daysToShow = parseInt(timeRange);
-      const cutoffDate = new Date(now.getTime() - (daysToShow * 24 * 60 * 60 * 1000));
-      
-      filteredData = rawData.data.filter(item => {
-        const itemDate = new Date(item.date);
-        return itemDate >= cutoffDate;
-      });
+    // The useApi hook returns the axios response.data directly
+    // Since our API returns {data: [...], metadata: {...}}, we need to access rawData.data
+    if (!rawData || typeof rawData !== 'object') {
+      return [];
     }
     
-    return filteredData;
-  }, [rawData, timeRange]);
+    // Check if rawData has the expected structure
+    if (!rawData.data || !Array.isArray(rawData.data)) {
+      return [];
+    }
+    
+    // The backend already filters data based on the time range
+    // No need to filter again on the frontend
+    return rawData.data;
+  }, [rawData]);
 
   const formatPrice = (value) => {
     if (value >= 1000000) {
@@ -129,6 +127,12 @@ const RainbowChart = () => {
   }
 
   if (!chartData || chartData.length === 0) {
+    console.log('Rainbow Chart - No data condition triggered');
+    console.log('chartData:', chartData);
+    console.log('rawData:', rawData);
+    console.log('loading:', loading);
+    console.log('error:', error);
+    
     return (
       <Card className="mb-4">
         <Card.Header>
@@ -177,12 +181,6 @@ const RainbowChart = () => {
               onClick={() => setTimeRange('1826')}
             >
               5Y
-            </Button>
-            <Button 
-              variant={timeRange === 'max' ? 'primary' : 'outline-secondary'}
-              onClick={() => setTimeRange('max')}
-            >
-              All
             </Button>
           </ButtonGroup>
         </div>

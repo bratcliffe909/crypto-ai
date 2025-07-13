@@ -73,15 +73,19 @@ class UpdateIndicatorCache extends Command
             ]);
         }
         
-        // Update Rainbow Chart
+        // Update Rainbow Chart - populate master cache
         try {
             $this->info('Updating Bitcoin Rainbow Chart...');
+            
+            // Call getRainbowChartData once to populate the master cache
+            // The actual days parameter doesn't matter since we use master cache
             $rainbowData = $this->rainbowChartService->getRainbowChartData('max');
             
             if (!empty($rainbowData['data'])) {
-                $results['rainbow']['dataPoints'] = count($rainbowData['data']);
+                $dataPoints = count($rainbowData['data']);
+                $results['rainbow']['dataPoints'] = $dataPoints;
                 $results['rainbow']['status'] = 'success';
-                $this->info("✓ Rainbow Chart updated: " . count($rainbowData['data']) . " data points");
+                $this->info("✓ Rainbow Chart updated: " . $dataPoints . " data points in master cache");
             } else {
                 $results['rainbow']['status'] = 'empty';
                 $this->warn('⚠ Rainbow Chart returned empty data');

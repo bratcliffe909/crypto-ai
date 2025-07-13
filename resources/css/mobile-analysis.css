@@ -266,9 +266,9 @@
   padding: 12px 20px !important;
 }
 
-/* Hide sentiment score and badge in mobile Market Breadth */
-.mobile-analysis .card-body > div:first-child h2,
-.mobile-analysis .card-body > div:first-child .badge {
+/* Hide score and badge only in Market Breadth component (not Market Sentiment) */
+.mobile-analysis .market-breadth-container .card-body > div:first-child h2,
+.mobile-analysis .market-breadth-container .card-body > div:first-child .badge {
   display: none !important;
 }
 

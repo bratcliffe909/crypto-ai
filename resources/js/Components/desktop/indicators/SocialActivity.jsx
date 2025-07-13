@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import useApi from '../../../hooks/useApi';
 import TimeAgo from '../../common/TimeAgo';
-import { BsGraphUp, BsChatDots } from 'react-icons/bs';
+import Tooltip from '../../common/Tooltip';
+import { BsGraphUp, BsChatDots, BsInfoCircleFill } from 'react-icons/bs';
 
 const SocialActivity = () => {
     const { data, loading, error, dataSource, lastUpdated } = useApi('/api/crypto/social-activity?days=365');
@@ -39,14 +40,23 @@ const SocialActivity = () => {
 
     if (loading) {
         return (
-            <div className="social-activity-container card p-3 mb-3">
-                <h6 className="mb-3">
-                    <BsChatDots className="me-2" />
-                    Social Activity
-                </h6>
-                <div className="d-flex justify-content-center">
-                    <div className="spinner-border text-primary" role="status">
-                        <span className="visually-hidden">Loading...</span>
+            <div className="social-activity-container card mb-3">
+                <div className="card-header d-flex justify-content-between align-items-center">
+                    <div className="d-flex align-items-center">
+                        <h5 className="mb-0">
+                            <BsChatDots className="me-2" />
+                            Social Activity
+                        </h5>
+                        <Tooltip content="Tracks social media activity and volume trends for Bitcoin and major cryptocurrencies over the past 12 months. Higher values indicate increased social engagement.">
+                            <BsInfoCircleFill className="ms-2 text-muted" style={{ cursor: 'help' }} />
+                        </Tooltip>
+                    </div>
+                </div>
+                <div className="card-body">
+                    <div className="d-flex justify-content-center">
+                        <div className="spinner-border text-primary" role="status">
+                            <span className="visually-hidden">Loading...</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -55,29 +65,44 @@ const SocialActivity = () => {
 
     if (error || !chartData) {
         return (
-            <div className="social-activity-container card p-3 mb-3">
-                <h6 className="mb-3">
-                    <BsChatDots className="me-2" />
-                    Social Activity
-                </h6>
-                <div className="alert alert-warning mb-0" role="alert">
-                    <small>Unable to load social activity data</small>
+            <div className="social-activity-container card mb-3">
+                <div className="card-header d-flex justify-content-between align-items-center">
+                    <div className="d-flex align-items-center">
+                        <h5 className="mb-0">
+                            <BsChatDots className="me-2" />
+                            Social Activity
+                        </h5>
+                        <Tooltip content="Tracks social media activity and volume trends for Bitcoin and major cryptocurrencies over the past 12 months. Higher values indicate increased social engagement.">
+                            <BsInfoCircleFill className="ms-2 text-muted" style={{ cursor: 'help' }} />
+                        </Tooltip>
+                    </div>
+                </div>
+                <div className="card-body">
+                    <div className="alert alert-warning mb-0" role="alert">
+                        <small>Unable to load social activity data</small>
+                    </div>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="social-activity-container card p-3 mb-3">
-            <div className="d-flex justify-content-between align-items-center mb-3">
-                <h6 className="mb-0">
-                    <BsChatDots className="me-2" />
-                    Social Activity
-                </h6>
+        <div className="social-activity-container card mb-3">
+            <div className="card-header d-flex justify-content-between align-items-center">
+                <div className="d-flex align-items-center">
+                    <h5 className="mb-0">
+                        <BsChatDots className="me-2" />
+                        Social Activity
+                    </h5>
+                    <Tooltip content="Tracks social media activity and volume trends for Bitcoin and major cryptocurrencies over the past 12 months. Higher values indicate increased social engagement.">
+                        <BsInfoCircleFill className="ms-2 text-muted" style={{ cursor: 'help' }} />
+                    </Tooltip>
+                </div>
                 {lastUpdated && (
-                    <TimeAgo timestamp={lastUpdated} showCacheStatus={true} dataSource={dataSource} />
+                    <TimeAgo date={lastUpdated} />
                 )}
             </div>
+            <div className="card-body">
 
             <div className="social-chart" style={{ height: '120px' }}>
                 <div className="d-flex align-items-end justify-content-between h-100" style={{ paddingBottom: '20px' }}>
@@ -140,6 +165,7 @@ const SocialActivity = () => {
                     </small>
                 </div>
             )}
+            </div>
         </div>
     );
 };
