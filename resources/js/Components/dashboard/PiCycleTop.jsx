@@ -19,8 +19,20 @@ const PiCycleTop = () => {
     return rawData.filter(d => d.ma111 !== null || d.ma350x2 !== null);
   }, [rawData]);
 
-  // Find crossover points
-  const crossoverPoints = processedData.filter(d => d.isCrossover);
+  // Find crossover points from the processed data (they should have indicators)
+  const crossoverPoints = React.useMemo(() => {
+    if (!processedData || processedData.length === 0) return [];
+    
+    const crossovers = processedData.filter(d => d.isCrossover === true);
+    console.log('Pi Cycle Top - Found crossovers:', crossovers.length, crossovers);
+    
+    // Also log for debugging in UI
+    if (crossovers.length > 0) {
+      console.log('Crossover dates:', crossovers.map(c => c.date));
+    }
+    
+    return crossovers;
+  }, [processedData]);
   
   // Estimate next top
   const estimateNextTop = () => {
@@ -203,7 +215,22 @@ const PiCycleTop = () => {
                 dataKey="price" 
                 stroke="#FFA500" 
                 strokeWidth={1.5}
-                dot={false}
+                dot={(props) => {
+                  const { cx, cy, payload } = props;
+                  if (payload && payload.isCrossover === true) {
+                    return (
+                      <circle 
+                        cx={cx} 
+                        cy={cy} 
+                        r={10} 
+                        fill="#ffff00" 
+                        stroke="#ff0000" 
+                        strokeWidth={3}
+                      />
+                    );
+                  }
+                  return null;
+                }}
                 name="BTC Price"
               />
               
@@ -226,24 +253,6 @@ const PiCycleTop = () => {
                 dot={false}
                 name="350 DMA x2"
               />
-              
-              {/* Crossover points */}
-              {crossoverPoints.map((point, index) => (
-                <ReferenceDot
-                  key={index}
-                  x={point.date}
-                  y={point.price}
-                  r={6}
-                  fill="#ffff00"
-                  stroke="#ffff00"
-                  label={{
-                    value: `${formatDate(point.date)} - ${formatPrice(point.price)}`,
-                    position: 'top',
-                    fill: '#ffff00',
-                    fontSize: 10
-                  }}
-                />
-              ))}
             </LineChart>
           </ResponsiveContainer>
         </div>

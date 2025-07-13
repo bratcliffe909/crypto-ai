@@ -6,6 +6,7 @@ use App\Services\CacheService;
 use App\Services\CoinGeckoService;
 use App\Services\CryptoCompareService;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -435,7 +436,13 @@ class IndicatorRepository extends BaseRepository
         try {
             // Get historical data (cached FOREVER since historical prices never change)
             $historicalKey = "rainbow_chart_historical_v2";
-            $historicalResult = $this->cacheService->rememberHistoricalForever($historicalKey, function($fromDate, $toDate) {
+            
+            // Use regular Cache::forever instead of rememberHistoricalForever
+            // to avoid the date field issue
+            $historicalPrices = Cache::get($historicalKey);
+            
+            if (!$historicalPrices || count($historicalPrices) < 1000) {
+                // Need to fetch historical data
                 $allPrices = [];
                 
                 // First try CryptoCompare for maximum historical data
@@ -443,8 +450,12 @@ class IndicatorRepository extends BaseRepository
                     try {
                         $historicalData = $this->cryptoCompareService->getHistoricalDailyPrices('BTC', 'USD', 2000);
                         
-                        if (isset($historicalData['data']['Data']['Data'])) {
-                            foreach ($historicalData['data']['Data']['Data'] as $day) {
+                        // The response is wrapped by CacheService in {data: ..., metadata: ...} format
+                        // And the actual CryptoCompare response is inside the 'data' key
+                        $cryptoCompareResponse = $historicalData['data'] ?? [];
+                        
+                        if (isset($cryptoCompareResponse['Data']['Data'])) {
+                            foreach ($cryptoCompareResponse['Data']['Data'] as $day) {
                                 if (isset($day['time']) && isset($day['close']) && $day['close'] > 0) {
                                     $allPrices[$day['time'] * 1000] = [
                                         'timestamp' => $day['time'] * 1000,
@@ -460,9 +471,11 @@ class IndicatorRepository extends BaseRepository
                 }
                 
                 // If we don't have enough data, try CoinGecko
+                // Note: CoinGecko free tier only supports up to 365 days
                 if (count($allPrices) < 365) {
                     try {
-                        $maxResult = $this->coinGeckoService->getMarketChart('bitcoin', 'usd', 'max');
+                        // For free tier, we can only get 365 days max
+                        $maxResult = $this->coinGeckoService->getMarketChart('bitcoin', 'usd', 365);
                         
                         if (isset($maxResult['data']['prices'])) {
                             foreach ($maxResult['data']['prices'] as $pricePoint) {
@@ -472,43 +485,63 @@ class IndicatorRepository extends BaseRepository
                                     'price' => $pricePoint[1]
                                 ];
                             }
-                            Log::info("Rainbow Chart Historical: Got " . count($allPrices) . " days from CoinGecko");
+                            Log::info("Rainbow Chart Historical: Got " . count($allPrices) . " days from CoinGecko (limited to 365 on free tier)");
                         }
                     } catch (\Exception $e) {
                         Log::warning('CoinGecko failed for Rainbow Chart Historical: ' . $e->getMessage());
                     }
                 }
                 
-                // Sort by timestamp and convert to daily data
+                // Sort by timestamp and convert to simple array format
                 ksort($allPrices);
                 
-                $result = ['prices' => []];
+                // Convert to array of [timestamp, price] arrays
+                $historicalPrices = [];
                 foreach ($allPrices as $priceData) {
-                    $result['prices'][] = [
+                    $historicalPrices[] = [
                         $priceData['timestamp'],
                         $priceData['price']
                     ];
                 }
                 
-                return $result;
-            }, 'timestamp');
+                // Cache forever
+                if (count($historicalPrices) > 0) {
+                    Cache::forever($historicalKey, $historicalPrices);
+                    Log::info("Rainbow Chart: Cached " . count($historicalPrices) . " historical data points forever");
+                }
+            }
             
-            // Extract historical data
-            $historicalPrices = $historicalResult['data']['prices'] ?? [];
+            // Wrap in the expected format
+            $historicalResult = [
+                'data' => $historicalPrices ?? [],
+                'metadata' => []
+            ];
             
-            // Get recent data to fill any gaps
-            $recentKey = "rainbow_chart_recent_{$days}";
-            $recentData = $this->cacheService->remember($recentKey, 300, function() use ($days) {
+            // Extract historical data - historicalResult contains wrapped response
+            $historicalPrices = isset($historicalResult['data']) ? $historicalResult['data'] : [];
+            
+            Log::info("Rainbow Chart: Historical prices count = " . count($historicalPrices));
+            
+            // Get recent data to fill any gaps - always use the master cache
+            $recentKey = "rainbow_chart_recent_master";
+            $recentData = $this->cacheService->rememberWithoutFreshness($recentKey, function() {
                 try {
-                    $result = $this->coinGeckoService->getMarketChart('bitcoin', 'usd', $days);
-                    return $result['data'] ?? [];
+                    // Always fetch 365 days for recent data (CoinGecko free tier limit)
+                    $result = $this->coinGeckoService->getMarketChart('bitcoin', 'usd', 365);
+                    // The result is already wrapped by CoinGeckoService, extract the data
+                    $marketChartData = $result['data'] ?? [];
+                    return ['prices' => $marketChartData['prices'] ?? []];
                 } catch (\Exception $e) {
                     Log::warning('Failed to get recent rainbow chart data: ' . $e->getMessage());
                     return ['prices' => []];
                 }
             });
             
-            $recentPrices = $recentData['data']['prices'] ?? [];
+            // Extract data from CacheService wrapper
+            $recentDataUnwrapped = $recentData['data'] ?? [];
+            $recentPrices = $recentDataUnwrapped['prices'] ?? [];
+            
+            Log::info("Rainbow Chart: Recent prices count = " . count($recentPrices) . " for days = " . $days);
             
             // Merge and deduplicate
             $allPrices = [];

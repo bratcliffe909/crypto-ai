@@ -540,4 +540,107 @@ class SentimentRepository extends BaseRepository
             'timestamp' => now()->toIso8601String()
         ];
     }
+    
+    /**
+     * Calculate comprehensive market sentiment using multiple factors
+     * Simplified to be more transparent and data-driven
+     */
+    public function calculateComprehensiveMarketSentiment(array $coinData): array
+    {
+        if (empty($coinData)) {
+            throw new \Exception("No coin data provided for sentiment calculation");
+        }
+        
+        // First, calculate the basic market signals
+        $bullishCount = 0;
+        $bearishCount = 0;
+        $neutralCount = 0;
+        $priceChanges = [];
+        $volumes = [];
+        
+        foreach ($coinData as $symbol => $coin) {
+            $signal = $this->getSignalFromPrice($coin);
+            switch ($signal) {
+                case 'bullish':
+                    $bullishCount++;
+                    break;
+                case 'bearish':
+                    $bearishCount++;
+                    break;
+                default:
+                    $neutralCount++;
+            }
+            
+            // Collect price changes for calculations
+            if (isset($coin['CHANGEPCT24HOUR'])) {
+                $priceChanges[] = $coin['CHANGEPCT24HOUR'];
+            }
+            
+            // Collect volume data
+            if (isset($coin['VOLUME24HOURTO'])) {
+                $volumes[] = $coin['VOLUME24HOURTO'];
+            }
+        }
+        
+        $totalCoins = count($coinData);
+        
+        // Calculate component metrics based on actual data
+        $components = [];
+        
+        // 1. Price Momentum - Average price change
+        $avgPriceChange = !empty($priceChanges) ? array_sum($priceChanges) / count($priceChanges) : 0;
+        // Convert to 0-100 scale: -10% = 0, +10% = 100
+        $components['price_momentum'] = max(0, min(100, 50 + ($avgPriceChange * 5)));
+        
+        // 2. Market Breadth - Percentage of advancing coins
+        $components['market_breadth'] = $totalCoins > 0 ? ($bullishCount / $totalCoins) * 100 : 50;
+        
+        // 3. Bullish Strength - How strong are the bullish moves
+        $bullishChanges = array_filter($priceChanges, function($change) { return $change > 0; });
+        $avgBullishChange = !empty($bullishChanges) ? array_sum($bullishChanges) / count($bullishChanges) : 0;
+        // Convert to 0-100: 0% = 50, 10%+ = 100
+        $components['bullish_strength'] = min(100, 50 + ($avgBullishChange * 5));
+        
+        // 4. Volume Activity - Simplified volume metric
+        $btcVolume = isset($coinData['BTC']['VOLUME24HOURTO']) ? $coinData['BTC']['VOLUME24HOURTO'] : 0;
+        $totalVolume = array_sum($volumes);
+        // BTC dominance in volume (inverted - lower BTC dominance = higher score)
+        $btcDominance = $totalVolume > 0 ? ($btcVolume / $totalVolume) * 100 : 50;
+        $components['alt_activity'] = max(0, min(100, 100 - $btcDominance));
+        
+        // 5. Trend Consistency - Are most coins moving in the same direction?
+        $directionConsistency = max($bullishCount, $bearishCount) / $totalCoins;
+        $components['trend_strength'] = $directionConsistency * 100;
+        
+        // Calculate overall sentiment score as weighted average
+        $weights = [
+            'price_momentum' => 0.25,
+            'market_breadth' => 0.25,
+            'bullish_strength' => 0.20,
+            'alt_activity' => 0.15,
+            'trend_strength' => 0.15
+        ];
+        
+        $sentimentScore = 0;
+        foreach ($components as $component => $score) {
+            $sentimentScore += $score * $weights[$component];
+        }
+        
+        return [
+            'sentiment_score' => round($sentimentScore),
+            'bullish_percentage' => round(($bullishCount / $totalCoins) * 100, 2),
+            'bearish_percentage' => round(($bearishCount / $totalCoins) * 100, 2),
+            'neutral_percentage' => round(($neutralCount / $totalCoins) * 100, 2),
+            'coins_analyzed' => $totalCoins,
+            'components' => [
+                'price_momentum' => round($components['price_momentum'], 1),
+                'market_breadth' => round($components['market_breadth'], 1),
+                'bullish_strength' => round($components['bullish_strength'], 1),
+                'alt_activity' => round($components['alt_activity'], 1),
+                'trend_strength' => round($components['trend_strength'], 1)
+            ],
+            'avg_change' => round($avgPriceChange, 2),
+            'timestamp' => now()->toIso8601String()
+        ];
+    }
 }

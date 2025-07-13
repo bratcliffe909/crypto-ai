@@ -122,7 +122,8 @@ class IndicatorController extends Controller
                     ];
                     $count++;
                 }
-                // Keep chronological order - oldest to newest
+                // Reverse to show oldest to newest (left to right on chart)
+                $rsiHistory = array_reverse($rsiHistory);
             }
             
             $macdHistory = [];
@@ -138,7 +139,8 @@ class IndicatorController extends Controller
                     ];
                     $count++;
                 }
-                // Keep chronological order - oldest to newest
+                // Reverse to show oldest to newest (left to right on chart)
+                $macdHistory = array_reverse($macdHistory);
             }
             
             return response()->json([
