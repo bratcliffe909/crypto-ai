@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, Alert } from 'react-bootstrap';
 import { BsInfoCircleFill } from 'react-icons/bs';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceDot } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Dot } from 'recharts';
 import useApi from '../../hooks/useApi';
 import LoadingSpinner from '../common/LoadingSpinner';
 import Tooltip from '../common/Tooltip';
@@ -9,7 +9,7 @@ import TimeAgo from '../common/TimeAgo';
 
 const PiCycleTop = () => {
   const { data: rawData, loading, error, lastFetch } = useApi('/api/crypto/pi-cycle-top', 60000);
-
+  const chartRef = React.useRef(null);
 
   // Process data for the chart
   const processedData = React.useMemo(() => {
@@ -19,18 +19,12 @@ const PiCycleTop = () => {
     return rawData.filter(d => d.ma111 !== null || d.ma350x2 !== null);
   }, [rawData]);
 
-  // Find crossover points from the processed data (they should have indicators)
+  // Find crossover points from the processed data
   const crossoverPoints = React.useMemo(() => {
     if (!processedData || processedData.length === 0) return [];
     
     const crossovers = processedData.filter(d => d.isCrossover === true);
     console.log('Pi Cycle Top - Found crossovers:', crossovers.length, crossovers);
-    
-    // Also log for debugging in UI
-    if (crossovers.length > 0) {
-      console.log('Crossover dates:', crossovers.map(c => c.date));
-    }
-    
     return crossovers;
   }, [processedData]);
   
@@ -69,6 +63,43 @@ const PiCycleTop = () => {
 
   const estimation = estimateNextTop();
 
+  // Custom dot component for crossovers
+  const CrossoverDot = (props) => {
+    const { cx, cy, payload } = props;
+    
+    if (!payload || !payload.isCrossover) {
+      return null;
+    }
+    
+    return (
+      <g>
+        <circle cx={cx} cy={cy} r={8} fill="yellow" />
+        <text 
+          x={cx} 
+          y={cy - 15} 
+          textAnchor="middle" 
+          fill="white" 
+          fontSize="12"
+          fontWeight="bold"
+          style={{ textShadow: '1px 1px 2px black' }}
+        >
+          {formatDate(payload.date)}
+        </text>
+        <text 
+          x={cx} 
+          y={cy - 30} 
+          textAnchor="middle" 
+          fill="white" 
+          fontSize="12"
+          fontWeight="bold"
+          style={{ textShadow: '1px 1px 2px black' }}
+        >
+          {formatPrice(payload.price)}
+        </text>
+      </g>
+    );
+  };
+
   const formatPrice = (value) => {
     if (value >= 1000) {
       return `$${(value / 1000).toFixed(0)}k`;
@@ -83,9 +114,13 @@ const PiCycleTop = () => {
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
+      const isCrossover = payload[0]?.payload?.isCrossover;
       return (
         <div className="bg-dark p-2 rounded border">
           <p className="text-light mb-1">{formatDate(label)}</p>
+          {isCrossover && (
+            <p className="text-warning fw-bold mb-1">🔔 Pi Cycle Top Signal!</p>
+          )}
           {payload.map((entry, index) => (
             <p key={index} className="mb-0" style={{ color: entry.color }}>
               {entry.name}: {formatPrice(entry.value)}
@@ -96,6 +131,7 @@ const PiCycleTop = () => {
     }
     return null;
   };
+
 
   if (loading && !rawData) {
     return (
@@ -178,6 +214,7 @@ const PiCycleTop = () => {
           </div>
         )}
 
+
         {/* Data Range Info */}
         {processedData.length > 0 && (
           <div className="text-center mb-2">
@@ -209,28 +246,13 @@ const PiCycleTop = () => {
               />
               <RechartsTooltip content={<CustomTooltip />} />
               
-              {/* Bitcoin Price line */}
+              {/* Bitcoin Price line with crossover dots */}
               <Line 
                 type="monotone" 
                 dataKey="price" 
                 stroke="#FFA500" 
                 strokeWidth={1.5}
-                dot={(props) => {
-                  const { cx, cy, payload } = props;
-                  if (payload && payload.isCrossover === true) {
-                    return (
-                      <circle 
-                        cx={cx} 
-                        cy={cy} 
-                        r={10} 
-                        fill="#ffff00" 
-                        stroke="#ff0000" 
-                        strokeWidth={3}
-                      />
-                    );
-                  }
-                  return null;
-                }}
+                dot={<CrossoverDot />}
                 name="BTC Price"
               />
               
@@ -273,7 +295,9 @@ const PiCycleTop = () => {
           </span>
           {crossoverPoints.length > 0 && (
             <span>
-              <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: '#ffff00', borderRadius: '50%', marginRight: '4px', verticalAlign: 'middle' }}></span>
+              <span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: 'yellow', border: '3px solid black', borderRadius: '50%', marginRight: '4px', verticalAlign: 'middle', position: 'relative' }}>
+                <span style={{ position: 'absolute', top: '3px', left: '3px', width: '6px', height: '6px', backgroundColor: 'red', borderRadius: '50%' }}></span>
+              </span>
               Top Signal
             </span>
           )}
