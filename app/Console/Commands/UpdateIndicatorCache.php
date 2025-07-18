@@ -452,24 +452,7 @@ class UpdateIndicatorCache extends Command
     
     private function updateRSI()
     {
-        // Try Alpha Vantage first
-        try {
-            $rsiResult = $this->alphaVantageService->getRSI('BTCUSD', 'daily', 14);
-            $rsiData = $rsiResult['data'] ?? [];
-            
-            if (isset($rsiData['Technical Analysis: RSI'])) {
-                $rsiValues = $rsiData['Technical Analysis: RSI'];
-                $latestDate = array_key_first($rsiValues);
-                return [
-                    'value' => round(floatval($rsiValues[$latestDate]['RSI']), 2),
-                    'date' => $latestDate
-                ];
-            }
-        } catch (\Exception $e) {
-            Log::warning('Alpha Vantage RSI failed: ' . $e->getMessage());
-        }
-        
-        // Fallback: Calculate RSI from price data
+        // Use CoinGecko price data for RSI calculation to ensure current data
         try {
             $chartResult = $this->coinGeckoService->getMarketChart('bitcoin', 'usd', 30);
             $historicalPrices = $chartResult['data'] ?? [];
@@ -480,6 +463,11 @@ class UpdateIndicatorCache extends Command
                 if (isset($rsiData['Technical Analysis: RSI'])) {
                     $rsiValues = $rsiData['Technical Analysis: RSI'];
                     $latestDate = array_key_first($rsiValues);
+                    
+                    // Store the calculated RSI data in the cache that AlphaVantageService reads from
+                    $cacheKey = "av_RSI_BTCUSD_daily_14";
+                    $this->cacheService->storeWithMetadata($cacheKey, $rsiData);
+                    
                     return [
                         'value' => round(floatval($rsiValues[$latestDate]['RSI']), 2),
                         'date' => $latestDate
@@ -488,6 +476,28 @@ class UpdateIndicatorCache extends Command
             }
         } catch (\Exception $e) {
             Log::error('RSI calculation failed: ' . $e->getMessage());
+        }
+        
+        // Only fallback to Alpha Vantage if CoinGecko fails
+        try {
+            $rsiResult = $this->alphaVantageService->getRSI('BTCUSD', 'daily', 14);
+            $rsiData = $rsiResult['data'] ?? [];
+            
+            if (isset($rsiData['Technical Analysis: RSI'])) {
+                $rsiValues = $rsiData['Technical Analysis: RSI'];
+                $latestDate = array_key_first($rsiValues);
+                
+                // Store the full RSI data in the cache that AlphaVantageService reads from
+                $cacheKey = "av_RSI_BTCUSD_daily_14";
+                $this->cacheService->storeWithMetadata($cacheKey, $rsiData);
+                
+                return [
+                    'value' => round(floatval($rsiValues[$latestDate]['RSI']), 2),
+                    'date' => $latestDate
+                ];
+            }
+        } catch (\Exception $e) {
+            Log::warning('Alpha Vantage RSI failed: ' . $e->getMessage());
         }
         
         return null;
@@ -613,6 +623,6 @@ class UpdateIndicatorCache extends Command
             $rsiValues[$date] = ['RSI' => number_format($rsi, 2)];
         }
         
-        return ['Technical Analysis: RSI' => array_slice($rsiValues, -30, null, true)];
+        return ['Technical Analysis: RSI' => array_reverse(array_slice($rsiValues, -30, null, true), true)];
     }
 }

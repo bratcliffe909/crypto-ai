@@ -51,7 +51,7 @@ class UpdateSentimentCache extends Command
         // Update Fear & Greed Index
         try {
             $this->info('Updating Fear & Greed Index...');
-            $fearGreedData = $this->sentimentRepository->getFearGreedIndexDirect(30);
+            $fearGreedData = $this->sentimentRepository->getFearGreedIndexDirect(1);
             
             if (isset($fearGreedData['data']['data'][0]['value'])) {
                 $currentValue = $fearGreedData['data']['data'][0]['value'];
