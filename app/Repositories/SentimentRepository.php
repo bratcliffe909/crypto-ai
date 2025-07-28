@@ -643,4 +643,122 @@ class SentimentRepository extends BaseRepository
             'timestamp' => now()->toIso8601String()
         ];
     }
+    
+    /**
+     * Calculate comprehensive market sentiment using 30-day price changes for improved reliability
+     * This method provides the same response structure as the 24-hour version but with better data
+     */
+    public function calculateComprehensiveMarketSentiment30Day(array $coinData): array
+    {
+        if (empty($coinData)) {
+            throw new \Exception("No coin data provided for sentiment calculation");
+        }
+        
+        // First, calculate the basic market signals using 30-day data
+        $bullishCount = 0;
+        $bearishCount = 0;
+        $neutralCount = 0;
+        $priceChanges30d = [];
+        $volumes = [];
+        
+        foreach ($coinData as $symbol => $coin) {
+            $signal = $this->getSignalFromPrice30Day($coin);
+            switch ($signal) {
+                case 'bullish':
+                    $bullishCount++;
+                    break;
+                case 'bearish':
+                    $bearishCount++;
+                    break;
+                default:
+                    $neutralCount++;
+            }
+            
+            // Collect 30-day price changes
+            if (isset($coin['CHANGEPCT30DAY'])) {
+                $priceChanges30d[] = $coin['CHANGEPCT30DAY'];
+            }
+            
+            // Collect volume data (keep as 24-hour since volume is more meaningful short-term)
+            if (isset($coin['VOLUME24HOURTO'])) {
+                $volumes[] = $coin['VOLUME24HOURTO'];
+            }
+        }
+        
+        $totalCoins = count($coinData);
+        
+        // Calculate component metrics based on 30-day data
+        $components = [];
+        
+        // 1. Price Momentum - Average 30-day price change
+        // Adjusted scale: -50% = 0, +50% = 100 (vs -10%/+10% for 24h)
+        $avgPriceChange30d = !empty($priceChanges30d) ? array_sum($priceChanges30d) / count($priceChanges30d) : 0;
+        $components['price_momentum'] = max(0, min(100, 50 + ($avgPriceChange30d * 1))); // 1x multiplier for 30d scale
+        
+        // 2. Market Breadth - Percentage of coins with 30-day gains (>20% threshold)
+        $bullish30dCount = count(array_filter($priceChanges30d, fn($change) => $change > 20));
+        $components['market_breadth'] = $totalCoins > 0 ? ($bullish30dCount / $totalCoins) * 100 : 50;
+        
+        // 3. Bullish Strength - How strong are the 30-day bullish moves
+        $bullishChanges30d = array_filter($priceChanges30d, function($change) { return $change > 20; });
+        $avgBullishChange30d = !empty($bullishChanges30d) ? array_sum($bullishChanges30d) / count($bullishChanges30d) : 0;
+        // Convert to 0-100: 0% = 50, 50%+ = 100
+        $components['bullish_strength'] = min(100, 50 + ($avgBullishChange30d * 1));
+        
+        // 4. Volume Activity - Keep 24-hour volume logic (unchanged)
+        $btcVolume = isset($coinData['BTC']['VOLUME24HOURTO']) ? $coinData['BTC']['VOLUME24HOURTO'] : 0;
+        $totalVolume = array_sum($volumes);
+        $btcDominance = $totalVolume > 0 ? ($btcVolume / $totalVolume) * 100 : 50;
+        $components['alt_activity'] = max(0, min(100, 100 - $btcDominance));
+        
+        // 5. Trend Consistency - Are most coins moving in the same direction (30-day)?
+        $directionConsistency = max($bullishCount, $bearishCount) / $totalCoins;
+        $components['trend_strength'] = $directionConsistency * 100;
+        
+        // Calculate overall sentiment score as weighted average
+        $weights = [
+            'price_momentum' => 0.25,
+            'market_breadth' => 0.25,
+            'bullish_strength' => 0.20,
+            'alt_activity' => 0.15,
+            'trend_strength' => 0.15
+        ];
+        
+        $sentimentScore = 0;
+        foreach ($components as $component => $score) {
+            $sentimentScore += $score * $weights[$component];
+        }
+        
+        return [
+            'sentiment_score' => round($sentimentScore),
+            'bullish_percentage' => round(($bullishCount / $totalCoins) * 100, 2),
+            'bearish_percentage' => round(($bearishCount / $totalCoins) * 100, 2),
+            'neutral_percentage' => round(($neutralCount / $totalCoins) * 100, 2),
+            'coins_analyzed' => $totalCoins,
+            'components' => [
+                'price_momentum' => round($components['price_momentum'], 1),
+                'market_breadth' => round($components['market_breadth'], 1),
+                'bullish_strength' => round($components['bullish_strength'], 1),
+                'alt_activity' => round($components['alt_activity'], 1),
+                'trend_strength' => round($components['trend_strength'], 1)
+            ],
+            'avg_change' => round($avgPriceChange30d, 2),
+            'period' => '30_day', // Indicator that this uses 30-day data
+            'timestamp' => now()->toIso8601String()
+        ];
+    }
+    
+    /**
+     * Get signal from 30-day price data with appropriate thresholds
+     */
+    private function getSignalFromPrice30Day(array $data): string
+    {
+        // Use 30-day change if available, otherwise fall back to 24-hour
+        $change = $data['CHANGEPCT30DAY'] ?? $data['CHANGEPCT24HOUR'] ?? 0;
+        
+        // 30-day thresholds: 20% gains/losses are significant
+        if ($change > 20) return 'bullish';
+        if ($change < -20) return 'bearish';
+        return 'neutral';
+    }
 }

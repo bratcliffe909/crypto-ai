@@ -154,6 +154,140 @@ class AltcoinSeasonRepository extends BaseRepository
     }
 
     /**
+     * Calculate Altcoin Season Index directly from API (bypasses cache for updates)
+     *
+     * @param string $period
+     * @return array
+     */
+    public function calculateAltcoinSeasonIndexDirect(string $period = '90d'): array
+    {
+        $this->logOperation('calculateAltcoinSeasonIndexDirect', ['period' => $period]);
+        
+        $cacheKey = 'altcoin_season_index';
+        
+        // Get fresh market data directly from API
+        $marketsResponse = $this->coinGeckoService->fetchFreshMarketData('usd', null, 50);
+        
+        if (!$marketsResponse['success'] || empty($marketsResponse['data'])) {
+            throw new \Exception('Failed to fetch fresh market data: ' . ($marketsResponse['error'] ?? 'Unknown error'));
+        }
+        
+        $markets = $marketsResponse['data'];
+        
+        // Log the first market entry to debug
+        if (!empty($markets)) {
+            $firstCoin = $markets[0];
+            Log::info("Altcoin Season Direct: First coin data", [
+                'id' => $firstCoin['id'] ?? 'unknown',
+                '24h' => $firstCoin['price_change_percentage_24h'] ?? 'null',
+                '7d' => $firstCoin['price_change_percentage_7d_in_currency'] ?? 'null',
+                '30d' => $firstCoin['price_change_percentage_30d_in_currency'] ?? 'null',
+                '90d' => $firstCoin['price_change_percentage_90d_in_currency'] ?? 'null'
+            ]);
+        }
+        
+        if (empty($markets)) {
+            throw new \Exception('No market data available');
+        }
+        
+        // Get Bitcoin's performance - prefer 90d but use what's available
+        $btcPerformance = 0;
+        $btcPeriodUsed = 'none';
+        $periodField = null;
+        
+        foreach ($markets as $coin) {
+            if ($coin['id'] === 'bitcoin') {
+                // Check which period we have data for (prefer longer periods)
+                if (isset($coin['price_change_percentage_90d_in_currency']) && $coin['price_change_percentage_90d_in_currency'] !== null) {
+                    $btcPerformance = $coin['price_change_percentage_90d_in_currency'];
+                    $btcPeriodUsed = '90d';
+                    $periodField = 'price_change_percentage_90d_in_currency';
+                } elseif (isset($coin['price_change_percentage_30d_in_currency']) && $coin['price_change_percentage_30d_in_currency'] !== null) {
+                    $btcPerformance = $coin['price_change_percentage_30d_in_currency'];
+                    $btcPeriodUsed = '30d';
+                    $periodField = 'price_change_percentage_30d_in_currency';
+                } elseif (isset($coin['price_change_percentage_7d_in_currency']) && $coin['price_change_percentage_7d_in_currency'] !== null) {
+                    $btcPerformance = $coin['price_change_percentage_7d_in_currency'];
+                    $btcPeriodUsed = '7d';
+                    $periodField = 'price_change_percentage_7d_in_currency';
+                } elseif (isset($coin['price_change_percentage_24h']) && $coin['price_change_percentage_24h'] !== null) {
+                    $btcPerformance = $coin['price_change_percentage_24h'];
+                    $btcPeriodUsed = '24h';
+                    $periodField = 'price_change_percentage_24h';
+                }
+                
+                Log::info("Altcoin Season Direct: Bitcoin performance {$btcPerformance}% over {$btcPeriodUsed}", [
+                    'field' => $periodField,
+                    'value' => $btcPerformance
+                ]);
+                break;
+            }
+        }
+        
+        // Count how many altcoins outperformed Bitcoin
+        $outperformingCount = 0;
+        $topPerformers = [];
+        
+        foreach ($markets as $coin) {
+            if ($coin['id'] === 'bitcoin') continue;
+            
+            // Use the same period data as Bitcoin
+            $coinPerformance = 0;
+            if ($periodField && isset($coin[$periodField])) {
+                $coinPerformance = $coin[$periodField];
+                
+                if ($coinPerformance > $btcPerformance) {
+                    $outperformingCount++;
+                    $topPerformers[] = [
+                        'symbol' => $coin['symbol'],
+                        'name' => $coin['name'],
+                        'performance' => round($coinPerformance, 2)
+                    ];
+                }
+            }
+        }
+        
+        // Sort top performers by performance descending
+        usort($topPerformers, function($a, $b) {
+            return $b['performance'] <=> $a['performance'];
+        });
+        
+        // Calculate index (percentage of altcoins outperforming Bitcoin)
+        $currentIndex = round(($outperformingCount / 49) * 100); // 49 altcoins (excluding Bitcoin)
+        
+        Log::info("Altcoin Season Direct: Calculated index", [
+            'outperforming' => $outperformingCount,
+            'total' => 49,
+            'index' => $currentIndex,
+            'btc_performance' => $btcPerformance,
+            'period' => $btcPeriodUsed
+        ]);
+        
+        // Generate historical data (simulated for now)
+        $historicalData = $this->generateHistoricalData($currentIndex);
+        
+        $result = [
+            'currentIndex' => $currentIndex,
+            'outperformingCount' => $outperformingCount,
+            'totalCoins' => 49, // Excluding Bitcoin
+            'btcPerformance' => round($btcPerformance, 2),
+            'periodUsed' => $btcPeriodUsed,
+            'topPerformers' => array_slice($topPerformers, 0, 10),
+            'historicalData' => $historicalData
+        ];
+        
+        // Store in cache using CacheService
+        $this->cacheService->storeWithMetadata($cacheKey, $result);
+        
+        Log::info("Altcoin Season Direct: Cache updated", [
+            'cacheKey' => $cacheKey,
+            'index' => $currentIndex
+        ]);
+        
+        return $result;
+    }
+
+    /**
      * Get performance comparison between coins
      *
      * @param array $coinIds

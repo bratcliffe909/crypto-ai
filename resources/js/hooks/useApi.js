@@ -40,10 +40,10 @@ const useApi = (endpoint, options = {}) => {
           setDataSource(dataSourceHeader);
         }
         
-        if (lastUpdatedHeader) {
+        if (lastUpdatedHeader && lastUpdatedHeader !== '') {
           setLastFetch(new Date(lastUpdatedHeader));
         } else {
-          setLastFetch(new Date());
+          setLastFetch(null);
         }
       } catch (err) {
         setError(err.message || 'Failed to fetch data');

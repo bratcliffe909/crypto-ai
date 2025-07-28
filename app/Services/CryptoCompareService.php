@@ -71,7 +71,7 @@ class CryptoCompareService
     }
 
     /**
-     * Fetch market sentiment data
+     * Fetch market sentiment data using 30-day price changes for better reliability
      */
     private function fetchMarketSentiment()
     {
@@ -79,7 +79,7 @@ class CryptoCompareService
         $coinData = [];
         
         try {
-            // Get comprehensive price and volume data for top coins
+            // Get current real-time data for volumes and metadata
             $symbols = implode(',', $topCoins);
             $response = Http::timeout(10)->get("{$this->baseUrl}/pricemultifull", [
                 'fsyms' => $symbols,
@@ -96,7 +96,6 @@ class CryptoCompareService
                     'type' => $responseData['Type'] ?? 'Unknown'
                 ]);
                 
-                // Return empty result - let cache handle it
                 throw new \Exception("CryptoCompare API rate limited: " . ($responseData['Message'] ?? 'Unknown error'));
             }
             
@@ -109,19 +108,89 @@ class CryptoCompareService
                     }
                 }
             }
+            
+            // Enhance coin data with 30-day price changes
+            $coinDataWith30Day = $this->enhance30DayPriceChanges($coinData, $topCoins);
+            
         } catch (\Exception $e) {
             Log::warning("Failed to get market sentiment", ['error' => $e->getMessage()]);
             throw $e;
         }
         
         // If no data was retrieved, throw exception
-        if (empty($coinData)) {
+        if (empty($coinDataWith30Day)) {
             throw new \Exception("No sentiment data could be calculated");
         }
         
-        // Use SentimentRepository for comprehensive calculation
+        // Use SentimentRepository for comprehensive calculation with 30-day data
         $sentimentRepository = app(\App\Repositories\SentimentRepository::class);
-        return $sentimentRepository->calculateComprehensiveMarketSentiment($coinData);
+        return $sentimentRepository->calculateComprehensiveMarketSentiment30Day($coinDataWith30Day);
+    }
+    
+    /**
+     * Enhance coin data with 30-day price changes for more reliable sentiment analysis
+     */
+    private function enhance30DayPriceChanges(array $coinData, array $symbols): array
+    {
+        $enhancedData = $coinData;
+        
+        foreach ($symbols as $symbol) {
+            if (!isset($coinData[$symbol])) continue;
+            
+            try {
+                // Get 30 days of historical data for this symbol
+                $response = Http::timeout(10)->get("{$this->baseUrl}/v2/histoday", [
+                    'fsym' => $symbol,
+                    'tsym' => 'USD',
+                    'limit' => 30,
+                    'api_key' => $this->apiKey
+                ]);
+                
+                if ($response->successful()) {
+                    $histData = $response->json();
+                    
+                    if (isset($histData['Data']['Data']) && count($histData['Data']['Data']) >= 30) {
+                        $historicalPrices = $histData['Data']['Data'];
+                        $currentPrice = end($historicalPrices)['close'];
+                        $price30DaysAgo = $historicalPrices[0]['close'];
+                        
+                        if ($price30DaysAgo > 0) {
+                            $change30Day = (($currentPrice - $price30DaysAgo) / $price30DaysAgo) * 100;
+                            
+                            // Add 30-day change to existing coin data
+                            $enhancedData[$symbol]['CHANGEPCT30DAY'] = $change30Day;
+                            $enhancedData[$symbol]['PRICE30DAYSAGO'] = $price30DaysAgo;
+                            
+                            Log::debug("30-day change for {$symbol}: {$change30Day}%", [
+                                'current' => $currentPrice,
+                                'ago' => $price30DaysAgo
+                            ]);
+                        }
+                    }
+                }
+                
+                // Rate limiting - 50 calls/second max, so 0.1 second delay
+                usleep(100000);
+                
+            } catch (\Exception $e) {
+                Log::warning("Failed to get 30-day data for {$symbol}", [
+                    'error' => $e->getMessage()
+                ]);
+                
+                // If 30-day data fails, fall back to 24-hour change
+                if (isset($coinData[$symbol]['CHANGEPCT24HOUR'])) {
+                    $enhancedData[$symbol]['CHANGEPCT30DAY'] = $coinData[$symbol]['CHANGEPCT24HOUR'];
+                    Log::info("Using 24-hour fallback for {$symbol}");
+                }
+            }
+        }
+        
+        Log::info("Enhanced coin data with 30-day changes", [
+            'symbols_processed' => count($enhancedData),
+            'symbols_with_30d' => count(array_filter($enhancedData, fn($data) => isset($data['CHANGEPCT30DAY'])))
+        ]);
+        
+        return $enhancedData;
     }
 
     /**

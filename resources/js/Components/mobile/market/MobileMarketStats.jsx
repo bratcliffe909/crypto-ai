@@ -5,7 +5,7 @@ import LoadingSpinner from '../../common/LoadingSpinner';
 import TimeAgo from '../../common/TimeAgo';
 
 const MobileMarketStats = () => {
-  const { data, loading, error, lastFetch } = useApi('/api/crypto/market-metrics/global', 60000);
+  const { data, loading, error, lastUpdated } = useApi('/api/crypto/market-metrics/global', 60000);
   
   const formatMarketCap = (value) => {
     if (!value || typeof value !== 'number') return '$0';

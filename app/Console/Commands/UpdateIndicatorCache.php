@@ -77,9 +77,8 @@ class UpdateIndicatorCache extends Command
         try {
             $this->info('Updating Bitcoin Rainbow Chart...');
             
-            // Call getRainbowChartData once to populate the master cache
-            // The actual days parameter doesn't matter since we use master cache
-            $rainbowData = $this->rainbowChartService->getRainbowChartData('max');
+            // Call getRainbowChartDataDirect to fetch fresh data and update cache
+            $rainbowData = $this->rainbowChartService->getRainbowChartDataDirect('max');
             
             if (!empty($rainbowData['data'])) {
                 $dataPoints = count($rainbowData['data']);
@@ -103,7 +102,7 @@ class UpdateIndicatorCache extends Command
         // Update Altcoin Season Index
         try {
             $this->info('Updating Altcoin Season Index...');
-            $altcoinData = $this->altcoinSeasonRepository->calculateAltcoinSeasonIndex();
+            $altcoinData = $this->altcoinSeasonRepository->calculateAltcoinSeasonIndexDirect();
             
             if ($altcoinData && isset($altcoinData['currentIndex'])) {
                 $results['altcoinSeason']['index'] = $altcoinData['currentIndex'];

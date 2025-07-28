@@ -80,8 +80,8 @@ class NewsRepository extends BaseRepository
             // Calculate pagination offset
             $offset = ($page - 1) * $perPage;
             
-            // Get news from Finnhub
-            $finnhubResult = $this->finnhubService->getMarketNews('crypto');
+            // Get news from Finnhub (bypass cache for updates)
+            $finnhubResult = $this->finnhubService->getMarketNewsDirect('crypto');
             
             // Handle the cache service response format
             $finnhubNews = $finnhubResult['data'] ?? [];

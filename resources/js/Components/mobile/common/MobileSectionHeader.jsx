@@ -1,4 +1,5 @@
 import React from 'react';
+import TimeAgo from '../common/TimeAgo';
 
 const MobileSectionHeader = ({ 
   title, 
@@ -16,6 +17,7 @@ const MobileSectionHeader = ({
           <h5 className="section-title mb-0">{title}</h5>
         </div>
         <div className="header-actions">
+          {lastUpdated && <TimeAgo date={lastUpdated} />}
           {children}
         </div>
       </div>

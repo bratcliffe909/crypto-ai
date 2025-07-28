@@ -30,4 +30,12 @@ class RainbowChartService
     {
         return $this->indicatorRepository->getRainbowChartStatus();
     }
+    
+    /**
+     * Get rainbow chart data directly from API (bypasses cache for updates)
+     */
+    public function getRainbowChartDataDirect($days = 'max')
+    {
+        return $this->indicatorRepository->getRainbowChartDataDirect($days);
+    }
 }

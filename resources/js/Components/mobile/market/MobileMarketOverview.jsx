@@ -7,15 +7,15 @@ import { formatPrice, formatPercentage, formatMarketCap } from '../../../utils/f
 
 const MobileMarketOverview = ({ onDataLoad }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const { data, loading, error, lastFetch } = useApi('/api/crypto/markets?per_page=250');
+  const { data, loading, error, lastUpdated } = useApi('/api/crypto/markets?per_page=250');
   const coins = data || [];
 
   // Notify parent of data updates
   useEffect(() => {
     if (onDataLoad) {
-      onDataLoad(lastFetch, error);
+      onDataLoad(lastUpdated, error);
     }
-  }, [lastFetch, error, onDataLoad]);
+  }, [lastUpdated, error, onDataLoad]);
 
   const filteredCoins = useMemo(() => {
     if (!coins || !Array.isArray(coins)) return [];

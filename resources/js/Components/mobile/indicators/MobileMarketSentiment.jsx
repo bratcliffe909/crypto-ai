@@ -1,10 +1,11 @@
 import React from 'react';
 import useApi from '../../../hooks/useApi';
 import MobileSectionHeader from '../common/MobileSectionHeader';
+import TimeAgo from '../../common/TimeAgo';
 import { BsGraphUp, BsArrowUp, BsArrowDown, BsDash } from 'react-icons/bs';
 
 const MobileMarketSentiment = () => {
-    const { data: sentimentData, loading: sentimentLoading, error: sentimentError } = useApi('/api/crypto/market-sentiment');
+    const { data: sentimentData, loading: sentimentLoading, error: sentimentError, lastUpdated } = useApi('/api/crypto/market-sentiment');
     const { data: socialData, loading: socialLoading, error: socialError } = useApi('/api/crypto/social-activity?days=30');
 
     const getSentimentLabel = (score) => {
@@ -55,7 +56,17 @@ const MobileMarketSentiment = () => {
 
     return (
         <div className="mobile-section">
-            <MobileSectionHeader title="Market Sentiment" icon={BsGraphUp} />
+            <div className="mobile-section-header">
+                <div className="header-content">
+                    <div className="d-flex align-items-center">
+                        <BsGraphUp className="section-icon me-2" size={20} />
+                        <h5 className="section-title mb-0">Market Sentiment</h5>
+                    </div>
+                    <div className="header-actions">
+                        {lastUpdated && <TimeAgo date={lastUpdated} />}
+                    </div>
+                </div>
+            </div>
             
             <div className="p-3">
                 {/* Sentiment Score */}

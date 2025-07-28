@@ -337,7 +337,7 @@ class ChartController extends Controller
             return response()->json($result)
                 ->header('X-Cache-Age', $recentWeeksData['metadata']['cacheAge'] ?? 0)
                 ->header('X-Data-Source', $recentWeeksData['metadata']['source'] ?? 'cache')
-                ->header('X-Last-Updated', $recentWeeksData['metadata']['lastUpdated'] ?? now()->toIso8601String());
+                ->header('X-Last-Updated', $recentWeeksData['metadata']['lastUpdated'] ?? '');
                 
         } catch (\Exception $e) {
             \Log::error('Bull Market Band error: ' . $e->getMessage());
@@ -354,9 +354,10 @@ class ChartController extends Controller
             // Use repository to get Pi Cycle Top data
             $result = $this->indicatorRepository->getPiCycleTopData();
             
-            // Extract data and metadata
-            $piCycleData = $result['data'] ?? [];
-            $metadata = $result['metadata'] ?? [];
+            // Extract data and metadata (checking for CacheService format)
+            $piCycleData = isset($result['data']['data']) ? $result['data']['data'] : ($result['data'] ?? []);
+            $innerMetadata = isset($result['data']['metadata']) ? $result['data']['metadata'] : ($result['metadata'] ?? []);
+            $cacheMetadata = $result['metadata'] ?? [];
             
             // Filter out early data points without indicators for cleaner display
             $filteredData = array_filter($piCycleData, function($item) {
@@ -364,10 +365,10 @@ class ChartController extends Controller
             });
             
             return response()->json(array_values($filteredData))
-                ->header('X-Last-Crossover', $metadata['last_crossover'] ?? 'none')
-                ->header('X-Current-Status', $metadata['current_status'] ?? 'unknown')
-                ->header('X-Data-Source', 'repository')
-                ->header('X-Last-Updated', now()->toIso8601String());
+                ->header('X-Last-Crossover', $innerMetadata['last_crossover'] ?? 'none')
+                ->header('X-Current-Status', $innerMetadata['current_status'] ?? 'unknown')
+                ->header('X-Data-Source', $cacheMetadata['source'] ?? 'repository')
+                ->header('X-Last-Updated', $cacheMetadata['lastUpdated'] ?? '');
                 
         } catch (\Exception $e) {
             \Log::error('Pi Cycle Top controller error: ' . $e->getMessage());

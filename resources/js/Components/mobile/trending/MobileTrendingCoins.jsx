@@ -7,7 +7,7 @@ import MobileSectionHeader from '../common/MobileSectionHeader';
 import { formatPercentage } from '../../../utils/formatters';
 
 const MobileTrendingCoins = () => {
-  const { data, loading, error, lastFetch } = useApi('/api/crypto/trending');
+  const { data, loading, error, lastUpdated } = useApi('/api/crypto/trending');
   const trendingCoins = data?.coins || [];
 
   return (
@@ -15,7 +15,7 @@ const MobileTrendingCoins = () => {
       <MobileSectionHeader
         title="Trending"
         icon={BsFire}
-        lastUpdated={lastFetch}
+        lastUpdated={lastUpdated}
         error={error}
       />
 

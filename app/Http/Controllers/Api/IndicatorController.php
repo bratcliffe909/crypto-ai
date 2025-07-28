@@ -258,7 +258,7 @@ class IndicatorController extends Controller
             return response()->json($result['data'])
             ->header('X-Cache-Age', $result['metadata']['cacheAge'] ?? 0)
             ->header('X-Data-Source', $result['metadata']['source'] ?? 'unknown')
-            ->header('X-Last-Updated', $result['metadata']['lastUpdated'] ?? now()->toIso8601String());
+            ->header('X-Last-Updated', $result['metadata']['lastUpdated'] ?? '');
             
         } catch (\Exception $e) {
             Log::error('Fear and Greed Index error', ['error' => $e->getMessage()]);
@@ -308,7 +308,7 @@ class IndicatorController extends Controller
             ])
             ->header('X-Cache-Age', $result['metadata']['cacheAge'] ?? 0)
             ->header('X-Data-Source', $result['metadata']['source'] ?? 'unknown')
-            ->header('X-Last-Updated', $result['metadata']['lastUpdated'] ?? now()->toIso8601String());
+            ->header('X-Last-Updated', $result['metadata']['lastUpdated'] ?? '');
             
         } catch (\Exception $e) {
             Log::error('Economic Calendar error', [
@@ -345,7 +345,7 @@ class IndicatorController extends Controller
             return response()->json($result)
             ->header('X-Cache-Age', 0)
             ->header('X-Data-Source', 'cache')
-            ->header('X-Last-Updated', $result['lastUpdated'] ?? now()->toIso8601String());
+            ->header('X-Last-Updated', $result['lastUpdated'] ?? '');
             
         } catch (\Exception $e) {
             Log::error('News Feed error', ['error' => $e->getMessage()]);

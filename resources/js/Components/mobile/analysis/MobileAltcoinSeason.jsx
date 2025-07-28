@@ -5,7 +5,7 @@ import useApi from '../../../hooks/useApi';
 import LoadingSpinner from '../../common/LoadingSpinner';
 
 const MobileAltcoinSeason = () => {
-  const { data: rawData, loading, error } = useApi('/api/crypto/altcoin-season', 300000); // 5 minutes cache
+  const { data: rawData, loading, error, lastUpdated } = useApi('/api/crypto/altcoin-season', 300000); // 5 minutes cache
 
   // Calculate current index and status
   const { currentIndex, seasonStatus, seasonColor, historicalData } = useMemo(() => {

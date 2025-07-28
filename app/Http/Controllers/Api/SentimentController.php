@@ -28,10 +28,13 @@ class SentimentController extends Controller
             $data = $result['data'] ?? $result;
             $metadata = $result['metadata'] ?? [];
             
+            // Use actual cache timestamp - don't fallback to now()
+            $lastUpdated = $metadata['lastUpdated'] ?? null;
+            
             return response()->json($data)
                 ->header('X-Cache-Age', $metadata['cacheAge'] ?? 0)
                 ->header('X-Data-Source', $metadata['source'] ?? 'unknown')
-                ->header('X-Last-Updated', $metadata['lastUpdated'] ?? now()->toIso8601String());
+                ->header('X-Last-Updated', $lastUpdated ?: '');
         } catch (\Exception $e) {
             Log::error('Market sentiment error', ['error' => $e->getMessage()]);
             return response()->json([
@@ -54,10 +57,13 @@ class SentimentController extends Controller
             $data = $result['data'] ?? $result;
             $metadata = $result['metadata'] ?? [];
             
+            // Use actual cache timestamp - don't fallback to now()
+            $lastUpdated = $metadata['lastUpdated'] ?? null;
+            
             return response()->json($data)
                 ->header('X-Cache-Age', $metadata['cacheAge'] ?? 0)
                 ->header('X-Data-Source', $metadata['source'] ?? 'unknown')
-                ->header('X-Last-Updated', $metadata['lastUpdated'] ?? now()->toIso8601String());
+                ->header('X-Last-Updated', $lastUpdated ?: '');
         } catch (\Exception $e) {
             Log::error('Social activity error', ['error' => $e->getMessage()]);
             return response()->json([

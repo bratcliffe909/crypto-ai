@@ -32,7 +32,7 @@ class MarketDataController extends Controller
         return response()->json($result['data'] ?? [])
             ->header('X-Cache-Age', $result['metadata']['cacheAge'] ?? 0)
             ->header('X-Data-Source', $result['metadata']['source'] ?? 'unknown')
-            ->header('X-Last-Updated', $result['metadata']['lastUpdated'] ?? now()->toIso8601String());
+            ->header('X-Last-Updated', $result['metadata']['lastUpdated'] ?? '');
     }
 
     /**
@@ -47,7 +47,7 @@ class MarketDataController extends Controller
         return response()->json($result['data'] ?? [])
             ->header('X-Cache-Age', $result['metadata']['cacheAge'] ?? 0)
             ->header('X-Data-Source', $result['metadata']['source'] ?? 'unknown')
-            ->header('X-Last-Updated', $result['metadata']['lastUpdated'] ?? now()->toIso8601String());
+            ->header('X-Last-Updated', $result['metadata']['lastUpdated'] ?? '');
     }
 
     /**
@@ -60,7 +60,7 @@ class MarketDataController extends Controller
         return response()->json($result['data'] ?? [])
             ->header('X-Cache-Age', $result['metadata']['cacheAge'] ?? 0)
             ->header('X-Data-Source', $result['metadata']['source'] ?? 'unknown')
-            ->header('X-Last-Updated', $result['metadata']['lastUpdated'] ?? now()->toIso8601String());
+            ->header('X-Last-Updated', $result['metadata']['lastUpdated'] ?? '');
     }
 
     /**
@@ -79,7 +79,7 @@ class MarketDataController extends Controller
         return response()->json($result['data'] ?? [])
             ->header('X-Cache-Age', $result['metadata']['cacheAge'] ?? 0)
             ->header('X-Data-Source', $result['metadata']['source'] ?? 'unknown')
-            ->header('X-Last-Updated', $result['metadata']['lastUpdated'] ?? now()->toIso8601String());
+            ->header('X-Last-Updated', $result['metadata']['lastUpdated'] ?? '');
     }
     
     /**
@@ -99,7 +99,7 @@ class MarketDataController extends Controller
         return response()->json($result['data'] ?? [])
             ->header('X-Cache-Age', $result['metadata']['cacheAge'] ?? 0)
             ->header('X-Data-Source', $result['metadata']['source'] ?? 'unknown')
-            ->header('X-Last-Updated', $result['metadata']['lastUpdated'] ?? now()->toIso8601String());
+            ->header('X-Last-Updated', $result['metadata']['lastUpdated'] ?? '');
     }
     
     /**

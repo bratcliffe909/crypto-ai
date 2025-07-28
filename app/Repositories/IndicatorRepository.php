@@ -735,4 +735,187 @@ class IndicatorRepository extends BaseRepository
         
         return $result['data'] ?? $result;
     }
+    
+    /**
+     * Get rainbow chart data directly from API (bypasses cache for updates)
+     * Follows proper historical + recent pattern:
+     * - If historical cache empty: fetch full dataset and cache forever
+     * - If historical cache exists: fetch last 30 days only and merge/dedupe
+     */
+    public function getRainbowChartDataDirect(string $days = 'max'): array
+    {
+        try {
+            $historicalKey = "rainbow_chart_historical_v2";
+            $recentKey = "rainbow_chart_recent_master";
+            
+            // Check if historical cache exists
+            $historicalPrices = Cache::get($historicalKey);
+            
+            $allPrices = [];
+            
+            if (!$historicalPrices || count($historicalPrices) < 1000) {
+                // Historical cache empty or insufficient - fetch full dataset
+                Log::info("Rainbow Chart Direct: Historical cache empty, fetching full dataset");
+                
+                // First try CryptoCompare for maximum historical data
+                if ($this->cryptoCompareService) {
+                    try {
+                        $historicalData = $this->cryptoCompareService->getHistoricalDailyPrices('BTC', 'USD', 2000);
+                        
+                        $cryptoCompareResponse = $historicalData['data'] ?? [];
+                        
+                        if (isset($cryptoCompareResponse['Data']['Data'])) {
+                            foreach ($cryptoCompareResponse['Data']['Data'] as $day) {
+                                if (isset($day['time']) && isset($day['close']) && $day['close'] > 0) {
+                                    $allPrices[$day['time'] * 1000] = [
+                                        'timestamp' => $day['time'] * 1000,
+                                        'price' => $day['close']
+                                    ];
+                                }
+                            }
+                            Log::info("Rainbow Chart Direct: Got " . count($allPrices) . " days from CryptoCompare");
+                        }
+                    } catch (\Exception $e) {
+                        Log::warning("CryptoCompare failed for Rainbow Chart Direct: " . $e->getMessage());
+                    }
+                }
+                
+                // If we don't have enough data, try CoinGecko (limited to 365 days on free tier)
+                if (count($allPrices) < 365) {
+                    try {
+                        $maxResult = $this->coinGeckoService->getMarketChart('bitcoin', 'usd', 365);
+                        
+                        if (isset($maxResult['data']['prices'])) {
+                            foreach ($maxResult['data']['prices'] as $pricePoint) {
+                                $timestamp = $pricePoint[0];
+                                $allPrices[$timestamp] = [
+                                    'timestamp' => $timestamp,
+                                    'price' => $pricePoint[1]
+                                ];
+                            }
+                            Log::info("Rainbow Chart Direct: Got " . count($allPrices) . " days from CoinGecko");
+                        }
+                    } catch (\Exception $e) {
+                        Log::warning('CoinGecko failed for Rainbow Chart Direct: ' . $e->getMessage());
+                    }
+                }
+                
+                // Sort by timestamp and convert to [timestamp, price] format
+                ksort($allPrices);
+                
+                $historicalPrices = [];
+                foreach ($allPrices as $priceData) {
+                    $historicalPrices[] = [
+                        $priceData['timestamp'],
+                        $priceData['price']
+                    ];
+                }
+                
+                // Cache historical data forever
+                if (count($historicalPrices) > 0) {
+                    Cache::forever($historicalKey, $historicalPrices);
+                    Log::info("Rainbow Chart Direct: Cached " . count($historicalPrices) . " historical data points forever");
+                }
+            } else {
+                // Historical cache exists - fetch only recent 30 days
+                Log::info("Rainbow Chart Direct: Historical cache exists (" . count($historicalPrices) . " points), fetching recent 30 days");
+                
+                // Populate allPrices from existing historical data
+                foreach ($historicalPrices as $pricePoint) {
+                    $timestamp = $pricePoint[0];
+                    $allPrices[$timestamp] = $pricePoint[1];
+                }
+            }
+            
+            // Always fetch recent 30 days to update recent cache
+            try {
+                $recentResult = $this->coinGeckoService->getMarketChart('bitcoin', 'usd', 30);
+                $recentPrices = $recentResult['data']['prices'] ?? [];
+                
+                Log::info("Rainbow Chart Direct: Fetched " . count($recentPrices) . " recent data points (30 days)");
+                
+                // Merge recent data with existing data (deduplicating by timestamp)
+                foreach ($recentPrices as $pricePoint) {
+                    $timestamp = $pricePoint[0];
+                    $allPrices[$timestamp] = $pricePoint[1];
+                }
+                
+                // Update recent cache with fresh data
+                $recentCacheData = ['prices' => $recentPrices];
+                $this->cacheService->storeWithMetadata($recentKey, $recentCacheData);
+                
+                Log::info("Rainbow Chart Direct: Updated recent cache with " . count($recentPrices) . " points");
+                
+            } catch (\Exception $e) {
+                Log::warning('Failed to get recent rainbow chart data: ' . $e->getMessage());
+                // Continue with existing data if recent fetch fails
+            }
+            
+            // Sort merged data by timestamp
+            ksort($allPrices);
+            
+            // Process data with rainbow bands
+            $genesisDate = Carbon::parse(self::GENESIS_DATE);
+            $processedData = [];
+            
+            foreach ($allPrices as $timestamp => $price) {
+                $date = Carbon::createFromTimestampMs($timestamp);
+                $daysSinceGenesis = $genesisDate->diffInDays($date);
+                
+                // Skip if before genesis
+                if ($daysSinceGenesis < 1) {
+                    continue;
+                }
+                
+                // Calculate rainbow bands
+                $bands = $this->calculateRainbowBands($daysSinceGenesis);
+                
+                // Determine current band
+                $currentBand = $this->getCurrentBand($price, $bands);
+                
+                $dataPoint = [
+                    'date' => $date->format('Y-m-d'),
+                    'timestamp' => $timestamp,
+                    'price' => round($price, 2),
+                    'daysSinceGenesis' => $daysSinceGenesis,
+                    'currentBand' => $currentBand,
+                    'bands' => $bands
+                ];
+                
+                $processedData[] = $dataPoint;
+            }
+            
+            // Filter by days if not 'max'
+            if ($days !== 'max') {
+                $daysToShow = intval($days);
+                $cutoffTime = time() * 1000 - ($daysToShow * 24 * 60 * 60 * 1000);
+                $processedData = array_filter($processedData, function($item) use ($cutoffTime) {
+                    return $item['timestamp'] >= $cutoffTime;
+                });
+                $processedData = array_values($processedData);
+            }
+            
+            $result = [
+                'data' => $processedData,
+                'metadata' => [
+                    'bandLabels' => self::BAND_LABELS,
+                    'bandColors' => self::BAND_COLORS,
+                    'lastUpdate' => now()->toIso8601String(),
+                    'dataPoints' => count($processedData),
+                    'powerLaw' => [
+                        'exponent' => self::POWER_LAW_EXPONENT,
+                        'intercept' => self::POWER_LAW_INTERCEPT
+                    ]
+                ]
+            ];
+            
+            Log::info("Rainbow Chart Direct: Processed " . count($processedData) . " final data points");
+            
+            return $result;
+            
+        } catch (\Exception $e) {
+            Log::error('Rainbow chart direct data error: ' . $e->getMessage());
+            throw $e;
+        }
+    }
 }

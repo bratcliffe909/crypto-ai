@@ -16,7 +16,7 @@ const MobileEconomicCalendar = () => {
     to: endDate.toISOString().split('T')[0]
   };
   
-  const { data, loading, error, lastFetch } = useApi('/api/crypto/economic-calendar', { params });
+  const { data, loading, error, lastUpdated } = useApi('/api/crypto/economic-calendar', { params });
   const [expandedEvents, setExpandedEvents] = useState({});
   
   const events = data?.events || [];
