@@ -1,77 +1,91 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { BsClock, BsBoxArrowUpRight, BsNewspaper } from 'react-icons/bs';
 import LoadingSpinner from '../../common/LoadingSpinner';
 import MobileSectionHeader from '../common/MobileSectionHeader';
 import { getTimeAgo } from '../../../utils/timeUtils';
+import useApi from '../../../hooks/useApi';
 
 const MobileNewsFeed = () => {
-  const [articles, setArticles] = useState([]);
-  const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(false);
+  // Use same data source as desktop for initial load (ensures data consistency)
+  const { data: initialData, loading: initialLoading, error: initialError, lastFetch } = useApi('/api/crypto/news-feed', 600000);
+  
+  // State for infinite scroll additional pages
+  const [additionalArticles, setAdditionalArticles] = useState([]);
+  const [currentPage, setCurrentPage] = useState(2); // Start from page 2 since page 1 comes from useApi
+  const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-  const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(null);
+  
   const observer = useRef();
   const lastArticleRef = useRef();
 
-  // Fetch news articles
-  const fetchNews = useCallback(async (pageNum, isRefresh = false) => {
-    if (loading) return;
+  // Combine initial data from useApi with additional paginated articles
+  const allArticles = useMemo(() => {
+    const initial = initialData?.articles || [];
+    const combined = [...initial, ...additionalArticles];
     
-    setLoading(true);
-    setError(null);
+    // Deduplicate by URL to handle potential overlaps
+    const seen = new Set();
+    return combined.filter(article => {
+      if (seen.has(article.url)) {
+        return false;
+      }
+      seen.add(article.url);
+      return true;
+    });
+  }, [initialData, additionalArticles]);
+
+  // Reset additional articles when initial data updates (new cache data)
+  useEffect(() => {
+    if (initialData?.articles) {
+      setAdditionalArticles([]);
+      setCurrentPage(2);
+      setHasMore(initialData.has_more !== false); // Default to true if not specified
+    }
+  }, [initialData]);
+
+  // Fetch additional pages for infinite scroll (beyond initial data from useApi)
+  const fetchMoreArticles = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    
+    setLoadingMore(true);
     
     try {
       const response = await axios.get('/api/crypto/news-feed', {
         params: { 
-          page: pageNum, 
+          page: currentPage, 
           per_page: 10 
         }
       });
       
       const newArticles = response.data.articles || [];
       
-      if (isRefresh) {
-        setArticles(newArticles);
-      } else {
-        setArticles(prev => pageNum === 1 ? newArticles : [...prev, ...newArticles]);
+      if (newArticles.length > 0) {
+        setAdditionalArticles(prev => [...prev, ...newArticles]);
+        setCurrentPage(prev => prev + 1);
       }
       
-      setHasMore(response.data.has_more);
-      setPage(pageNum);
+      setHasMore(response.data.has_more !== false && newArticles.length > 0);
       
-      // Update last fetch time
-      const lastUpdatedHeader = response.headers['x-last-updated'];
-      if (lastUpdatedHeader) {
-        setLastUpdated(new Date(lastUpdatedHeader));
-      } else if (pageNum === 1 || isRefresh) {
-        setLastUpdated(new Date());
-      }
     } catch (err) {
-      console.error('Failed to fetch news:', err);
-      setError('Failed to load news articles');
+      console.error('Failed to fetch more news:', err);
+      // Don't show error for additional pages, just stop loading more
+      setHasMore(false);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      setLoadingMore(false);
     }
-  }, [loading]);
+  }, [currentPage, loadingMore, hasMore]);
 
-  // Initial load
+  // Infinite scroll observer for additional pages
   useEffect(() => {
-    fetchNews(1);
-  }, []);
-
-  // Infinite scroll observer
-  useEffect(() => {
-    if (loading) return;
+    if (loadingMore || initialLoading) return;
 
     if (observer.current) observer.current.disconnect();
 
     observer.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMore && !loading) {
-        fetchNews(page + 1);
+      if (entries[0].isIntersecting && hasMore && !loadingMore && !initialLoading) {
+        fetchMoreArticles();
       }
     });
 
@@ -82,14 +96,20 @@ const MobileNewsFeed = () => {
     return () => {
       if (observer.current) observer.current.disconnect();
     };
-  }, [loading, hasMore, page, fetchNews]);
+  }, [loadingMore, initialLoading, hasMore, fetchMoreArticles]);
 
-  // Pull to refresh handler
+  // Pull to refresh handler - resets everything and triggers useApi refresh
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
-    setPage(1);
-    fetchNews(1, true);
-  }, [fetchNews]);
+    // Reset additional articles and pagination
+    setAdditionalArticles([]);
+    setCurrentPage(2);
+    setHasMore(true);
+    
+    // The useApi hook will handle refreshing the initial data
+    // We'll end refreshing state when new data arrives
+    setTimeout(() => setRefreshing(false), 1000); // Give time for useApi to refresh
+  }, []);
 
   const openArticle = (url) => {
     window.open(url, '_blank', 'noopener,noreferrer');
@@ -100,8 +120,8 @@ const MobileNewsFeed = () => {
       <MobileSectionHeader
         title="News"
         icon={BsNewspaper}
-        lastUpdated={lastUpdated}
-        error={error}
+        lastUpdated={lastFetch}
+        error={initialError}
       >
         <button 
           className="refresh-btn"
@@ -113,8 +133,17 @@ const MobileNewsFeed = () => {
       </MobileSectionHeader>
 
       <div className="news-list">
-        {articles.map((article, index) => {
-          const isLastArticle = articles.length === index + 1;
+        {/* Show initial loading state */}
+        {initialLoading && allArticles.length === 0 && (
+          <div className="loading-initial">
+            <LoadingSpinner size="sm" />
+            <span>Loading news...</span>
+          </div>
+        )}
+
+        {/* Show articles */}
+        {allArticles.map((article, index) => {
+          const isLastArticle = allArticles.length === index + 1;
           
           return (
             <div
@@ -154,22 +183,33 @@ const MobileNewsFeed = () => {
           );
         })}
         
-        {loading && (
+        {/* Show loading more state */}
+        {loadingMore && (
           <div className="loading-more">
             <LoadingSpinner size="sm" />
             <span>Loading more articles...</span>
           </div>
         )}
         
-        {error && (
+        {/* Show initial error state */}
+        {initialError && allArticles.length === 0 && (
           <div className="text-center text-danger p-3">
-            <p className="mb-0">{error}</p>
+            <p className="mb-0">{initialError}</p>
           </div>
         )}
         
-        {!hasMore && articles.length > 0 && (
+        {/* Show end of list message */}
+        {!hasMore && allArticles.length > 0 && !loadingMore && (
           <div className="text-center text-muted p-3">
             <small>No more articles</small>
+          </div>
+        )}
+
+        {/* Show empty state */}
+        {!initialLoading && !initialError && allArticles.length === 0 && (
+          <div className="text-center text-muted p-3">
+            <BsNewspaper size={24} className="mb-2" />
+            <p>No news articles available</p>
           </div>
         )}
       </div>

@@ -1,5 +1,5 @@
 import React from 'react';
-import TimeAgo from '../common/TimeAgo';
+import TimeAgo from '../../common/TimeAgo';
 
 const MobileSectionHeader = ({ 
   title, 
