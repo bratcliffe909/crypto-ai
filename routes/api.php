@@ -28,6 +28,10 @@ Route::prefix('crypto')->group(function () {
     Route::get('/rainbow-chart', [ChartController::class, 'rainbowChart']);
     Route::get('/rainbow-chart/status', [ChartController::class, 'rainbowChartStatus']);
     
+    // Economic overlay endpoints
+    Route::get('/economic-indicators', [ChartController::class, 'economicIndicators']);
+    Route::get('/economic-overlay', [ChartController::class, 'economicOverlay']);
+    
     // Indicator endpoints
     Route::get('/fear-greed', [IndicatorController::class, 'fearGreed']);
     Route::get('/indicators/{symbol}', [IndicatorController::class, 'getIndicators']);

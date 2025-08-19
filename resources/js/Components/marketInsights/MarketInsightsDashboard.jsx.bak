@@ -1,0 +1,534 @@
+/**
+ * MarketInsightsDashboard Component
+ * Main dashboard component that combines all market insight components
+ * Provides layout, error boundaries, and centralized state management
+ */
+
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { Container, Row, Col, Nav, Tab, Button, ButtonGroup, Card, Alert } from 'react-bootstrap';
+import { BsGrid, BsList, BsGear, BsArrowClockwise, BsFullscreen, BsEyeFill, BsEyeSlashFill } from 'react-icons/bs';
+import PropTypes from 'prop-types';
+import CorrelationMatrix from './CorrelationMatrix';
+import SimpleInsights from './SimpleInsights';
+import ErrorBoundary from '../common/ErrorBoundary';
+import { useToast } from '../common/ToastProvider';
+import { clearCache, getCacheStatus } from '../../services/api/marketInsights';
+
+/**
+ * Layout modes for the dashboard
+ */
+const LAYOUT_MODES = {
+  GRID: 'grid',
+  TABS: 'tabs',
+  STACKED: 'stacked'
+};
+
+/**
+ * Dashboard configuration options
+ */
+const DASHBOARD_CONFIG = {
+  DEFAULT_REFRESH_INTERVAL: 300000, // 5 minutes
+  MIN_REFRESH_INTERVAL: 60000,      // 1 minute
+  MAX_REFRESH_INTERVAL: 3600000,    // 1 hour
+  LAYOUT_BREAKPOINT: 'lg',
+};
+
+/**
+ * Dashboard settings panel
+ */
+const DashboardSettings = React.memo(({ 
+  settings, 
+  onSettingsChange, 
+  onClearCache,
+  show 
+}) => {
+  const [cacheStatus, setCacheStatus] = useState({});
+
+  // Update cache status periodically
+  useEffect(() => {
+    if (!show) return;
+
+    const updateCacheStatus = () => {
+      setCacheStatus(getCacheStatus());
+    };
+
+    updateCacheStatus();
+    const interval = setInterval(updateCacheStatus, 5000);
+    return () => clearInterval(interval);
+  }, [show]);
+
+  const handleRefreshIntervalChange = useCallback((event) => {
+    const value = parseInt(event.target.value);
+    if (value >= DASHBOARD_CONFIG.MIN_REFRESH_INTERVAL && value <= DASHBOARD_CONFIG.MAX_REFRESH_INTERVAL) {
+      onSettingsChange({ ...settings, refreshInterval: value });
+    }
+  }, [settings, onSettingsChange]);
+
+  const handleLayoutChange = useCallback((layout) => {
+    onSettingsChange({ ...settings, layout });
+  }, [settings, onSettingsChange]);
+
+  const handleToggleComponent = useCallback((component) => {
+    onSettingsChange({
+      ...settings,
+      components: {
+        ...settings.components,
+        [component]: !settings.components[component]
+      }
+    });
+  }, [settings, onSettingsChange]);
+
+  if (!show) return null;
+
+  return (
+    <Card className="mb-4 border-info">
+      <Card.Header className="bg-info text-white">
+        <h6 className="mb-0 d-flex align-items-center">
+          <BsGear className="me-2" />
+          Dashboard Settings
+        </h6>
+      </Card.Header>
+      <Card.Body>
+        <Row>
+          {/* Layout options */}
+          <Col md={4}>
+            <h6 className="mb-3">Layout</h6>
+            <ButtonGroup className="d-grid">
+              <Button
+                variant={settings.layout === LAYOUT_MODES.GRID ? 'primary' : 'outline-primary'}
+                size="sm"
+                onClick={() => handleLayoutChange(LAYOUT_MODES.GRID)}
+              >
+                <BsGrid className="me-1" /> Grid
+              </Button>
+              <Button
+                variant={settings.layout === LAYOUT_MODES.TABS ? 'primary' : 'outline-primary'}
+                size="sm"
+                onClick={() => handleLayoutChange(LAYOUT_MODES.TABS)}
+              >
+                <BsList className="me-1" /> Tabs
+              </Button>
+              <Button
+                variant={settings.layout === LAYOUT_MODES.STACKED ? 'primary' : 'outline-primary'}
+                size="sm"
+                onClick={() => handleLayoutChange(LAYOUT_MODES.STACKED)}
+              >
+                <BsList className="me-1" /> Stacked
+              </Button>
+            </ButtonGroup>
+          </Col>
+
+          {/* Component visibility */}
+          <Col md={4}>
+            <h6 className="mb-3">Components</h6>
+            <div className="d-grid gap-2">
+              <Button
+                variant={settings.components.correlationMatrix ? 'success' : 'outline-secondary'}
+                size="sm"
+                onClick={() => handleToggleComponent('correlationMatrix')}
+              >
+                {settings.components.correlationMatrix ? <BsEyeFill /> : <BsEyeSlashFill />}
+                <span className="ms-2">Correlation Matrix</span>
+              </Button>
+              <Button
+                variant={settings.components.simpleInsights ? 'success' : 'outline-secondary'}
+                size="sm"
+                onClick={() => handleToggleComponent('simpleInsights')}
+              >
+                {settings.components.simpleInsights ? <BsEyeFill /> : <BsEyeSlashFill />}
+                <span className="ms-2">Market Insights</span>
+              </Button>
+            </div>
+          </Col>
+
+          {/* Refresh settings */}
+          <Col md={4}>
+            <h6 className="mb-3">Refresh Settings</h6>
+            <div className="mb-3">
+              <label htmlFor="refresh-interval" className="form-label small">
+                Refresh Interval (minutes)
+              </label>
+              <input
+                id="refresh-interval"
+                type="range"
+                className="form-range"
+                min={DASHBOARD_CONFIG.MIN_REFRESH_INTERVAL / 60000}
+                max={DASHBOARD_CONFIG.MAX_REFRESH_INTERVAL / 60000}
+                value={settings.refreshInterval / 60000}
+                onChange={handleRefreshIntervalChange}
+                step="1"
+              />
+              <small className="text-muted">
+                {settings.refreshInterval / 60000} minutes
+              </small>
+            </div>
+            
+            <Button
+              variant="outline-warning"
+              size="sm"
+              className="d-grid"
+              onClick={onClearCache}
+            >
+              Clear Cache
+            </Button>
+          </Col>
+        </Row>
+
+        {/* Cache status */}
+        {Object.keys(cacheStatus).length > 0 && (
+          <div className="mt-4 pt-3 border-top">
+            <h6 className="mb-3">Cache Status</h6>
+            <div className="row g-2">
+              {Object.entries(cacheStatus).map(([key, status]) => (
+                <div key={key} className="col-sm-6">
+                  <div className="d-flex justify-content-between align-items-center">
+                    <small className="text-muted">{key}:</small>
+                    <small className={status.cached ? 'text-success' : 'text-secondary'}>
+                      {status.cached ? `${Math.round(status.age / 1000)}s ago` : 'Empty'}
+                    </small>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Card.Body>
+    </Card>
+  );
+});
+
+DashboardSettings.displayName = 'DashboardSettings';
+
+DashboardSettings.propTypes = {
+  settings: PropTypes.object.isRequired,
+  onSettingsChange: PropTypes.func.isRequired,
+  onClearCache: PropTypes.func.isRequired,
+  show: PropTypes.bool.isRequired,
+};
+
+/**
+ * Error fallback component for individual sections
+ */
+const ComponentErrorFallback = React.memo(({ error, resetError, componentName }) => (
+  <Card className="border-danger">
+    <Card.Body>
+      <Alert variant="danger">
+        <Alert.Heading className="h6">
+          {componentName} Error
+        </Alert.Heading>
+        <p className="mb-2">{error.message}</p>
+        <Button variant="outline-danger" size="sm" onClick={resetError}>
+          Try Again
+        </Button>
+      </Alert>
+    </Card.Body>
+  </Card>
+));
+
+ComponentErrorFallback.displayName = 'ComponentErrorFallback';
+
+ComponentErrorFallback.propTypes = {
+  error: PropTypes.object.isRequired,
+  resetError: PropTypes.func.isRequired,
+  componentName: PropTypes.string.isRequired,
+};
+
+/**
+ * Main MarketInsightsDashboard component
+ */
+const MarketInsightsDashboard = React.memo(({
+  initialLayout = LAYOUT_MODES.GRID,
+  initialRefreshInterval = DASHBOARD_CONFIG.DEFAULT_REFRESH_INTERVAL,
+  showSettings = false,
+  className = '',
+  onError,
+  ...props
+}) => {
+  // Dashboard state
+  const [settings, setSettings] = useState({
+    layout: initialLayout,
+    refreshInterval: initialRefreshInterval,
+    components: {
+      correlationMatrix: true,
+      simpleInsights: true,
+    },
+  });
+  
+  const [showSettingsPanel, setShowSettingsPanel] = useState(showSettings);
+  const [errors, setErrors] = useState({});
+  const { error: showErrorToast, success: showSuccessToast } = useToast();
+
+  // Error tracking
+  const handleComponentError = useCallback((componentName, error) => {
+    setErrors(prev => ({ ...prev, [componentName]: error }));
+    onError?.(error, componentName);
+  }, [onError]);
+
+  const clearComponentError = useCallback((componentName) => {
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[componentName];
+      return newErrors;
+    });
+  }, []);
+
+  // Settings management
+  const handleSettingsChange = useCallback((newSettings) => {
+    setSettings(newSettings);
+  }, []);
+
+  // Cache management
+  const handleClearCache = useCallback(() => {
+    try {
+      clearCache();
+      showSuccessToast('Cache Cleared', 'All market insights cache has been cleared');
+    } catch (error) {
+      showErrorToast('Clear Cache Failed', error.message);
+    }
+  }, [showSuccessToast, showErrorToast]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.ctrlKey || event.metaKey) {
+        switch (event.key) {
+          case 's':
+            event.preventDefault();
+            setShowSettingsPanel(prev => !prev);
+            break;
+          case 'r':
+            event.preventDefault();
+            // Trigger refresh on all components
+            window.dispatchEvent(new CustomEvent('market-insights-refresh'));
+            break;
+          default:
+            break;
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Responsive layout detection
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 992); // Bootstrap lg breakpoint
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Determine effective layout
+  const effectiveLayout = isMobile ? LAYOUT_MODES.STACKED : settings.layout;
+
+  // Component rendering functions
+  const renderCorrelationMatrix = useMemo(() => {
+    if (!settings.components.correlationMatrix) return null;
+
+    return (
+      <ErrorBoundary 
+        fallback={(error, resetError) => 
+          <ComponentErrorFallback 
+            error={error} 
+            resetError={resetError} 
+            componentName="Correlation Matrix" 
+          />
+        }
+        onError={(error) => handleComponentError('correlationMatrix', error)}
+        onReset={() => clearComponentError('correlationMatrix')}
+      >
+        <CorrelationMatrix
+          refreshInterval={settings.refreshInterval}
+          onError={(error) => handleComponentError('correlationMatrix', error)}
+        />
+      </ErrorBoundary>
+    );
+  }, [settings.components.correlationMatrix, settings.refreshInterval, handleComponentError, clearComponentError]);
+
+  const renderSimpleInsights = useMemo(() => {
+    if (!settings.components.simpleInsights) return null;
+
+    return (
+      <ErrorBoundary 
+        fallback={(error, resetError) => 
+          <ComponentErrorFallback 
+            error={error} 
+            resetError={resetError} 
+            componentName="Market Insights" 
+          />
+        }
+        onError={(error) => handleComponentError('simpleInsights', error)}
+        onReset={() => clearComponentError('simpleInsights')}
+      >
+        <SimpleInsights
+          refreshInterval={settings.refreshInterval}
+          onError={(error) => handleComponentError('simpleInsights', error)}
+        />
+      </ErrorBoundary>
+    );
+  }, [settings.components.simpleInsights, settings.refreshInterval, handleComponentError, clearComponentError]);
+
+  // Layout rendering
+  const renderGridLayout = () => (
+    <Row className="g-4">
+      {settings.components.correlationMatrix && (
+        <Col lg={8}>
+          {renderCorrelationMatrix}
+        </Col>
+      )}
+      {settings.components.simpleInsights && (
+        <Col lg={settings.components.correlationMatrix ? 4 : 12}>
+          {renderSimpleInsights}
+        </Col>
+      )}
+    </Row>
+  );
+
+  const renderTabLayout = () => (
+    <Tab.Container defaultActiveKey="insights">
+      <Nav variant="pills" className="mb-4">
+        {settings.components.simpleInsights && (
+          <Nav.Item>
+            <Nav.Link eventKey="insights">Market Insights</Nav.Link>
+          </Nav.Item>
+        )}
+        {settings.components.correlationMatrix && (
+          <Nav.Item>
+            <Nav.Link eventKey="correlations">Correlation Matrix</Nav.Link>
+          </Nav.Item>
+        )}
+      </Nav>
+      
+      <Tab.Content>
+        {settings.components.simpleInsights && (
+          <Tab.Pane eventKey="insights">
+            {renderSimpleInsights}
+          </Tab.Pane>
+        )}
+        {settings.components.correlationMatrix && (
+          <Tab.Pane eventKey="correlations">
+            {renderCorrelationMatrix}
+          </Tab.Pane>
+        )}
+      </Tab.Content>
+    </Tab.Container>
+  );
+
+  const renderStackedLayout = () => (
+    <div className="d-grid gap-4">
+      {settings.components.simpleInsights && renderSimpleInsights}
+      {settings.components.correlationMatrix && renderCorrelationMatrix}
+    </div>
+  );
+
+  const renderLayout = () => {
+    switch (effectiveLayout) {
+      case LAYOUT_MODES.TABS:
+        return renderTabLayout();
+      case LAYOUT_MODES.STACKED:
+        return renderStackedLayout();
+      case LAYOUT_MODES.GRID:
+      default:
+        return renderGridLayout();
+    }
+  };
+
+  return (
+    <div className={`market-insights-dashboard ${className}`} {...props}>
+      {/* Dashboard header */}
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h2 className="h4 mb-0">Market Insights Dashboard</h2>
+        
+        <ButtonGroup size="sm">
+          <Button
+            variant="outline-secondary"
+            onClick={() => setShowSettingsPanel(!showSettingsPanel)}
+            active={showSettingsPanel}
+            aria-label="Toggle settings panel"
+          >
+            <BsGear />
+          </Button>
+          
+          <Button
+            variant="outline-secondary"
+            onClick={handleClearCache}
+            aria-label="Clear cache"
+          >
+            <BsArrowClockwise />
+          </Button>
+        </ButtonGroup>
+      </div>
+
+      {/* Settings panel */}
+      <DashboardSettings
+        settings={settings}
+        onSettingsChange={handleSettingsChange}
+        onClearCache={handleClearCache}
+        show={showSettingsPanel}
+      />
+
+      {/* Error summary */}
+      {Object.keys(errors).length > 0 && (
+        <Alert variant="warning" className="mb-4">
+          <Alert.Heading className="h6">Component Issues</Alert.Heading>
+          <ul className="mb-0">
+            {Object.entries(errors).map(([component, error]) => (
+              <li key={component}>
+                <strong>{component}:</strong> {error.message}
+              </li>
+            ))}
+          </ul>
+        </Alert>
+      )}
+
+      {/* Main dashboard content */}
+      <ErrorBoundary
+        fallback={(error, resetError) => (
+          <Alert variant="danger">
+            <Alert.Heading>Dashboard Error</Alert.Heading>
+            <p>The dashboard encountered an unexpected error: {error.message}</p>
+            <Button variant="outline-danger" onClick={resetError}>
+              Reset Dashboard
+            </Button>
+          </Alert>
+        )}
+      >
+        {renderLayout()}
+      </ErrorBoundary>
+
+      {/* Keyboard shortcuts help */}
+      <div className="mt-4 pt-3 border-top">
+        <small className="text-muted">
+          Keyboard shortcuts: Ctrl+S (Settings), Ctrl+R (Refresh)
+        </small>
+      </div>
+    </div>
+  );
+});
+
+MarketInsightsDashboard.displayName = 'MarketInsightsDashboard';
+
+MarketInsightsDashboard.propTypes = {
+  initialLayout: PropTypes.oneOf(Object.values(LAYOUT_MODES)),
+  initialRefreshInterval: PropTypes.number,
+  showSettings: PropTypes.bool,
+  className: PropTypes.string,
+  onError: PropTypes.func,
+};
+
+MarketInsightsDashboard.defaultProps = {
+  initialLayout: LAYOUT_MODES.GRID,
+  initialRefreshInterval: DASHBOARD_CONFIG.DEFAULT_REFRESH_INTERVAL,
+  showSettings: false,
+  className: '',
+  onError: null,
+};
+
+export default MarketInsightsDashboard;
+export { LAYOUT_MODES, DASHBOARD_CONFIG };

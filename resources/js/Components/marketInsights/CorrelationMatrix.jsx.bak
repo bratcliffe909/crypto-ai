@@ -1,0 +1,463 @@
+/**
+ * CorrelationMatrix Component
+ * Displays correlation data in an interactive heatmap format
+ */
+
+import React, { useMemo, useCallback, useRef, useEffect } from 'react';
+import { Card, Button, ButtonGroup, OverlayTrigger, Tooltip } from 'react-bootstrap';
+import { BsArrowClockwise, BsQuestionCircle, BsFullscreen } from 'react-icons/bs';
+import PropTypes from 'prop-types';
+import { format } from 'date-fns';
+import useApi from '../../hooks/useApi';
+import { getCorrelationMatrix } from '../../services/api/marketInsights';
+import LoadingSpinner from '../common/LoadingSpinner';
+import ErrorAlert from '../common/ErrorAlert';
+import { useToast } from '../common/ToastProvider';
+
+/**
+ * Individual cell in the correlation matrix
+ */
+const CorrelationCell = React.memo(({ 
+  value, 
+  assetX, 
+  assetY, 
+  isHighlighted, 
+  onHover, 
+  onLeave 
+}) => {
+  const getCellColor = (correlation) => {
+    const intensity = Math.abs(correlation);
+    const hue = correlation >= 0 ? 120 : 0; // Green for positive, red for negative
+    const saturation = Math.min(90, intensity * 100);
+    const lightness = 85 - (intensity * 35); // Darker for stronger correlations
+    return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+  };
+
+  const getCellTextColor = (correlation) => {
+    const intensity = Math.abs(correlation);
+    return intensity > 0.6 ? '#ffffff' : '#333333';
+  };
+
+  const handleKeyDown = useCallback((event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onHover(assetX, assetY, value);
+    }
+  }, [assetX, assetY, value, onHover]);
+
+  return (
+    <div
+      className={`correlation-cell ${isHighlighted ? 'highlighted' : ''}`}
+      style={{
+        backgroundColor: getCellColor(value),
+        color: getCellTextColor(value),
+        border: isHighlighted ? '2px solid #0d6efd' : '1px solid rgba(0,0,0,0.1)',
+        padding: '8px 4px',
+        textAlign: 'center',
+        fontSize: '11px',
+        fontWeight: '600',
+        cursor: 'pointer',
+        userSelect: 'none',
+        minHeight: '32px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        transition: 'all 0.2s ease',
+      }}
+      onMouseEnter={() => onHover(assetX, assetY, value)}
+      onMouseLeave={onLeave}
+      onFocus={() => onHover(assetX, assetY, value)}
+      onBlur={onLeave}
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+      role="gridcell"
+      aria-label={`Correlation between ${assetX} and ${assetY}: ${(value * 100).toFixed(1)}%`}
+    >
+      {value.toFixed(2)}
+    </div>
+  );
+});
+
+CorrelationCell.displayName = 'CorrelationCell';
+
+CorrelationCell.propTypes = {
+  value: PropTypes.number.isRequired,
+  assetX: PropTypes.string.isRequired,
+  assetY: PropTypes.string.isRequired,
+  isHighlighted: PropTypes.bool,
+  onHover: PropTypes.func.isRequired,
+  onLeave: PropTypes.func.isRequired,
+};
+
+CorrelationCell.defaultProps = {
+  isHighlighted: false,
+};
+
+/**
+ * Color legend for the correlation matrix
+ */
+const CorrelationLegend = React.memo(() => {
+  const legendItems = [
+    { value: 1.0, label: 'Perfect Positive', color: 'hsl(120, 90%, 50%)' },
+    { value: 0.5, label: 'Strong Positive', color: 'hsl(120, 70%, 65%)' },
+    { value: 0.0, label: 'No Correlation', color: 'hsl(0, 0%, 85%)' },
+    { value: -0.5, label: 'Strong Negative', color: 'hsl(0, 70%, 65%)' },
+    { value: -1.0, label: 'Perfect Negative', color: 'hsl(0, 90%, 50%)' },
+  ];
+
+  return (
+    <div className="correlation-legend d-flex align-items-center gap-3 mb-3" role="img" aria-label="Correlation strength legend">
+      <span className="small text-muted fw-semibold">Correlation Strength:</span>
+      {legendItems.map((item) => (
+        <div key={item.value} className="d-flex align-items-center gap-1">
+          <div
+            style={{
+              width: '12px',
+              height: '12px',
+              backgroundColor: item.color,
+              border: '1px solid rgba(0,0,0,0.2)',
+              borderRadius: '2px'
+            }}
+            aria-hidden="true"
+          />
+          <span className="small text-muted">{item.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+});
+
+CorrelationLegend.displayName = 'CorrelationLegend';
+
+/**
+ * Main CorrelationMatrix component
+ */
+const CorrelationMatrix = React.memo(({ 
+  refreshInterval = 600000, // 10 minutes
+  showLegend = true,
+  showHeader = true,
+  className = '',
+  onError
+}) => {
+  const { data, loading, error, refetch } = useApi(
+    getCorrelationMatrix,
+    [],
+    refreshInterval
+  );
+  const { error: showErrorToast } = useToast();
+  const matrixRef = useRef(null);
+  const [hoveredCell, setHoveredCell] = React.useState(null);
+  const [isFullscreen, setIsFullscreen] = React.useState(false);
+
+  // Handle errors with toast notifications
+  useEffect(() => {
+    if (error) {
+      const errorMessage = error.message || 'Failed to load correlation data';
+      showErrorToast('Correlation Matrix Error', errorMessage);
+      onError?.(error);
+    }
+  }, [error, showErrorToast, onError]);
+
+  // Process correlation data for matrix display
+  const matrixData = useMemo(() => {
+    if (!data?.correlations || !data?.assets) return null;
+
+    const { correlations, assets } = data;
+    const matrix = [];
+
+    // Create matrix from correlation data
+    for (let i = 0; i < assets.length; i++) {
+      matrix[i] = [];
+      for (let j = 0; j < assets.length; j++) {
+        if (i === j) {
+          matrix[i][j] = 1.0; // Perfect correlation with self
+        } else {
+          // Find correlation value in data
+          const correlation = correlations.find(
+            c => (c.asset1 === assets[i] && c.asset2 === assets[j]) ||
+                 (c.asset1 === assets[j] && c.asset2 === assets[i])
+          );
+          matrix[i][j] = correlation ? correlation.value : 0;
+        }
+      }
+    }
+
+    return { matrix, assets };
+  }, [data]);
+
+  // Handle cell hover
+  const handleCellHover = useCallback((assetX, assetY, value) => {
+    setHoveredCell({ assetX, assetY, value });
+  }, []);
+
+  const handleCellLeave = useCallback(() => {
+    setHoveredCell(null);
+  }, []);
+
+  // Handle refresh
+  const handleRefresh = useCallback(async () => {
+    try {
+      await refetch();
+    } catch (err) {
+      showErrorToast('Refresh Failed', err.message);
+    }
+  }, [refetch, showErrorToast]);
+
+  // Toggle fullscreen
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      matrixRef.current?.requestFullscreen?.();
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen?.();
+      setIsFullscreen(false);
+    }
+  }, []);
+
+  // Handle fullscreen change events
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  // Render loading state
+  if (loading) {
+    return (
+      <Card className={`correlation-matrix ${className}`}>
+        {showHeader && (
+          <Card.Header>
+            <Card.Title className="mb-0 d-flex align-items-center">
+              Asset Correlation Matrix
+              <OverlayTrigger
+                placement="top"
+                overlay={<Tooltip>Shows correlation between different crypto assets and traditional markets</Tooltip>}
+              >
+                <BsQuestionCircle className="ms-2 text-muted" size={14} />
+              </OverlayTrigger>
+            </Card.Title>
+          </Card.Header>
+        )}
+        <Card.Body>
+          <LoadingSpinner size="lg" />
+        </Card.Body>
+      </Card>
+    );
+  }
+
+  // Render error state
+  if (error || !matrixData) {
+    return (
+      <Card className={`correlation-matrix ${className}`}>
+        {showHeader && (
+          <Card.Header>
+            <Card.Title className="mb-0">Asset Correlation Matrix</Card.Title>
+          </Card.Header>
+        )}
+        <Card.Body>
+          <ErrorAlert 
+            message={error?.message || 'Failed to load correlation data'} 
+            onRetry={handleRefresh}
+          />
+        </Card.Body>
+      </Card>
+    );
+  }
+
+  const { matrix, assets } = matrixData;
+
+  return (
+    <Card className={`correlation-matrix ${className}`} ref={matrixRef}>
+      {showHeader && (
+        <Card.Header className="d-flex justify-content-between align-items-center">
+          <Card.Title className="mb-0 d-flex align-items-center">
+            Asset Correlation Matrix
+            <OverlayTrigger
+              placement="top"
+              overlay={<Tooltip>Shows correlation strength between different assets. Values range from -1 (inverse) to +1 (perfect correlation)</Tooltip>}
+            >
+              <BsQuestionCircle className="ms-2 text-muted" size={14} />
+            </OverlayTrigger>
+          </Card.Title>
+          
+          <ButtonGroup size="sm">
+            <OverlayTrigger placement="top" overlay={<Tooltip>Refresh Data</Tooltip>}>
+              <Button 
+                variant="outline-secondary" 
+                onClick={handleRefresh}
+                disabled={loading}
+                aria-label="Refresh correlation data"
+              >
+                <BsArrowClockwise />
+              </Button>
+            </OverlayTrigger>
+            
+            <OverlayTrigger placement="top" overlay={<Tooltip>Toggle Fullscreen</Tooltip>}>
+              <Button 
+                variant="outline-secondary" 
+                onClick={toggleFullscreen}
+                aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              >
+                <BsFullscreen />
+              </Button>
+            </OverlayTrigger>
+          </ButtonGroup>
+        </Card.Header>
+      )}
+      
+      <Card.Body>
+        {/* Data quality and timestamp info */}
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <small className="text-muted">
+            Last updated: {format(new Date(data.lastUpdated), 'MMM dd, HH:mm')}
+            {data.metadata?.source && (
+              <span className="ms-2">
+                ({data.metadata.source === 'cache' ? 'Cached' : 'Live'})
+              </span>
+            )}
+          </small>
+          
+          {data.metadata?.dataQuality && (
+            <small className={`badge ${data.metadata.dataQuality === 'good' ? 'bg-success' : 'bg-warning'}`}>
+              {data.metadata.dataQuality} data
+            </small>
+          )}
+        </div>
+
+        {/* Legend */}
+        {showLegend && <CorrelationLegend />}
+
+        {/* Hovered cell info */}
+        {hoveredCell && (
+          <div className="alert alert-info py-2 mb-3" role="status">
+            <strong>{hoveredCell.assetX}</strong> vs <strong>{hoveredCell.assetY}</strong>: 
+            <span className="ms-1">
+              {(hoveredCell.value * 100).toFixed(1)}% correlation
+            </span>
+            <span className="ms-2 text-muted">
+              ({hoveredCell.value > 0.7 ? 'Strong positive' : 
+                hoveredCell.value > 0.3 ? 'Moderate positive' :
+                hoveredCell.value > -0.3 ? 'Weak correlation' :
+                hoveredCell.value > -0.7 ? 'Moderate negative' : 'Strong negative'})
+            </span>
+          </div>
+        )}
+
+        {/* Matrix grid */}
+        <div 
+          className="correlation-matrix-grid"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: `100px repeat(${assets.length}, minmax(60px, 1fr))`,
+            gap: '1px',
+            backgroundColor: '#dee2e6',
+            border: '1px solid #dee2e6',
+          }}
+          role="grid"
+          aria-label="Asset correlation matrix"
+        >
+          {/* Empty top-left cell */}
+          <div 
+            className="matrix-header"
+            style={{ 
+              backgroundColor: 'var(--bs-secondary)',
+              color: 'white',
+              padding: '8px',
+              fontWeight: 'bold',
+              fontSize: '12px'
+            }}
+          />
+          
+          {/* Column headers */}
+          {assets.map((asset) => (
+            <div
+              key={`col-${asset}`}
+              className="matrix-header"
+              style={{
+                backgroundColor: 'var(--bs-secondary)',
+                color: 'white',
+                padding: '8px',
+                textAlign: 'center',
+                fontSize: '11px',
+                fontWeight: 'bold',
+                writingMode: 'vertical-rl',
+                textOrientation: 'mixed'
+              }}
+              role="columnheader"
+            >
+              {asset}
+            </div>
+          ))}
+          
+          {/* Matrix rows */}
+          {assets.map((rowAsset, i) => (
+            <React.Fragment key={`row-${rowAsset}`}>
+              {/* Row header */}
+              <div
+                className="matrix-header"
+                style={{
+                  backgroundColor: 'var(--bs-secondary)',
+                  color: 'white',
+                  padding: '8px',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  display: 'flex',
+                  alignItems: 'center',
+                  textAlign: 'right',
+                  justifyContent: 'flex-end'
+                }}
+                role="rowheader"
+              >
+                {rowAsset}
+              </div>
+              
+              {/* Matrix cells */}
+              {assets.map((colAsset, j) => (
+                <CorrelationCell
+                  key={`${rowAsset}-${colAsset}`}
+                  value={matrix[i][j]}
+                  assetX={rowAsset}
+                  assetY={colAsset}
+                  isHighlighted={
+                    hoveredCell?.assetX === rowAsset && hoveredCell?.assetY === colAsset
+                  }
+                  onHover={handleCellHover}
+                  onLeave={handleCellLeave}
+                />
+              ))}
+            </React.Fragment>
+          ))}
+        </div>
+
+        {/* Footer info */}
+        <div className="mt-3 small text-muted">
+          <div>Total assets: {assets.length}</div>
+          <div>Matrix updates every {Math.round(refreshInterval / 60000)} minutes</div>
+        </div>
+      </Card.Body>
+    </Card>
+  );
+});
+
+CorrelationMatrix.displayName = 'CorrelationMatrix';
+
+CorrelationMatrix.propTypes = {
+  refreshInterval: PropTypes.number,
+  showLegend: PropTypes.bool,
+  showHeader: PropTypes.bool,
+  className: PropTypes.string,
+  onError: PropTypes.func,
+};
+
+CorrelationMatrix.defaultProps = {
+  refreshInterval: 600000,
+  showLegend: true,
+  showHeader: true,
+  className: '',
+  onError: null,
+};
+
+export default CorrelationMatrix;

@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Services\CoinGeckoService;
 use App\Services\AlphaVantageService;
 use App\Services\RainbowChartService;
+use App\Services\FREDService;
 use App\Services\CacheService;
 use App\Repositories\IndicatorRepository;
 use Illuminate\Support\Facades\Cache;
@@ -17,6 +18,7 @@ class ChartController extends Controller
     private CoinGeckoService $coinGeckoService;
     private AlphaVantageService $alphaVantageService;
     private RainbowChartService $rainbowChartService;
+    private FREDService $fredService;
     private CacheService $cacheService;
     private IndicatorRepository $indicatorRepository;
     
@@ -24,6 +26,7 @@ class ChartController extends Controller
         CoinGeckoService $coinGeckoService, 
         AlphaVantageService $alphaVantageService,
         RainbowChartService $rainbowChartService,
+        FREDService $fredService,
         CacheService $cacheService,
         IndicatorRepository $indicatorRepository
     )
@@ -31,6 +34,7 @@ class ChartController extends Controller
         $this->coinGeckoService = $coinGeckoService;
         $this->alphaVantageService = $alphaVantageService;
         $this->rainbowChartService = $rainbowChartService;
+        $this->fredService = $fredService;
         $this->cacheService = $cacheService;
         $this->indicatorRepository = $indicatorRepository;
     }
@@ -77,10 +81,10 @@ class ChartController extends Controller
                                 $weeklyData[] = [
                                     'date' => $date,
                                     'timestamp' => strtotime($date),
-                                    'open' => floatval($values['1b. open (USD)']),
-                                    'high' => floatval($values['2b. high (USD)']),
-                                    'low' => floatval($values['3b. low (USD)']),
-                                    'close' => floatval($values['4b. close (USD)'])
+                                    'open' => floatval($values['1. open']),
+                                    'high' => floatval($values['2. high']),
+                                    'low' => floatval($values['3. low']),
+                                    'close' => floatval($values['4. close'])
                                 ];
                             }
                             
@@ -420,6 +424,434 @@ class ChartController extends Controller
                 'message' => config('app.debug') ? $e->getMessage() : 'Please try again later'
             ], 500);
         }
+    }
+
+    /**
+     * Get available economic indicators
+     */
+    public function economicIndicators()
+    {
+        try {
+            $indicators = $this->cacheService->remember('economic_indicators', 3600, function() {
+                return [
+                    'federal_funds_rate' => [
+                        'name' => 'Federal Funds Rate',
+                        'unit' => '%',
+                        'description' => 'The interest rate at which depository institutions lend balances to other institutions overnight'
+                    ],
+                    'inflation_cpi' => [
+                        'name' => 'Consumer Price Index',
+                        'unit' => '%',
+                        'description' => 'A measure of the average change in prices of goods and services consumed by households'
+                    ],
+                    'unemployment_rate' => [
+                        'name' => 'Unemployment Rate',
+                        'unit' => '%',
+                        'description' => 'The percentage of the labor force that is unemployed and actively seeking employment'
+                    ],
+                    'dxy_dollar_index' => [
+                        'name' => 'US Dollar Index (DXY)',
+                        'unit' => '',
+                        'description' => 'A measure of the value of the US dollar relative to a basket of foreign currencies'
+                    ]
+                ];
+            });
+
+            $result = $indicators['data'] ?? [];
+            $metadata = $indicators['metadata'] ?? [];
+
+            return response()->json([
+                'indicators' => $result,
+                'count' => count($result),
+                'available' => array_keys($result)
+            ])->header('X-Data-Source', $metadata['source'] ?? 'cache')
+              ->header('X-Last-Updated', $metadata['lastUpdated'] ?? '');
+
+        } catch (\Exception $e) {
+            \Log::error('Economic indicators error: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Failed to fetch economic indicators',
+                'message' => config('app.debug') ? $e->getMessage() : 'Please try again later'
+            ], 500);
+        }
+    }
+
+    /**
+     * Get economic overlay data for correlation analysis
+     */
+    public function economicOverlay(Request $request)
+    {
+        try {
+            $indicator = $request->get('indicator', 'federal_funds_rate');
+            $days = (int) $request->get('days', 365);
+
+            // Validate indicator
+            $validIndicators = ['federal_funds_rate', 'inflation_cpi', 'unemployment_rate', 'dxy_dollar_index'];
+            if (!in_array($indicator, $validIndicators)) {
+                return response()->json([
+                    'error' => 'Invalid indicator',
+                    'message' => 'Valid indicators: ' . implode(', ', $validIndicators)
+                ], 400);
+            }
+
+            $cacheKey = "economic_overlay_{$indicator}_{$days}";
+            
+            $result = $this->cacheService->remember($cacheKey, 3600, function() use ($indicator, $days) {
+                // Get Bitcoin price data - use different sources based on time range
+                if ($days > 365) {
+                    // For longer periods, try AlphaVantage weekly data first
+                    try {
+                        $alphaVantageResult = $this->alphaVantageService->getDigitalCurrencyWeekly('BTC', 'USD');
+                        $alphaVantageData = $alphaVantageResult['data'] ?? [];
+                        
+                        if (!empty($alphaVantageData) && isset($alphaVantageData['Time Series (Digital Currency Weekly)'])) {
+                            $timeSeries = $alphaVantageData['Time Series (Digital Currency Weekly)'];
+                            $bitcoinData = [];
+                            
+                            // Convert AlphaVantage format to OHLC format
+                            foreach ($timeSeries as $date => $values) {
+                                $timestamp = strtotime($date) * 1000; // Convert to milliseconds
+                                $bitcoinData[] = [
+                                    $timestamp,
+                                    floatval($values['1. open']),
+                                    floatval($values['2. high']),
+                                    floatval($values['3. low']),
+                                    floatval($values['4. close'])
+                                ];
+                            }
+                            
+                            // Sort by timestamp ascending
+                            usort($bitcoinData, function($a, $b) {
+                                return $a[0] - $b[0];
+                            });
+                            
+                            // Filter to requested time range
+                            $cutoffTimestamp = (time() - ($days * 24 * 60 * 60)) * 1000;
+                            $bitcoinData = array_filter($bitcoinData, function($candle) use ($cutoffTimestamp) {
+                                return $candle[0] >= $cutoffTimestamp;
+                            });
+                            $bitcoinData = array_values($bitcoinData);
+                            
+                            \Log::info("Using AlphaVantage weekly data for {$days} days: " . count($bitcoinData) . " data points");
+                        } else {
+                            // Fall back to CoinGecko for maximum available
+                            $bitcoinResult = $this->coinGeckoService->getOHLC('bitcoin', 'usd', 365);
+                            $bitcoinData = $bitcoinResult['data'] ?? [];
+                            \Log::info("Falling back to CoinGecko 365-day data: " . count($bitcoinData) . " data points");
+                        }
+                    } catch (\Exception $e) {
+                        // Fall back to CoinGecko
+                        $bitcoinResult = $this->coinGeckoService->getOHLC('bitcoin', 'usd', 365);
+                        $bitcoinData = $bitcoinResult['data'] ?? [];
+                        \Log::warning("AlphaVantage failed, using CoinGecko: " . $e->getMessage());
+                    }
+                } else {
+                    // For 365 days or less, use CoinGecko
+                    $bitcoinResult = $this->coinGeckoService->getOHLC('bitcoin', 'usd', $days);
+                    $bitcoinData = $bitcoinResult['data'] ?? [];
+                }
+
+                if (empty($bitcoinData)) {
+                    return [
+                        'data' => [],
+                        'metadata' => [
+                            'indicator' => $indicator,
+                            'days' => $days,
+                            'error' => 'No Bitcoin price data available'
+                        ]
+                    ];
+                }
+
+                // Get economic data based on indicator
+                $economicData = $this->getEconomicDataByIndicator($indicator, $days);
+
+                if (empty($economicData)) {
+                    return [
+                        'data' => [],
+                        'metadata' => [
+                            'indicator' => $indicator,
+                            'days' => $days,
+                            'error' => 'No economic data available'
+                        ]
+                    ];
+                }
+
+                // Correlate Bitcoin prices with economic data
+                $correlatedData = $this->correlateData($bitcoinData, $economicData, $indicator);
+                
+                // Validate correlated data for NaN/Inf values
+                $correlatedData = array_map(function($item) {
+                    foreach ($item as $key => $value) {
+                        if (is_numeric($value) && (!is_finite($value) || is_nan($value))) {
+                            $item[$key] = null; // Replace with null
+                        }
+                    }
+                    return $item;
+                }, $correlatedData);
+                
+                // Calculate correlation with error handling
+                $correlation = null;
+                try {
+                    $correlation = $this->calculateCorrelation($correlatedData, $indicator);
+                    
+                    // Validate correlation result
+                    if (!is_null($correlation) && (!is_finite($correlation) || is_nan($correlation))) {
+                        $correlation = null;
+                    }
+                } catch (\Exception $e) {
+                    \Log::error("Correlation calculation failed: " . $e->getMessage());
+                    $correlation = null;
+                }
+
+                // Get current Bitcoin price for display consistency
+                $currentPrice = null;
+                try {
+                    $priceResult = $this->coinGeckoService->getSimplePrice('bitcoin', 'usd');
+                    $currentPrice = $priceResult['data']['bitcoin']['usd'] ?? null;
+                } catch (\Exception $e) {
+                    \Log::warning("Failed to fetch current Bitcoin price: " . $e->getMessage());
+                }
+
+                return [
+                    'data' => $correlatedData,
+                    'metadata' => [
+                        'indicator' => $indicator,
+                        'days' => $days,
+                        'data_points' => count($correlatedData),
+                        'correlation' => $correlation,
+                        'current_bitcoin_price' => $currentPrice
+                    ]
+                ];
+            });
+
+            // Handle potential double-wrapping from cache service
+            $rawData = $result['data'] ?? [];
+            $data = isset($rawData['data']) ? $rawData['data'] : $rawData;
+            $metadata = $result['metadata'] ?? [];
+            $cacheMetadata = $result['metadata'] ?? [];
+
+            // Always fetch current Bitcoin price (outside cache) for display consistency
+            $currentPrice = null;
+            try {
+                $priceResult = $this->coinGeckoService->getSimplePrice('bitcoin', 'usd');
+                $currentPrice = $priceResult['data']['bitcoin']['usd'] ?? null;
+                
+                // Add current price to metadata
+                if (is_array($metadata)) {
+                    $metadata['current_bitcoin_price'] = $currentPrice;
+                }
+            } catch (\Exception $e) {
+                \Log::warning("Failed to fetch current Bitcoin price for display: " . $e->getMessage());
+            }
+
+            // Validate all response data for JSON encoding issues
+            $responseData = [
+                'data' => $data,
+                'metadata' => $metadata
+            ];
+            
+            // Validate response for JSON encoding issues
+            $jsonTest = json_encode($responseData);
+            if ($jsonTest === false) {
+                \Log::error("JSON encoding failed for economic overlay response: " . json_last_error_msg());
+                return response()->json([
+                    'error' => 'Data processing error',
+                    'message' => 'Unable to process economic overlay data'
+                ], 500);
+            }
+
+            return response()->json($responseData)
+                ->header('X-Data-Source', $cacheMetadata['source'] ?? 'cache')
+                ->header('X-Last-Updated', $cacheMetadata['lastUpdated'] ?? '');
+
+        } catch (\Exception $e) {
+            \Log::error('Economic overlay error: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Failed to fetch economic overlay data',
+                'message' => config('app.debug') ? $e->getMessage() : 'Please try again later'
+            ], 500);
+        }
+    }
+
+    /**
+     * Get economic data by indicator type
+     */
+    private function getEconomicDataByIndicator($indicator, $days)
+    {
+        $startDate = now()->subDays($days)->format('Y-m-d');
+        $endDate = now()->format('Y-m-d');
+
+        switch ($indicator) {
+            case 'federal_funds_rate':
+                return $this->fredService->getFederalFundsRate($startDate, $endDate);
+            
+            case 'inflation_cpi':
+                return $this->fredService->getInflationCPI($startDate, $endDate);
+            
+            case 'unemployment_rate':
+                return $this->fredService->getUnemploymentRate($startDate, $endDate);
+            
+            case 'dxy_dollar_index':
+                return $this->fredService->getDollarIndex($startDate, $endDate);
+            
+            default:
+                return [];
+        }
+    }
+
+    /**
+     * Correlate Bitcoin price data with economic indicator data
+     */
+    private function correlateData($bitcoinData, $economicData, $indicator)
+    {
+        $correlatedData = [];
+        $economicByDate = [];
+
+        // Index economic data by date for faster lookup
+        foreach ($economicData as $item) {
+            $economicByDate[$item['date']] = $item['value'];
+        }
+
+        // Correlate Bitcoin prices with economic data
+        foreach ($bitcoinData as $btcCandle) {
+            $timestamp = $btcCandle[0] / 1000; // Convert from milliseconds
+            $date = date('Y-m-d', $timestamp);
+            $bitcoinPrice = $btcCandle[4]; // Close price
+
+            // Find matching economic data (exact match or most recent)
+            $economicValue = $this->findClosestEconomicValue($economicByDate, $date);
+
+            if ($economicValue !== null) {
+                $correlatedData[] = [
+                    'date' => $date,
+                    'bitcoin_price' => round($bitcoinPrice, 2),
+                    $indicator => $economicValue
+                ];
+            }
+        }
+
+        return $correlatedData;
+    }
+
+    /**
+     * Find the closest economic value for a given date
+     */
+    private function findClosestEconomicValue($economicByDate, $targetDate)
+    {
+        // First try exact match
+        if (isset($economicByDate[$targetDate])) {
+            return $economicByDate[$targetDate];
+        }
+
+        // Find the most recent value before the target date
+        $targetTimestamp = strtotime($targetDate);
+        $closestValue = null;
+        $closestTimestamp = 0;
+
+        foreach ($economicByDate as $date => $value) {
+            $timestamp = strtotime($date);
+            
+            // Only consider dates before or equal to target date
+            if ($timestamp <= $targetTimestamp && $timestamp > $closestTimestamp) {
+                $closestTimestamp = $timestamp;
+                $closestValue = $value;
+            }
+        }
+
+        return $closestValue;
+    }
+
+    /**
+     * Calculate Pearson correlation coefficient
+     */
+    private function calculateCorrelation($data, $indicator)
+    {
+        if (count($data) < 2) {
+            return null;
+        }
+
+        $bitcoinPrices = array_column($data, 'bitcoin_price');
+        $economicValues = array_column($data, $indicator);
+
+        // Remove null values
+        $validData = [];
+        for ($i = 0; $i < count($bitcoinPrices); $i++) {
+            if ($bitcoinPrices[$i] !== null && $economicValues[$i] !== null) {
+                $validData[] = [
+                    'bitcoin' => $bitcoinPrices[$i],
+                    'economic' => $economicValues[$i]
+                ];
+            }
+        }
+
+        if (count($validData) < 2) {
+            return null;
+        }
+
+        $bitcoinValues = array_column($validData, 'bitcoin');
+        $economicValues = array_column($validData, 'economic');
+
+        // Check for variance in both datasets
+        $bitcoinVariance = $this->calculateVariance($bitcoinValues);
+        $economicVariance = $this->calculateVariance($economicValues);
+
+        // If either dataset has no variance (constant values), correlation is undefined
+        if ($bitcoinVariance == 0 || $economicVariance == 0) {
+            return null;
+        }
+
+        $n = count($bitcoinValues);
+        $sumBitcoin = array_sum($bitcoinValues);
+        $sumEconomic = array_sum($economicValues);
+
+        $sumBitcoinSq = array_sum(array_map(fn($x) => $x * $x, $bitcoinValues));
+        $sumEconomicSq = array_sum(array_map(fn($x) => $x * $x, $economicValues));
+
+        $sumProducts = 0;
+        for ($i = 0; $i < $n; $i++) {
+            $sumProducts += $bitcoinValues[$i] * $economicValues[$i];
+        }
+
+        $numerator = ($n * $sumProducts) - ($sumBitcoin * $sumEconomic);
+        $denominator = sqrt(
+            (($n * $sumBitcoinSq) - ($sumBitcoin * $sumBitcoin)) *
+            (($n * $sumEconomicSq) - ($sumEconomic * $sumEconomic))
+        );
+
+        // Additional safety check for denominator
+        if ($denominator == 0 || !is_finite($denominator)) {
+            return null;
+        }
+
+        $correlation = $numerator / $denominator;
+        
+        // Handle potential floating point errors and edge cases
+        if (!is_finite($correlation) || is_nan($correlation)) {
+            return null;
+        }
+
+        // Clamp correlation to valid range [-1, 1] to handle floating point precision issues
+        $correlation = max(-1, min(1, $correlation));
+
+        return round($correlation, 4);
+    }
+
+    /**
+     * Calculate variance of a dataset
+     */
+    private function calculateVariance($values)
+    {
+        $n = count($values);
+        if ($n < 2) return 0;
+
+        $mean = array_sum($values) / $n;
+        $variance = 0;
+
+        foreach ($values as $value) {
+            $variance += pow($value - $mean, 2);
+        }
+
+        return $variance / ($n - 1);
     }
     
 }

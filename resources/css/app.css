@@ -7,6 +7,38 @@
 @import './mobile-wallet.css';
 @import './mobile-altcoin-season.css';
 
+/* Economic Overlay Desktop Styles */
+.custom-tooltip {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  line-height: 1.4;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+[data-bs-theme="dark"] .custom-tooltip {
+  background: rgba(40, 44, 52, 0.95);
+  border-color: #555;
+  color: #e1e1e1;
+}
+
+.custom-tooltip .tooltip-date {
+  font-weight: 600;
+  margin: 0 0 4px 0;
+  color: #666;
+}
+
+[data-bs-theme="dark"] .custom-tooltip .tooltip-date {
+  color: #aaa;
+}
+
+.custom-tooltip .tooltip-btc,
+.custom-tooltip .tooltip-indicator {
+  margin: 2px 0;
+}
+
 /* Dark theme styles */
 [data-bs-theme="dark"] {
     --bs-body-bg: #1a1d29;

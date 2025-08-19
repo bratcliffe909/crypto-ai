@@ -116,7 +116,7 @@ const MobileEconomicCalendar = () => {
       <MobileSectionHeader
         title="Events"
         icon={BsCalendar3}
-        lastUpdated={lastFetch}
+        lastUpdated={lastUpdated}
         error={error}
       />
       

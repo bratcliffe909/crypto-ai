@@ -1,0 +1,438 @@
+/**
+ * SimpleInsights Component
+ * Displays market insights in plain English format with sentiment analysis
+ */
+
+import React, { useMemo, useCallback, useEffect } from 'react';
+import { Card, Badge, Button, ProgressBar, ListGroup, Alert } from 'react-bootstrap';
+import { BsArrowClockwise, BsTrendingUp, BsTrendingDown, BsDashCircle, BsLightbulbFill } from 'react-icons/bs';
+import PropTypes from 'prop-types';
+import { format, formatDistanceToNow } from 'date-fns';
+import useApi from '../../hooks/useApi';
+import { getSimpleInsights } from '../../services/api/marketInsights';
+import LoadingSpinner from '../common/LoadingSpinner';
+import ErrorAlert from '../common/ErrorAlert';
+import { useToast } from '../common/ToastProvider';
+
+/**
+ * Sentiment indicator component
+ */
+const SentimentIndicator = React.memo(({ sentiment, confidence }) => {
+  const sentimentConfig = {
+    bullish: {
+      icon: BsTrendingUp,
+      color: 'success',
+      label: 'Bullish',
+      description: 'Market conditions appear favorable'
+    },
+    bearish: {
+      icon: BsTrendingDown,
+      color: 'danger', 
+      label: 'Bearish',
+      description: 'Market conditions appear challenging'
+    },
+    neutral: {
+      icon: BsDashCircle,
+      color: 'secondary',
+      label: 'Neutral',
+      description: 'Market conditions are mixed'
+    }
+  };
+
+  const config = sentimentConfig[sentiment] || sentimentConfig.neutral;
+  const IconComponent = config.icon;
+
+  return (
+    <div className="sentiment-indicator">
+      <div className="d-flex align-items-center gap-2 mb-2">
+        <IconComponent size={20} className={`text-${config.color}`} />
+        <h6 className="mb-0">
+          Market Sentiment: 
+          <Badge bg={config.color} className="ms-2">
+            {config.label}
+          </Badge>
+        </h6>
+      </div>
+      
+      <div className="mb-2">
+        <small className="text-muted">{config.description}</small>
+      </div>
+      
+      <div>
+        <div className="d-flex justify-content-between align-items-center mb-1">
+          <small className="text-muted">Confidence</small>
+          <small className="text-muted">{(confidence * 100).toFixed(0)}%</small>
+        </div>
+        <ProgressBar 
+          now={confidence * 100} 
+          variant={config.color}
+          size="sm"
+          aria-label={`Sentiment confidence: ${(confidence * 100).toFixed(0)}%`}
+        />
+      </div>
+    </div>
+  );
+});
+
+SentimentIndicator.displayName = 'SentimentIndicator';
+
+SentimentIndicator.propTypes = {
+  sentiment: PropTypes.oneOf(['bullish', 'bearish', 'neutral']).isRequired,
+  confidence: PropTypes.number.isRequired,
+};
+
+/**
+ * Key metrics display component
+ */
+const KeyMetrics = React.memo(({ metrics }) => {
+  const formatMetricValue = useCallback((value, type) => {
+    if (typeof value !== 'number') return value;
+    
+    switch (type) {
+      case 'percentage':
+        return `${value.toFixed(2)}%`;
+      case 'currency':
+        return new Intl.NumberFormat('en-US', { 
+          style: 'currency', 
+          currency: 'USD',
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }).format(value);
+      case 'number':
+        return new Intl.NumberFormat('en-US').format(value);
+      default:
+        return value;
+    }
+  }, []);
+
+  const metricItems = useMemo(() => {
+    return Object.entries(metrics).map(([key, data]) => {
+      const isPositive = data.change > 0;
+      const isNegative = data.change < 0;
+      
+      return {
+        key,
+        label: data.label || key.replace(/_/g, ' '),
+        value: formatMetricValue(data.value, data.format),
+        change: data.change,
+        changeFormatted: formatMetricValue(Math.abs(data.change), data.format),
+        isPositive,
+        isNegative,
+        description: data.description,
+      };
+    });
+  }, [metrics, formatMetricValue]);
+
+  if (!metricItems.length) {
+    return (
+      <Alert variant="info" className="mb-0">
+        <BsLightbulbFill className="me-2" />
+        No key metrics available at this time.
+      </Alert>
+    );
+  }
+
+  return (
+    <div className="key-metrics">
+      <h6 className="mb-3">Key Market Metrics</h6>
+      <ListGroup variant="flush">
+        {metricItems.map((metric) => (
+          <ListGroup.Item 
+            key={metric.key}
+            className="d-flex justify-content-between align-items-start px-0"
+          >
+            <div className="flex-grow-1">
+              <div className="d-flex justify-content-between align-items-center">
+                <span className="fw-semibold">{metric.label}</span>
+                <span className="fs-5 fw-bold">{metric.value}</span>
+              </div>
+              
+              {metric.change !== 0 && (
+                <div className="d-flex align-items-center mt-1">
+                  {metric.isPositive && (
+                    <BsTrendingUp className="text-success me-1" size={14} />
+                  )}
+                  {metric.isNegative && (
+                    <BsTrendingDown className="text-danger me-1" size={14} />
+                  )}
+                  <small 
+                    className={metric.isPositive ? 'text-success' : metric.isNegative ? 'text-danger' : 'text-muted'}
+                  >
+                    {metric.isPositive ? '+' : metric.isNegative ? '-' : ''}{metric.changeFormatted}
+                  </small>
+                </div>
+              )}
+              
+              {metric.description && (
+                <small className="text-muted d-block mt-1">
+                  {metric.description}
+                </small>
+              )}
+            </div>
+          </ListGroup.Item>
+        ))}
+      </ListGroup>
+    </div>
+  );
+});
+
+KeyMetrics.displayName = 'KeyMetrics';
+
+KeyMetrics.propTypes = {
+  metrics: PropTypes.object.isRequired,
+};
+
+/**
+ * Insights list component
+ */
+const InsightsList = React.memo(({ insights }) => {
+  const categorizedInsights = useMemo(() => {
+    const categories = {
+      market: { label: 'Market Analysis', icon: '📈', insights: [] },
+      technical: { label: 'Technical Signals', icon: '📊', insights: [] },
+      news: { label: 'Market News', icon: '📰', insights: [] },
+      general: { label: 'General Insights', icon: '💡', insights: [] },
+    };
+
+    insights.forEach(insight => {
+      const category = insight.category || 'general';
+      if (categories[category]) {
+        categories[category].insights.push(insight);
+      } else {
+        categories.general.insights.push(insight);
+      }
+    });
+
+    return Object.entries(categories).filter(([_, cat]) => cat.insights.length > 0);
+  }, [insights]);
+
+  if (!insights.length) {
+    return (
+      <Alert variant="info" className="mb-0">
+        <BsLightbulbFill className="me-2" />
+        No market insights available at this time.
+      </Alert>
+    );
+  }
+
+  return (
+    <div className="insights-list">
+      <h6 className="mb-3">Market Insights</h6>
+      
+      {categorizedInsights.map(([categoryKey, category]) => (
+        <div key={categoryKey} className="mb-4">
+          <h6 className="h6 text-muted mb-2">
+            <span className="me-2" role="img" aria-label={category.label}>
+              {category.icon}
+            </span>
+            {category.label}
+          </h6>
+          
+          {category.insights.map((insight, index) => (
+            <Alert 
+              key={index}
+              variant={insight.importance === 'high' ? 'warning' : 'light'}
+              className="mb-2 py-2"
+            >
+              <div className="d-flex justify-content-between align-items-start">
+                <div className="flex-grow-1">
+                  <p className="mb-1">{insight.text}</p>
+                  
+                  {insight.impact && (
+                    <small className="text-muted">
+                      Expected impact: {insight.impact}
+                    </small>
+                  )}
+                </div>
+                
+                {insight.importance === 'high' && (
+                  <Badge bg="warning" text="dark" className="ms-2">
+                    High Priority
+                  </Badge>
+                )}
+              </div>
+            </Alert>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+});
+
+InsightsList.displayName = 'InsightsList';
+
+InsightsList.propTypes = {
+  insights: PropTypes.arrayOf(
+    PropTypes.shape({
+      text: PropTypes.string.isRequired,
+      category: PropTypes.string,
+      importance: PropTypes.oneOf(['low', 'medium', 'high']),
+      impact: PropTypes.string,
+    })
+  ).isRequired,
+};
+
+/**
+ * Main SimpleInsights component
+ */
+const SimpleInsights = React.memo(({ 
+  refreshInterval = 300000, // 5 minutes
+  showHeader = true,
+  className = '',
+  onError
+}) => {
+  const { data, loading, error, refetch } = useApi(
+    getSimpleInsights,
+    [],
+    refreshInterval
+  );
+  const { error: showErrorToast } = useToast();
+
+  // Handle errors with toast notifications
+  useEffect(() => {
+    if (error) {
+      const errorMessage = error.message || 'Failed to load market insights';
+      showErrorToast('Market Insights Error', errorMessage);
+      onError?.(error);
+    }
+  }, [error, showErrorToast, onError]);
+
+  // Handle refresh
+  const handleRefresh = useCallback(async () => {
+    try {
+      await refetch();
+    } catch (err) {
+      showErrorToast('Refresh Failed', err.message);
+    }
+  }, [refetch, showErrorToast]);
+
+  // Render loading state
+  if (loading) {
+    return (
+      <Card className={`simple-insights ${className}`}>
+        {showHeader && (
+          <Card.Header>
+            <Card.Title className="mb-0 d-flex align-items-center">
+              <BsLightbulbFill className="me-2" />
+              Market Insights
+            </Card.Title>
+          </Card.Header>
+        )}
+        <Card.Body>
+          <LoadingSpinner size="lg" />
+        </Card.Body>
+      </Card>
+    );
+  }
+
+  // Render error state
+  if (error || !data) {
+    return (
+      <Card className={`simple-insights ${className}`}>
+        {showHeader && (
+          <Card.Header>
+            <Card.Title className="mb-0 d-flex align-items-center">
+              <BsLightbulbFill className="me-2" />
+              Market Insights
+            </Card.Title>
+          </Card.Header>
+        )}
+        <Card.Body>
+          <ErrorAlert 
+            message={error?.message || 'Failed to load market insights'} 
+            onRetry={handleRefresh}
+          />
+        </Card.Body>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className={`simple-insights ${className}`}>
+      {showHeader && (
+        <Card.Header className="d-flex justify-content-between align-items-center">
+          <Card.Title className="mb-0 d-flex align-items-center">
+            <BsLightbulbFill className="me-2" />
+            Market Insights
+          </Card.Title>
+          
+          <Button 
+            variant="outline-secondary" 
+            size="sm"
+            onClick={handleRefresh}
+            disabled={loading}
+            aria-label="Refresh insights"
+          >
+            <BsArrowClockwise />
+          </Button>
+        </Card.Header>
+      )}
+      
+      <Card.Body>
+        {/* Data freshness indicator */}
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <small className="text-muted">
+            Updated {formatDistanceToNow(new Date(data.lastUpdated), { addSuffix: true })}
+            {data.metadata?.source && (
+              <span className="ms-2">
+                ({data.metadata.source === 'cache' ? 'Cached' : 'Live'})
+              </span>
+            )}
+          </small>
+        </div>
+
+        {/* Market summary */}
+        {data.summary && (
+          <Alert variant="info" className="mb-4">
+            <strong>Market Summary:</strong> {data.summary}
+          </Alert>
+        )}
+
+        {/* Sentiment indicator */}
+        <div className="mb-4">
+          <SentimentIndicator 
+            sentiment={data.sentiment} 
+            confidence={data.confidence} 
+          />
+        </div>
+
+        {/* Key metrics */}
+        {data.keyMetrics && Object.keys(data.keyMetrics).length > 0 && (
+          <div className="mb-4">
+            <KeyMetrics metrics={data.keyMetrics} />
+          </div>
+        )}
+
+        {/* Insights list */}
+        {data.insights && (
+          <InsightsList insights={data.insights} />
+        )}
+
+        {/* Footer info */}
+        <div className="mt-4 pt-3 border-top">
+          <small className="text-muted">
+            Next update in {Math.round((refreshInterval - (data.metadata?.age || 0)) / 60000)} minutes
+          </small>
+        </div>
+      </Card.Body>
+    </Card>
+  );
+});
+
+SimpleInsights.displayName = 'SimpleInsights';
+
+SimpleInsights.propTypes = {
+  refreshInterval: PropTypes.number,
+  showHeader: PropTypes.bool,
+  className: PropTypes.string,
+  onError: PropTypes.func,
+};
+
+SimpleInsights.defaultProps = {
+  refreshInterval: 300000,
+  showHeader: true,
+  className: '',
+  onError: null,
+};
+
+export default SimpleInsights;

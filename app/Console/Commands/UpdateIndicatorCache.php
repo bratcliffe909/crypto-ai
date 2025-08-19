@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use App\Services\RainbowChartService;
 use App\Services\CoinGeckoService;
 use App\Services\AlphaVantageService;
+use App\Services\FREDService;
 use App\Services\CacheService;
 use App\Repositories\AltcoinSeasonRepository;
 use App\Repositories\IndicatorRepository;
@@ -16,12 +17,13 @@ use Carbon\Carbon;
 
 class UpdateIndicatorCache extends Command
 {
-    protected $signature = 'cache:update-indicators {--force : Force update even if cache is fresh}';
-    protected $description = 'Update Redis cache for Pi Cycle Top, Rainbow Chart, Altcoin Season Index, and RSI';
+    protected $signature = 'cache:update-indicators {--force : Force update even if cache is fresh} {--economic : Also update economic indicators}';
+    protected $description = 'Update Redis cache for Pi Cycle Top, Rainbow Chart, Altcoin Season Index, RSI, and optionally Economic Indicators';
 
     protected $rainbowChartService;
     protected $coinGeckoService;
     protected $alphaVantageService;
+    protected $fredService;
     protected $cacheService;
     protected $altcoinSeasonRepository;
     protected $indicatorRepository;
@@ -30,6 +32,7 @@ class UpdateIndicatorCache extends Command
         RainbowChartService $rainbowChartService,
         CoinGeckoService $coinGeckoService,
         AlphaVantageService $alphaVantageService,
+        FREDService $fredService,
         CacheService $cacheService,
         AltcoinSeasonRepository $altcoinSeasonRepository,
         IndicatorRepository $indicatorRepository
@@ -39,6 +42,7 @@ class UpdateIndicatorCache extends Command
         $this->rainbowChartService = $rainbowChartService;
         $this->coinGeckoService = $coinGeckoService;
         $this->alphaVantageService = $alphaVantageService;
+        $this->fredService = $fredService;
         $this->cacheService = $cacheService;
         $this->altcoinSeasonRepository = $altcoinSeasonRepository;
         $this->indicatorRepository = $indicatorRepository;
@@ -49,12 +53,18 @@ class UpdateIndicatorCache extends Command
         $this->info('Starting indicator cache update...');
         
         $startTime = microtime(true);
+        $updateEconomic = $this->option('economic');
+        
         $results = [
             'piCycle' => ['status' => 'pending', 'dataPoints' => 0, 'error' => null],
             'rainbow' => ['status' => 'pending', 'dataPoints' => 0, 'error' => null],
             'altcoinSeason' => ['status' => 'pending', 'index' => null, 'error' => null],
             'rsi' => ['status' => 'pending', 'value' => null, 'error' => null]
         ];
+        
+        if ($updateEconomic) {
+            $results['economic'] = ['status' => 'pending', 'indicators' => 0, 'error' => null];
+        }
         
         // Update Pi Cycle Top Indicator
         try {
@@ -145,18 +155,46 @@ class UpdateIndicatorCache extends Command
             ]);
         }
         
+        // Update Economic Indicators (if requested)
+        if ($updateEconomic) {
+            try {
+                $this->info('Updating Economic Indicators...');
+                $economicResults = $this->updateEconomicIndicators();
+                
+                $results['economic']['indicators'] = $economicResults['updated'];
+                $results['economic']['status'] = $economicResults['updated'] > 0 ? 'success' : 'empty';
+                $this->info("✓ Economic Indicators updated: {$economicResults['updated']} indicators");
+                
+            } catch (\Exception $e) {
+                $results['economic']['status'] = 'failed';
+                $results['economic']['error'] = $e->getMessage();
+                $this->error('✗ Failed to update Economic Indicators: ' . $e->getMessage());
+                Log::error('Economic indicators cache update failed', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+            }
+        }
+        
         $duration = round(microtime(true) - $startTime, 2);
         
         // Display summary
         $this->info("\n" . 'Cache update completed in ' . $duration . ' seconds');
+        
+        $tableData = [
+            ['Pi Cycle Top', $results['piCycle']['status'], $results['piCycle']['dataPoints'] . ' points', $results['piCycle']['error'] ?? '-'],
+            ['Rainbow Chart', $results['rainbow']['status'], $results['rainbow']['dataPoints'] . ' points', $results['rainbow']['error'] ?? '-'],
+            ['Altcoin Season', $results['altcoinSeason']['status'], ($results['altcoinSeason']['index'] ?? '-') . '%', $results['altcoinSeason']['error'] ?? '-'],
+            ['Bitcoin RSI', $results['rsi']['status'], $results['rsi']['value'] ?? '-', $results['rsi']['error'] ?? '-'],
+        ];
+        
+        if ($updateEconomic) {
+            $tableData[] = ['Economic Data', $results['economic']['status'], $results['economic']['indicators'] . ' indicators', $results['economic']['error'] ?? '-'];
+        }
+        
         $this->table(
             ['Indicator', 'Status', 'Details', 'Error'],
-            [
-                ['Pi Cycle Top', $results['piCycle']['status'], $results['piCycle']['dataPoints'] . ' points', $results['piCycle']['error'] ?? '-'],
-                ['Rainbow Chart', $results['rainbow']['status'], $results['rainbow']['dataPoints'] . ' points', $results['rainbow']['error'] ?? '-'],
-                ['Altcoin Season', $results['altcoinSeason']['status'], ($results['altcoinSeason']['index'] ?? '-') . '%', $results['altcoinSeason']['error'] ?? '-'],
-                ['Bitcoin RSI', $results['rsi']['status'], $results['rsi']['value'] ?? '-', $results['rsi']['error'] ?? '-'],
-            ]
+            $tableData
         );
         
         // Log summary
@@ -166,12 +204,14 @@ class UpdateIndicatorCache extends Command
         ]);
         
         // Return success if at least one indicator updated successfully
-        return ($results['piCycle']['status'] === 'success' || 
-                $results['rainbow']['status'] === 'success' || 
-                $results['altcoinSeason']['status'] === 'success' ||
-                $results['rsi']['status'] === 'success') 
-            ? Command::SUCCESS 
-            : Command::FAILURE;
+        $successCount = 0;
+        if ($results['piCycle']['status'] === 'success') $successCount++;
+        if ($results['rainbow']['status'] === 'success') $successCount++;
+        if ($results['altcoinSeason']['status'] === 'success') $successCount++;
+        if ($results['rsi']['status'] === 'success') $successCount++;
+        if ($updateEconomic && $results['economic']['status'] === 'success') $successCount++;
+        
+        return $successCount > 0 ? Command::SUCCESS : Command::FAILURE;
     }
     
     private function updatePiCycleTop()
@@ -623,5 +663,91 @@ class UpdateIndicatorCache extends Command
         }
         
         return ['Technical Analysis: RSI' => array_reverse(array_slice($rsiValues, -30, null, true), true)];
+    }
+    
+    private function updateEconomicIndicators()
+    {
+        if (!$this->fredService->isConfigured()) {
+            throw new \Exception('FRED API is not configured. Please set FRED_API_KEY in your .env file.');
+        }
+
+        $indicators = [
+            'federal_funds_rate' => 'Federal Funds Rate',
+            'inflation_cpi' => 'Consumer Price Index',
+            'unemployment_rate' => 'Unemployment Rate',
+            'dxy_dollar_index' => 'US Dollar Index'
+        ];
+
+        $days = 365;
+        $startDate = now()->subDays($days)->format('Y-m-d');
+        $endDate = now()->format('Y-m-d');
+        
+        $updated = 0;
+        $failed = 0;
+
+        foreach ($indicators as $indicator => $name) {
+            try {
+                $this->line("  - Updating {$name}...");
+                
+                // Fetch data and cache it
+                $data = $this->fetchEconomicData($indicator, $startDate, $endDate);
+
+                if (empty($data)) {
+                    $this->line("    ⚠ No data available for {$indicator}");
+                    continue;
+                }
+
+                // Clear related overlay cache keys
+                $overlayKeys = [
+                    "economic_overlay_{$indicator}_90",
+                    "economic_overlay_{$indicator}_180", 
+                    "economic_overlay_{$indicator}_365",
+                    "economic_overlay_{$indicator}_730"
+                ];
+
+                foreach ($overlayKeys as $overlayKey) {
+                    $this->cacheService->forget($overlayKey);
+                }
+
+                $this->line("    ✓ Updated {$name}: " . count($data) . " data points");
+                $updated++;
+
+            } catch (\Exception $e) {
+                $this->line("    ✗ Failed to update {$name}: " . $e->getMessage());
+                Log::error("Economic data update failed for {$indicator}", [
+                    'error' => $e->getMessage(),
+                    'indicator' => $indicator
+                ]);
+                $failed++;
+            }
+        }
+
+        // Update the general economic indicators cache
+        $this->cacheService->forget('economic_indicators');
+
+        return [
+            'updated' => $updated,
+            'failed' => $failed
+        ];
+    }
+
+    private function fetchEconomicData($indicator, $startDate, $endDate)
+    {
+        switch ($indicator) {
+            case 'federal_funds_rate':
+                return $this->fredService->getFederalFundsRate($startDate, $endDate);
+            
+            case 'inflation_cpi':
+                return $this->fredService->getInflationCPI($startDate, $endDate);
+            
+            case 'unemployment_rate':
+                return $this->fredService->getUnemploymentRate($startDate, $endDate);
+            
+            case 'dxy_dollar_index':
+                return $this->fredService->getDollarIndex($startDate, $endDate);
+            
+            default:
+                throw new \InvalidArgumentException("Unknown indicator: {$indicator}");
+        }
     }
 }

@@ -1,0 +1,160 @@
+/* Market Insights Dashboard Styles */
+
+.market-insights-dashboard {
+  margin-bottom: 1.5rem;
+}
+
+.insight-card {
+  transition: all 0.3s ease;
+  border: 1px solid var(--bs-border-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+[data-bs-theme="dark"] .insight-card {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.insight-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+[data-bs-theme="dark"] .insight-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.insight-card .card-header {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+  border-bottom: 1px solid var(--bs-border-color);
+  padding: 1rem 1.25rem;
+}
+
+[data-bs-theme="light"] .insight-card .card-header {
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.02) 0%, rgba(0, 0, 0, 0.01) 100%);
+}
+
+.insight-card .card-body {
+  padding: 1.25rem;
+}
+
+/* Value display styling */
+.insight-card h3 {
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: var(--bs-body-color);
+  letter-spacing: -0.02em;
+}
+
+/* Status badges with enhanced styling */
+.insight-card .badge {
+  border-radius: 0.5rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+[data-bs-theme="dark"] .insight-card .badge {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Success badge (Bullish) */
+.insight-card .badge.bg-success {
+  background: linear-gradient(135deg, #198754 0%, #20c997 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Warning badge (Neutral) */
+.insight-card .badge.bg-warning {
+  background: linear-gradient(135deg, #ffc107 0%, #ffda6a 100%) !important;
+  color: #000 !important;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Danger badge (Bearish) */
+.insight-card .badge.bg-danger {
+  background: linear-gradient(135deg, #dc3545 0%, #f8719d 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Trend icons */
+.insight-card .text-success {
+  color: #20c997 !important;
+}
+
+.insight-card .text-danger {
+  color: #f8719d !important;
+}
+
+/* Description text */
+.insight-card .text-muted {
+  line-height: 1.4;
+  font-size: 0.875rem;
+}
+
+/* Custom tooltip styling */
+.custom-tooltip .tooltip-inner {
+  background: var(--bs-dark);
+  color: var(--bs-light);
+  max-width: 280px;
+  padding: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+[data-bs-theme="dark"] .custom-tooltip .tooltip-inner {
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--bs-dark);
+}
+
+.custom-tooltip .tooltip-arrow::before {
+  border-top-color: var(--bs-dark);
+}
+
+[data-bs-theme="dark"] .custom-tooltip .tooltip-arrow::before {
+  border-top-color: rgba(255, 255, 255, 0.95);
+}
+
+/* Responsive enhancements */
+@media (max-width: 576px) {
+  .insight-card h3 {
+    font-size: 1.875rem;
+  }
+  
+  .insight-card .card-body {
+    padding: 1rem;
+  }
+  
+  .insight-card .card-header {
+    padding: 0.75rem 1rem;
+  }
+}
+
+/* Animation for card loading */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.insight-card {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+.insight-card:nth-child(1) {
+  animation-delay: 0.1s;
+}
+
+.insight-card:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.insight-card:nth-child(3) {
+  animation-delay: 0.3s;
+}

@@ -188,4 +188,99 @@ class FREDService
 
         return $events;
     }
+
+    /**
+     * Get Federal Funds Rate data
+     */
+    public function getFederalFundsRate($startDate, $endDate)
+    {
+        return $this->getSeriesData('FEDFUNDS', $startDate, $endDate);
+    }
+
+    /**
+     * Get Inflation (CPI) data
+     */
+    public function getInflationCPI($startDate, $endDate)
+    {
+        return $this->getSeriesData('CPIAUCSL', $startDate, $endDate);
+    }
+
+    /**
+     * Get Unemployment Rate data
+     */
+    public function getUnemploymentRate($startDate, $endDate)
+    {
+        return $this->getSeriesData('UNRATE', $startDate, $endDate);
+    }
+
+    /**
+     * Get Dollar Index (DXY) data
+     */
+    public function getDollarIndex($startDate, $endDate)
+    {
+        return $this->getSeriesData('DTWEXBGS', $startDate, $endDate);
+    }
+
+    /**
+     * Get series data from FRED API
+     */
+    private function getSeriesData($seriesId, $startDate, $endDate)
+    {
+        if (!$this->isConfigured()) {
+            return [];
+        }
+
+        $cacheKey = "fred_series_{$seriesId}_{$startDate}_{$endDate}";
+
+        $result = $this->cacheService->remember($cacheKey, 3600, function () use ($seriesId, $startDate, $endDate) {
+            $params = [
+                'api_key' => $this->apiKey,
+                'file_type' => 'json',
+                'series_id' => $seriesId,
+                'observation_start' => $startDate,
+                'observation_end' => $endDate,
+                'sort_order' => 'asc',
+                'limit' => 10000
+            ];
+
+            try {
+                $response = Http::timeout(30)->get($this->baseUrl . '/series/observations', $params);
+
+                if ($response->successful()) {
+                    $data = $response->json();
+                    
+                    if (isset($data['error_code'])) {
+                        Log::error('FRED API error for series ' . $seriesId, ['error' => $data]);
+                        throw new \Exception($data['error_message'] ?? 'FRED API Error');
+                    }
+                    
+                    $observations = $data['observations'] ?? [];
+                    $formattedData = [];
+
+                    foreach ($observations as $observation) {
+                        // Skip invalid observations
+                        if ($observation['value'] === '.' || $observation['value'] === '' || !is_numeric($observation['value'])) {
+                            continue;
+                        }
+
+                        $formattedData[] = [
+                            'date' => $observation['date'],
+                            'value' => floatval($observation['value'])
+                        ];
+                    }
+
+                    return $formattedData;
+                }
+            } catch (\Exception $e) {
+                Log::error('FRED API series request failed', [
+                    'series_id' => $seriesId,
+                    'error' => $e->getMessage()
+                ]);
+            }
+
+            return [];
+        });
+
+        return $result['data'] ?? $result;
+    }
 }
