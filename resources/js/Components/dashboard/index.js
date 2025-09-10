@@ -3,7 +3,15 @@
  * Export all dashboard components for easy importing
  */
 
+// Economic Components - New Mini-Card Design
+export { default as EconomicOverlayMiniDashboard } from './EconomicOverlayMiniDashboard';
+export { default as EconomicMiniCard } from './EconomicMiniCard';
+
+// Legacy Economic Components (deprecated)
 export { default as EconomicOverlayChart } from './EconomicOverlayChart';
+export { default as EconomicOverlay } from './EconomicOverlay';
+
+// Other Dashboard Components
 export { default as BullMarketBand } from './BullMarketBand';
 export { default as EconomicCalendar } from './EconomicCalendar';
 export { default as EconomicIndicatorSelector } from './EconomicIndicatorSelector';

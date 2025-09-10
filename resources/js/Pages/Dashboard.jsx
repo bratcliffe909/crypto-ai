@@ -17,7 +17,7 @@ import AltcoinSeasonIndex from '../Components/dashboard/AltcoinSeasonIndex';
 import EconomicCalendar from '../Components/dashboard/EconomicCalendar';
 import NewsFeed from '../Components/dashboard/NewsFeed';
 import MarketStats from '../Components/dashboard/MarketStats';
-import EconomicOverlay from '../Components/dashboard/EconomicOverlay';
+import EconomicOverlayMiniDashboard from '../Components/dashboard/EconomicOverlayMiniDashboard';
 import LoadingSpinner from '../Components/common/LoadingSpinner';
 import MobileLayout from '../Components/mobile/layout/MobileLayout';
 import ErrorBoundary from '../Components/ErrorBoundary';
@@ -80,7 +80,7 @@ function Dashboard() {
             <MarketOverview />
             <BullMarketBand />
             <PiCycleTop />
-            <EconomicOverlay />
+            <EconomicOverlayMiniDashboard />
             <RainbowChart />
             <AltcoinSeasonIndex />
             <TechnicalIndicators />

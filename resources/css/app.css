@@ -6,6 +6,7 @@
 @import './mobile-analysis.css';
 @import './mobile-wallet.css';
 @import './mobile-altcoin-season.css';
+@import './economic-mini-cards.scss';
 
 /* Economic Overlay Desktop Styles */
 .custom-tooltip {

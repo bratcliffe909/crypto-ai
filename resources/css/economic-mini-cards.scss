@@ -1,0 +1,238 @@
+/* Economic Mini Cards Styles */
+
+.economic-mini-card {
+  transition: all 0.2s ease;
+  border-radius: 8px;
+  height: 160px;
+  min-height: 160px;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .card-body {
+    padding: 1rem !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  // Ensure proper spacing in the layout
+  .flex-grow-1 {
+    flex-grow: 1 !important;
+  }
+
+  .mt-auto {
+    margin-top: auto !important;
+  }
+
+  &.loading-card {
+    border: 1px dashed var(--bs-border-color);
+    background-color: var(--bs-gray-50);
+    
+    .card-body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 108px; // 140px - 2rem padding
+    }
+  }
+
+  &.error-card {
+    border: 1px dashed var(--bs-warning);
+    background-color: var(--bs-warning-bg-subtle);
+    
+    .card-body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 108px;
+    }
+  }
+}
+
+.trend-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  
+  svg {
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 767.98px) {
+  .economic-mini-card {
+    height: 80px;
+    min-height: 80px;
+    
+    .card-body {
+      padding: 0.75rem;
+    }
+    
+    &.loading-card .card-body,
+    &.error-card .card-body {
+      min-height: 48px; // 80px - 1.5rem padding
+    }
+  }
+  
+  .trend-arrow svg {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .economic-mini-card {
+    height: 75px;
+    min-height: 75px;
+    
+    h6 {
+      font-size: 0.75rem !important;
+    }
+    
+    .fw-bold {
+      font-size: 1.1rem !important;
+    }
+    
+    small {
+      font-size: 0.65rem !important;
+    }
+    
+    &.loading-card .card-body,
+    &.error-card .card-body {
+      min-height: 43px; // 75px - 1.5rem padding
+    }
+  }
+  
+  .trend-arrow svg {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+/* Chart legend styles for consistency */
+.chart-legend {
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  
+  .legend-line {
+    width: 16px;
+    height: 2px;
+    border-radius: 1px;
+  }
+  
+  .legend-dashed {
+    background-image: repeating-linear-gradient(
+      to right,
+      currentColor 0px,
+      currentColor 4px,
+      transparent 4px,
+      transparent 8px
+    );
+    background-color: transparent !important;
+  }
+}
+
+/* Mobile-specific chart card styles */
+.mobile-chart-card {
+  .mobile-card-header {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--bs-border-color-translucent);
+    
+    h6 {
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+  }
+  
+  .mobile-card-body {
+    padding: 1rem;
+  }
+}
+
+/* Tooltip customization for mobile */
+@media (max-width: 767.98px) {
+  .tooltip {
+    font-size: 0.75rem;
+  }
+  
+  .tooltip-inner {
+    max-width: 250px;
+    padding: 0.5rem;
+  }
+}
+
+/* Animation for loading states */
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.economic-mini-card.loading-card {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Dark theme adjustments */
+[data-bs-theme="dark"] {
+  .economic-mini-card {
+    &.loading-card {
+      background-color: var(--bs-gray-900);
+      border-color: var(--bs-border-color);
+    }
+    
+    &.error-card {
+      background-color: rgba(255, 193, 7, 0.1);
+    }
+  }
+  
+  .chart-legend .legend-line {
+    opacity: 0.9;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .economic-mini-card {
+    border-width: 2px;
+    
+    &:hover {
+      border-width: 3px;
+    }
+  }
+  
+  .trend-arrow svg {
+    filter: none;
+    stroke-width: 3 !important;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .economic-mini-card {
+    transition: none;
+    
+    &:hover {
+      transform: none;
+    }
+  }
+  
+  .trend-arrow svg {
+    transition: none;
+  }
+  
+  .economic-mini-card.loading-card {
+    animation: none;
+  }
+}

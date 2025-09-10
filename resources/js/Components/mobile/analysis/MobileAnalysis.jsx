@@ -20,7 +20,7 @@ const PiCycleTop = lazy(() => import('../../dashboard/PiCycleTop'));
 const FearGreedIndex = lazy(() => import('../../dashboard/FearGreedIndex'));
 const TechnicalIndicators = lazy(() => import('../../dashboard/TechnicalIndicators'));
 const MobileAltcoinSeason = lazy(() => import('./MobileAltcoinSeason'));
-const MobileEconomicOverlay = lazy(() => import('./MobileEconomicOverlay'));
+const MobileEconomicMiniDashboard = lazy(() => import('./MobileEconomicMiniDashboard'));
 const MarketSentiment = lazy(() => import('../../desktop/indicators/MarketSentiment'));
 const SocialActivity = lazy(() => import('../../desktop/indicators/SocialActivity'));
 
@@ -33,7 +33,7 @@ const MobileAnalysis = () => {
     { id: 'bullmarket', label: 'Bull Market Band', component: BullMarketBand, icon: BsBandaid },
     { id: 'rainbow', label: 'Rainbow Chart', component: RainbowChart, icon: BsRainbow },
     { id: 'picycle', label: 'Pi Cycle Top', component: PiCycleTop, icon: BsGraphDown },
-    { id: 'economic', label: 'Economic Overlay', component: MobileEconomicOverlay, icon: BsBarChart },
+    { id: 'economic', label: 'Economic Indicators', component: MobileEconomicMiniDashboard, icon: BsBarChart },
     { id: 'feargreed', label: 'Fear & Greed', component: FearGreedIndex, icon: BsSpeedometer },
     { id: 'sentiment', label: 'Market Sentiment', component: MarketSentiment, icon: BsChatDots },
     { id: 'social', label: 'Social Activity', component: SocialActivity, icon: BsChatDots },
