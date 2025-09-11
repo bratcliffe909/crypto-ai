@@ -277,8 +277,8 @@ class IndicatorController extends Controller
     public function economicCalendar(Request $request)
     {
         try {
-            $from = $request->get('from');
-            $to = $request->get('to');
+            $from = $request->get('from') ?: now()->format('Y-m-d');
+            $to = $request->get('to') ?: now()->addDays(30)->format('Y-m-d');
             
             // Use the unified EconomicCalendarService which handles both FRED and Finnhub
             $result = $this->economicCalendarService->getEvents($from, $to);

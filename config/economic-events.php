@@ -237,6 +237,110 @@ return [
             'country' => 'US',
             'description' => 'Potential market volatility around debt ceiling negotiations',
             'source' => 'US Treasury'
+        ],
+        [
+            'event' => 'US Non-Farm Payrolls',
+            'date' => '2025-09-06',
+            'impact' => 'high',
+            'country' => 'US',
+            'description' => 'Monthly employment report - market moving data',
+            'source' => 'Bureau of Labor Statistics'
+        ],
+        [
+            'event' => 'US CPI',
+            'date' => '2025-09-11',
+            'impact' => 'high',
+            'country' => 'US',
+            'description' => 'Consumer Price Index - key inflation indicator',
+            'source' => 'Bureau of Labor Statistics'
+        ],
+        [
+            'event' => 'US Non-Farm Payrolls',
+            'date' => '2025-10-04',
+            'impact' => 'high',
+            'country' => 'US',
+            'description' => 'Monthly employment report - market moving data',
+            'source' => 'Bureau of Labor Statistics'
+        ],
+        [
+            'event' => 'US CPI',
+            'date' => '2025-10-10',
+            'impact' => 'high',
+            'country' => 'US',
+            'description' => 'Consumer Price Index - key inflation indicator',
+            'source' => 'Bureau of Labor Statistics'
+        ],
+        [
+            'event' => 'US PPI',
+            'date' => '2025-10-11',
+            'impact' => 'medium',
+            'country' => 'US',
+            'description' => 'Producer Price Index - wholesale inflation',
+            'source' => 'Bureau of Labor Statistics'
+        ],
+        [
+            'event' => 'ECB Interest Rate Decision',
+            'date' => '2025-10-17',
+            'impact' => 'high',
+            'country' => 'EU',
+            'description' => 'European Central Bank interest rate decision',
+            'source' => 'ECB'
+        ],
+        [
+            'event' => 'US Retail Sales',
+            'date' => '2025-10-16',
+            'impact' => 'high',
+            'country' => 'US',
+            'description' => 'Consumer spending indicator',
+            'source' => 'Census Bureau'
+        ],
+        [
+            'event' => 'Bank of England Rate Decision',
+            'date' => '2025-11-07',
+            'impact' => 'high',
+            'country' => 'UK',
+            'description' => 'UK interest rate decision',
+            'source' => 'Bank of England'
+        ],
+        [
+            'event' => 'US Non-Farm Payrolls',
+            'date' => '2025-11-01',
+            'impact' => 'high',
+            'country' => 'US',
+            'description' => 'Monthly employment report - market moving data',
+            'source' => 'Bureau of Labor Statistics'
+        ],
+        [
+            'event' => 'US CPI',
+            'date' => '2025-11-13',
+            'impact' => 'high',
+            'country' => 'US',
+            'description' => 'Consumer Price Index - key inflation indicator',
+            'source' => 'Bureau of Labor Statistics'
+        ],
+        [
+            'event' => 'US PCE Inflation',
+            'date' => '2025-09-27',
+            'impact' => 'high',
+            'country' => 'US',
+            'description' => "Fed's preferred inflation measure",
+            'source' => 'Bureau of Economic Analysis'
+        ],
+        [
+            'event' => 'US PCE Inflation',
+            'date' => '2025-10-31',
+            'impact' => 'high',
+            'country' => 'US',
+            'description' => "Fed's preferred inflation measure",
+            'source' => 'Bureau of Economic Analysis'
+        ],
+        [
+            'event' => 'US GDP (Q3 Advance)',
+            'date' => '2025-10-30',
+            'impact' => 'high',
+            'country' => 'US',
+            'description' => 'Gross Domestic Product - economic growth indicator',
+            'source' => 'Bureau of Economic Analysis'
         ]
     ],
 

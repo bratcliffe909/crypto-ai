@@ -30,8 +30,10 @@ const EconomicMiniCard = ({
       value: item[indicatorKey]
     }));
     
-    return calculateTrend(trendData, 30);
-  }, [data, indicatorKey]);
+    // Use the full time range for trend calculation instead of hardcoded 30 days
+    const trendWindowDays = parseInt(timeRange) || 30;
+    return calculateTrend(trendData, trendWindowDays);
+  }, [data, indicatorKey, timeRange]);
 
   // Get current value (most recent data point)
   const currentValue = React.useMemo(() => {

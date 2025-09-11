@@ -551,17 +551,6 @@ class ChartController extends Controller
                     $bitcoinData = $bitcoinResult['data'] ?? [];
                 }
 
-                if (empty($bitcoinData)) {
-                    return [
-                        'data' => [],
-                        'metadata' => [
-                            'indicator' => $indicator,
-                            'days' => $days,
-                            'error' => 'No Bitcoin price data available'
-                        ]
-                    ];
-                }
-
                 // Get economic data based on indicator
                 $economicData = $this->getEconomicDataByIndicator($indicator, $days);
 
@@ -576,8 +565,18 @@ class ChartController extends Controller
                     ];
                 }
 
-                // Correlate Bitcoin prices with economic data
-                $correlatedData = $this->correlateData($bitcoinData, $economicData, $indicator);
+                // If Bitcoin data is available, correlate with economic data
+                if (!empty($bitcoinData)) {
+                    $correlatedData = $this->correlateData($bitcoinData, $economicData, $indicator);
+                } else {
+                    // Just format economic data without Bitcoin correlation
+                    $correlatedData = array_map(function($item) use ($indicator) {
+                        return [
+                            'date' => $item['date'],
+                            $indicator => $item['value']
+                        ];
+                    }, $economicData);
+                }
                 
                 // Validate correlated data for NaN/Inf values
                 $correlatedData = array_map(function($item) {

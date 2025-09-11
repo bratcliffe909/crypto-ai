@@ -230,18 +230,33 @@ class FREDService
             return [];
         }
 
-        // Use historical caching pattern like other chart services
+        // Use historical caching pattern but get full dataset first
         $cacheKey = "fred_series_{$seriesId}_historical";
         
-        $result = $this->cacheService->rememberHistoricalForever($cacheKey, function($fromDate, $toDate) use ($seriesId, $startDate, $endDate) {
-            // Use the full requested date range if no incremental dates provided
-            $actualStartDate = $fromDate ?? $startDate;
-            $actualEndDate = $toDate ?? $endDate;
+        $result = $this->cacheService->rememberHistoricalForever($cacheKey, function($fromDate, $toDate) use ($seriesId) {
+            // For historical forever caching, get a comprehensive date range
+            $fullStartDate = $fromDate ?? '2020-01-01';  // Get last 4+ years of data
+            $fullEndDate = $toDate ?? date('Y-m-d');
             
-            return $this->fetchSeriesFromAPI($seriesId, $actualStartDate, $actualEndDate);
+            return $this->fetchSeriesFromAPI($seriesId, $fullStartDate, $fullEndDate);
         }, 'date');
 
-        return $result['data'] ?? $result;
+        $fullData = $result['data'] ?? $result;
+        
+        // Filter the cached data to match the requested date range
+        if (!empty($fullData) && is_array($fullData)) {
+            $filteredData = array_filter($fullData, function($item) use ($startDate, $endDate) {
+                if (!isset($item['date'])) return false;
+                
+                $itemDate = $item['date'];
+                return $itemDate >= $startDate && $itemDate <= $endDate;
+            });
+            
+            // Re-index the array and maintain chronological order
+            return array_values($filteredData);
+        }
+        
+        return $fullData;
     }
 
     /**
