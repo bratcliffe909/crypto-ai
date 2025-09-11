@@ -486,12 +486,26 @@
   background-color: rgba(220, 53, 69, 0.1) !important;
 }
 
+/* Maximum specificity for green backgrounds */
+.mobile-analysis .chart-wrapper .mobile-chart-card .mobile-card-body .economic-mini-card.card.h-100[style*="rgba(25, 135, 84, 0.1)"] {
+  background-color: rgba(25, 135, 84, 0.1) !important;
+  background: rgba(25, 135, 84, 0.1) !important;
+}
+
 .mobile-analysis .economic-mini-card.card[style*="rgba(25, 135, 84, 0.1)"] {
   background-color: rgba(25, 135, 84, 0.1) !important;
+  background: rgba(25, 135, 84, 0.1) !important;
+}
+
+/* Maximum specificity for orange backgrounds */
+.mobile-analysis .chart-wrapper .mobile-chart-card .mobile-card-body .economic-mini-card.card.h-100[style*="rgba(253, 126, 20, 0.1)"] {
+  background-color: rgba(253, 126, 20, 0.1) !important;
+  background: rgba(253, 126, 20, 0.1) !important;
 }
 
 .mobile-analysis .economic-mini-card.card[style*="rgba(253, 126, 20, 0.1)"] {
   background-color: rgba(253, 126, 20, 0.1) !important;
+  background: rgba(253, 126, 20, 0.1) !important;
 }
 
 .mobile-analysis .mobile-chart-card.card {
