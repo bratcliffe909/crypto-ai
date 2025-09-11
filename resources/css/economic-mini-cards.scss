@@ -64,51 +64,35 @@
 /* Responsive adjustments */
 @media (max-width: 767.98px) {
   .economic-mini-card {
-    height: 80px;
-    min-height: 80px;
-    
     .card-body {
       padding: 0.75rem;
-    }
-    
-    &.loading-card .card-body,
-    &.error-card .card-body {
-      min-height: 48px; // 80px - 1.5rem padding
     }
   }
   
   .trend-arrow svg {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
   }
 }
 
 @media (max-width: 575.98px) {
   .economic-mini-card {
-    height: 75px;
-    min-height: 75px;
-    
     h6 {
-      font-size: 0.75rem !important;
+      font-size: 0.8rem !important;
     }
     
     .fw-bold {
-      font-size: 1.1rem !important;
+      font-size: 1.3rem !important;
     }
     
     small {
       font-size: 0.65rem !important;
     }
-    
-    &.loading-card .card-body,
-    &.error-card .card-body {
-      min-height: 43px; // 75px - 1.5rem padding
-    }
   }
   
   .trend-arrow svg {
-    width: 22px;
-    height: 22px;
+    width: 26px;
+    height: 26px;
   }
 }
 

@@ -150,85 +150,41 @@ const EconomicMiniCard = ({
           </OverlayTrigger>
         </div>
 
-        {/* Desktop and Mobile layouts */}
-        <div className="flex-grow-1 d-flex align-items-center">
-          {/* Desktop layout - Multi-line with arrow on left */}
-          <div className="d-none d-md-flex align-items-center justify-content-center w-100">
-            {/* Trend Arrow - Prominent Left Position */}
-            <div className="me-3">
-              <TrendArrow
-                angle={trend.angle}
-                color={colors.color}
-                size={32}
-                strength={trend.strength}
-                direction={trend.direction}
-              />
-            </div>
-            
-            {/* Value section */}
-            <div className="text-center">
-              {/* Current Value */}
-              <div 
-                className="fw-bold mb-1"
-                style={{ 
-                  fontSize: '1.5rem',
-                  color: colors.color,
-                  lineHeight: 1
-                }}
-              >
-                {formatValue(currentValue)}
-              </div>
-              
-              {/* Previous value and change */}
-              {trend?.previousValue && trend?.change && (
-                <div>
-                  <small className="text-muted" style={{ fontSize: '0.75rem' }}>
-                    {getTimePeriodLabel()} ago: {formatValue(trend.previousValue)}
-                  </small>
-                  <br />
-                  <small 
-                    style={{ 
-                      fontSize: '0.75rem',
-                      color: trend.change >= 0 ? '#198754' : '#dc3545'
-                    }}
-                  >
-                    {formatChange(trend.change)}
-                  </small>
-                </div>
-              )}
-            </div>
+        {/* Main value display with prominent arrow */}
+        <div className="flex-grow-1 d-flex align-items-center justify-content-center">
+          {/* Trend Arrow - Prominent Left Position */}
+          <div className="me-3">
+            <TrendArrow
+              angle={trend.angle}
+              color={colors.color}
+              size={32}
+              strength={trend.strength}
+              direction={trend.direction}
+            />
           </div>
-
-          {/* Mobile layout - Single line with compact display */}
-          <div className="d-flex d-md-none align-items-center justify-content-between w-100">
-            {/* Left side: Arrow + Value */}
-            <div className="d-flex align-items-center">
-              <TrendArrow
-                angle={trend.angle}
-                color={colors.color}
-                size={24}
-                strength={trend.strength}
-                direction={trend.direction}
-              />
-              <div className="ms-2">
-                <div 
-                  className="fw-bold"
-                  style={{ 
-                    fontSize: '1.1rem',
-                    color: colors.color,
-                    lineHeight: 1
-                  }}
-                >
-                  {formatValue(currentValue)}
-                </div>
-              </div>
+          
+          {/* Value section */}
+          <div className="text-center">
+            {/* Current Value */}
+            <div 
+              className="fw-bold mb-1"
+              style={{ 
+                fontSize: '1.5rem',
+                color: colors.color,
+                lineHeight: 1
+              }}
+            >
+              {formatValue(currentValue)}
             </div>
             
-            {/* Right side: Change indicator */}
-            {trend?.change && (
-              <div className="text-end">
+            {/* Previous value and change */}
+            {trend?.previousValue && trend?.change && (
+              <div>
+                <small className="text-muted" style={{ fontSize: '0.75rem' }}>
+                  {getTimePeriodLabel()} ago: {formatValue(trend.previousValue)}
+                </small>
+                <br />
                 <small 
-                  className="fw-semibold"
                   style={{ 
                     fontSize: '0.75rem',
                     color: trend.change >= 0 ? '#198754' : '#dc3545'

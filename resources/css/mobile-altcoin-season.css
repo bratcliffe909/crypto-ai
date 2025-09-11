@@ -51,20 +51,20 @@
     pointer-events: none;
   }
 
-  /* Card styling for mobile */
-  .mobile-analysis .card {
+  /* Card styling for mobile - EXCLUDE economic mini-cards */
+  .mobile-analysis .card:not(.economic-mini-card):not(.mobile-chart-card) {
     margin-bottom: 1rem;
     background-color: transparent !important;
     border: none !important;
   }
 
-  .mobile-analysis .card-header {
+  .mobile-analysis .card-header:not(.mobile-card-header) {
     background-color: transparent !important;
     border: none !important;
     padding: 0.5rem 0;
   }
 
-  .mobile-analysis .card-body {
+  .mobile-analysis .card-body:not(.mobile-card-body) {
     background-color: transparent !important;
   }
 }
