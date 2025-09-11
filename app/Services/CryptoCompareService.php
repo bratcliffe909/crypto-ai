@@ -71,9 +71,27 @@ class CryptoCompareService
     }
 
     /**
-     * Fetch market sentiment data using 30-day price changes for better reliability
+     * Fetch market sentiment data using cached CoinGecko data (50 coins, 30-day changes)
      */
     private function fetchMarketSentiment()
+    {
+        try {
+            // Use cached CoinGecko market data instead of making new API calls
+            $sentimentRepository = app(\App\Repositories\SentimentRepository::class);
+            return $sentimentRepository->calculateSentimentFromCoinGeckoData();
+            
+        } catch (\Exception $e) {
+            Log::warning("Failed to get market sentiment from CoinGecko cache, falling back to CryptoCompare", ['error' => $e->getMessage()]);
+            
+            // Fallback to original CryptoCompare method if CoinGecko data unavailable
+            return $this->fetchMarketSentimentFromCryptoCompare();
+        }
+    }
+
+    /**
+     * Original CryptoCompare-based sentiment calculation (fallback only)
+     */
+    private function fetchMarketSentimentFromCryptoCompare()
     {
         $topCoins = ['BTC', 'ETH', 'BNB', 'XRP', 'ADA', 'SOL', 'DOGE', 'DOT', 'AVAX', 'MATIC'];
         $coinData = [];

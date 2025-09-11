@@ -22,19 +22,32 @@ class SentimentController extends Controller
     public function marketSentiment(Request $request)
     {
         try {
-            $result = $this->sentimentRepository->getMarketSentiment();
+            $period = $request->get('period', '30d'); // Default to 30-day, allow 200d
             
-            // Extract data and metadata for response
-            $data = $result['data'] ?? $result;
-            $metadata = $result['metadata'] ?? [];
-            
-            // Use actual cache timestamp - don't fallback to now()
-            $lastUpdated = $metadata['lastUpdated'] ?? null;
-            
-            return response()->json($data)
-                ->header('X-Cache-Age', $metadata['cacheAge'] ?? 0)
-                ->header('X-Data-Source', $metadata['source'] ?? 'unknown')
-                ->header('X-Last-Updated', $lastUpdated ?: '');
+            if ($period === '200d') {
+                // Use CoinGecko data directly for 200-day analysis
+                $result = $this->sentimentRepository->calculateSentimentFromCoinGeckoData('200d');
+                
+                return response()->json($result)
+                    ->header('X-Cache-Age', 0)
+                    ->header('X-Data-Source', 'coingecko_cache')
+                    ->header('X-Last-Updated', $result['timestamp'] ?? '');
+            } else {
+                // Use standard cached sentiment for 30-day
+                $result = $this->sentimentRepository->getMarketSentiment();
+                
+                // Extract data and metadata for response
+                $data = $result['data'] ?? $result;
+                $metadata = $result['metadata'] ?? [];
+                
+                // Use actual cache timestamp - don't fallback to now()
+                $lastUpdated = $metadata['lastUpdated'] ?? null;
+                
+                return response()->json($data)
+                    ->header('X-Cache-Age', $metadata['cacheAge'] ?? 0)
+                    ->header('X-Data-Source', $metadata['source'] ?? 'unknown')
+                    ->header('X-Last-Updated', $lastUpdated ?: '');
+            }
         } catch (\Exception $e) {
             Log::error('Market sentiment error', ['error' => $e->getMessage()]);
             return response()->json([

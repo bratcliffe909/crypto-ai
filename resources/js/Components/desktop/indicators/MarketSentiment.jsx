@@ -40,7 +40,7 @@ const MarketSentiment = () => {
                 <div className="card-header d-flex justify-content-between align-items-center">
                     <div className="d-flex align-items-center">
                         <h5 className="mb-0">Market Sentiment</h5>
-                        <Tooltip content="Market sentiment calculated from real-time data: Price Momentum (25%), Market Breadth (25%), Bullish Strength (20%), Alt Activity (15%), and Trend Strength (15%). Score ranges from 0 (Very Bearish) to 100 (Very Bullish).">
+                        <Tooltip content="Market sentiment calculated from top 45 cryptocurrencies over 30 days: Price Momentum (30%), Market Breadth (25%), Bullish Strength (20%), Alt Activity (15%), and Trend Strength (10%). Score ranges from 0 (Very Bearish) to 100 (Very Bullish).">
                             <BsInfoCircleFill className="ms-2 text-muted" style={{ cursor: 'help' }} />
                         </Tooltip>
                     </div>
@@ -62,7 +62,7 @@ const MarketSentiment = () => {
                 <div className="card-header d-flex justify-content-between align-items-center">
                     <div className="d-flex align-items-center">
                         <h5 className="mb-0">Market Sentiment</h5>
-                        <Tooltip content="Market sentiment calculated from real-time data: Price Momentum (25%), Market Breadth (25%), Bullish Strength (20%), Alt Activity (15%), and Trend Strength (15%). Score ranges from 0 (Very Bearish) to 100 (Very Bullish).">
+                        <Tooltip content="Market sentiment calculated from top 45 cryptocurrencies over 30 days: Price Momentum (30%), Market Breadth (25%), Bullish Strength (20%), Alt Activity (15%), and Trend Strength (10%). Score ranges from 0 (Very Bearish) to 100 (Very Bullish).">
                             <BsInfoCircleFill className="ms-2 text-muted" style={{ cursor: 'help' }} />
                         </Tooltip>
                     </div>
@@ -83,7 +83,7 @@ const MarketSentiment = () => {
             <div className="card-header d-flex justify-content-between align-items-center">
                 <div className="d-flex align-items-center">
                     <h5 className="mb-0">Market Sentiment</h5>
-                    <Tooltip content="Market sentiment calculated from real-time data: Price Momentum (25%), Market Breadth (25%), Bullish Strength (20%), Alt Activity (15%), and Trend Strength (15%). Score ranges from 0 (Very Bearish) to 100 (Very Bullish).">
+                    <Tooltip content="Market sentiment calculated from top 45 cryptocurrencies over 30 days: Price Momentum (30%), Market Breadth (25%), Bullish Strength (20%), Alt Activity (15%), and Trend Strength (10%). Score ranges from 0 (Very Bearish) to 100 (Very Bullish).">
                         <BsInfoCircleFill className="ms-2 text-muted" style={{ cursor: 'help' }} />
                     </Tooltip>
                 </div>
@@ -150,7 +150,7 @@ const MarketSentiment = () => {
                         <div className="d-flex justify-content-between align-items-center mb-1">
                             <div className="d-flex align-items-center">
                                 <span className="text-muted">Price Momentum</span>
-                                <Tooltip content="Average 24h price change across all top 10 coins. Higher values indicate stronger upward momentum.">
+                                <Tooltip content="Average 30-day price change across 45 cryptocurrencies. Higher values indicate stronger upward momentum over the past month.">
                                     <BsQuestionCircleFill 
                                         className="ms-1 text-muted" 
                                         style={{ cursor: 'help', fontSize: '0.75rem' }} 
@@ -175,7 +175,7 @@ const MarketSentiment = () => {
                         <div className="d-flex justify-content-between align-items-center mb-1">
                             <div className="d-flex align-items-center">
                                 <span className="text-muted">Market Breadth</span>
-                                <Tooltip content="Percentage of coins showing gains (>2% change). Higher values mean more coins are advancing.">
+                                <Tooltip content="Percentage of coins with gains >10% over 30 days. Higher values mean more cryptocurrencies are showing significant positive performance.">
                                     <BsQuestionCircleFill 
                                         className="ms-1 text-muted" 
                                         style={{ cursor: 'help', fontSize: '0.75rem' }} 
@@ -200,7 +200,7 @@ const MarketSentiment = () => {
                         <div className="d-flex justify-content-between align-items-center mb-1">
                             <div className="d-flex align-items-center">
                                 <span className="text-muted">Bullish Strength</span>
-                                <Tooltip content="Average gain size of advancing coins. Shows how strong the bullish moves are when they occur.">
+                                <Tooltip content="Average gain size of coins with >10% gains over 30 days. Shows the strength of bullish moves when they occur.">
                                     <BsQuestionCircleFill 
                                         className="ms-1 text-muted" 
                                         style={{ cursor: 'help', fontSize: '0.75rem' }} 

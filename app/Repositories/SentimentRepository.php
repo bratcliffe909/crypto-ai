@@ -695,12 +695,12 @@ class SentimentRepository extends BaseRepository
         $avgPriceChange30d = !empty($priceChanges30d) ? array_sum($priceChanges30d) / count($priceChanges30d) : 0;
         $components['price_momentum'] = max(0, min(100, 50 + ($avgPriceChange30d * 1))); // 1x multiplier for 30d scale
         
-        // 2. Market Breadth - Percentage of coins with 30-day gains (>20% threshold)
-        $bullish30dCount = count(array_filter($priceChanges30d, fn($change) => $change > 20));
+        // 2. Market Breadth - Percentage of coins with 30-day gains (>10% threshold)
+        $bullish30dCount = count(array_filter($priceChanges30d, fn($change) => $change > 10));
         $components['market_breadth'] = $totalCoins > 0 ? ($bullish30dCount / $totalCoins) * 100 : 50;
         
         // 3. Bullish Strength - How strong are the 30-day bullish moves
-        $bullishChanges30d = array_filter($priceChanges30d, function($change) { return $change > 20; });
+        $bullishChanges30d = array_filter($priceChanges30d, function($change) { return $change > 10; });
         $avgBullishChange30d = !empty($bullishChanges30d) ? array_sum($bullishChanges30d) / count($bullishChanges30d) : 0;
         // Convert to 0-100: 0% = 50, 50%+ = 100
         $components['bullish_strength'] = min(100, 50 + ($avgBullishChange30d * 1));
@@ -756,9 +756,155 @@ class SentimentRepository extends BaseRepository
         // Use 30-day change if available, otherwise fall back to 24-hour
         $change = $data['CHANGEPCT30DAY'] ?? $data['CHANGEPCT24HOUR'] ?? 0;
         
-        // 30-day thresholds: 20% gains/losses are significant
-        if ($change > 20) return 'bullish';
-        if ($change < -20) return 'bearish';
+        // 30-day thresholds: 10% gains/losses are significant (more realistic for crypto markets)
+        if ($change > 10) return 'bullish';
+        if ($change < -10) return 'bearish';
         return 'neutral';
+    }
+
+    /**
+     * Calculate market sentiment using cached CoinGecko data (50 coins, multiple time periods)
+     *
+     * @param string $period - '30d' or '200d' for different analysis periods
+     * @return array
+     */
+    public function calculateSentimentFromCoinGeckoData(string $period = '30d'): array
+    {
+        $this->logOperation('calculateSentimentFromCoinGeckoData', ['period' => $period]);
+        
+        try {
+            // Get cached CoinGecko market data (top 50 coins)
+            $cacheKey = "coingecko_markets_usd_50";
+            $cachedResult = $this->cacheService->getCachedWithMetadataPublic($cacheKey);
+            $marketData = $cachedResult['data'] ?? null;
+            
+            if (!$marketData || empty($marketData)) {
+                throw new \Exception("No CoinGecko market data available in cache");
+            }
+            
+            return $this->processCoinGeckoDataForSentiment($marketData, $period);
+            
+        } catch (\Exception $e) {
+            Log::error('Failed to calculate sentiment from CoinGecko data', [
+                'error' => $e->getMessage(),
+                'period' => $period
+            ]);
+            throw $e;
+        }
+    }
+    
+    /**
+     * Process CoinGecko market data to calculate comprehensive sentiment
+     *
+     * @param array $marketData - Array of coin data from CoinGecko
+     * @param string $period - '30d' or '200d'
+     * @return array
+     */
+    private function processCoinGeckoDataForSentiment(array $marketData, string $period): array
+    {
+        $bullishCount = 0;
+        $bearishCount = 0;
+        $neutralCount = 0;
+        $priceChanges = [];
+        $volumes = [];
+        $coinsAnalyzed = 0;
+        
+        // Determine thresholds based on period
+        $bullishThreshold = $period === '200d' ? 25 : 10; // Higher threshold for longer periods
+        $bearishThreshold = $period === '200d' ? -25 : -10;
+        $priceChangeKey = $period === '200d' ? 'price_change_percentage_200d_in_currency' : 'price_change_percentage_30d_in_currency';
+        
+        foreach ($marketData as $coin) {
+            if (!isset($coin[$priceChangeKey]) || !isset($coin['total_volume'])) {
+                continue;
+            }
+            
+            $priceChange = $coin[$priceChangeKey];
+            $volume = $coin['total_volume'];
+            
+            // Skip stablecoins and coins with no meaningful data
+            if (in_array(strtolower($coin['symbol'] ?? ''), ['usdt', 'usdc', 'usde']) || 
+                $priceChange === null || $volume === null) {
+                continue;
+            }
+            
+            $coinsAnalyzed++;
+            $priceChanges[] = $priceChange;
+            $volumes[] = $volume;
+            
+            // Classify sentiment based on price change
+            if ($priceChange > $bullishThreshold) {
+                $bullishCount++;
+            } elseif ($priceChange < $bearishThreshold) {
+                $bearishCount++;
+            } else {
+                $neutralCount++;
+            }
+        }
+        
+        if ($coinsAnalyzed === 0) {
+            throw new \Exception("No valid coin data found for sentiment analysis");
+        }
+        
+        // Calculate component metrics
+        $components = [];
+        
+        // 1. Price Momentum - Average price change
+        $avgPriceChange = array_sum($priceChanges) / count($priceChanges);
+        $momentumScale = $period === '200d' ? 0.5 : 1; // Scale down for longer periods
+        $components['price_momentum'] = max(0, min(100, 50 + ($avgPriceChange * $momentumScale)));
+        
+        // 2. Market Breadth - Percentage of coins with positive moves
+        $components['market_breadth'] = ($bullishCount / $coinsAnalyzed) * 100;
+        
+        // 3. Bullish Strength - Average of bullish moves
+        $bullishChanges = array_filter($priceChanges, function($change) use ($bullishThreshold) { 
+            return $change > $bullishThreshold; 
+        });
+        $avgBullishChange = !empty($bullishChanges) ? array_sum($bullishChanges) / count($bullishChanges) : 0;
+        $strengthScale = $period === '200d' ? 0.3 : 1;
+        $components['bullish_strength'] = max(0, min(100, 50 + ($avgBullishChange * $strengthScale)));
+        
+        // 4. Volume Activity - Bitcoin dominance vs alts (using top coins)
+        $btcVolume = $marketData[0]['total_volume'] ?? 0; // BTC should be first
+        $totalVolume = array_sum($volumes);
+        $btcDominance = $totalVolume > 0 ? ($btcVolume / $totalVolume) * 100 : 50;
+        $components['alt_activity'] = max(0, min(100, 100 - $btcDominance));
+        
+        // 5. Trend Consistency - Directional alignment
+        $directionConsistency = max($bullishCount, $bearishCount) / $coinsAnalyzed;
+        $components['trend_strength'] = $directionConsistency * 100;
+        
+        // Calculate overall sentiment score as weighted average
+        $weights = [
+            'price_momentum' => 0.30,
+            'market_breadth' => 0.25,
+            'bullish_strength' => 0.20,
+            'alt_activity' => 0.15,
+            'trend_strength' => 0.10
+        ];
+        
+        $sentimentScore = 0;
+        foreach ($components as $component => $score) {
+            if (isset($weights[$component])) {
+                $sentimentScore += $score * $weights[$component];
+            }
+        }
+        
+        return [
+            'sentiment_score' => round($sentimentScore),
+            'bullish_percentage' => round(($bullishCount / $coinsAnalyzed) * 100),
+            'bearish_percentage' => round(($bearishCount / $coinsAnalyzed) * 100),
+            'neutral_percentage' => round(($neutralCount / $coinsAnalyzed) * 100),
+            'coins_analyzed' => $coinsAnalyzed,
+            'components' => array_map(function($score) { return round($score, 1); }, $components),
+            'avg_change' => round($avgPriceChange, 2),
+            'period' => $period === '200d' ? '200_day' : '30_day',
+            'thresholds' => [
+                'bullish' => $bullishThreshold,
+                'bearish' => $bearishThreshold
+            ],
+            'timestamp' => now()->toIso8601String()
+        ];
     }
 }

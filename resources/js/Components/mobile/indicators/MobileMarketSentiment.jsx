@@ -9,11 +9,11 @@ const MobileMarketSentiment = () => {
     const { data: socialData, loading: socialLoading, error: socialError } = useApi('/api/crypto/social-activity?days=30');
 
     const getSentimentLabel = (score) => {
-        if (score >= 80) return 'Extreme Greed';
-        if (score >= 60) return 'Greed';
+        if (score >= 80) return 'Very Bullish';
+        if (score >= 60) return 'Bullish';
         if (score >= 40) return 'Neutral';
-        if (score >= 20) return 'Fear';
-        return 'Extreme Fear';
+        if (score >= 20) return 'Bearish';
+        return 'Very Bearish';
     };
 
     const getSentimentIcon = (score) => {
@@ -23,11 +23,11 @@ const MobileMarketSentiment = () => {
     };
 
     const getSentimentColor = (score) => {
-        if (score >= 80) return '#FF0000';
-        if (score >= 60) return '#FFA500';
-        if (score >= 40) return '#FFD700';
-        if (score >= 20) return '#90EE90';
-        return '#00FF00';
+        if (score >= 80) return '#00FF00'; // Very Bullish - Bright Green
+        if (score >= 60) return '#90EE90'; // Bullish - Light Green
+        if (score >= 40) return '#FFD700'; // Neutral - Gold
+        if (score >= 20) return '#FFA500'; // Bearish - Orange
+        return '#FF0000'; // Very Bearish - Red
     };
 
     if (sentimentLoading || socialLoading) {
@@ -85,11 +85,11 @@ const MobileMarketSentiment = () => {
                             <div 
                                 style={{
                                     background: `linear-gradient(to right, 
-                                        #00FF00 0%, 
-                                        #90EE90 20%, 
+                                        #FF0000 0%, 
+                                        #FFA500 20%, 
                                         #FFD700 40%, 
-                                        #FFA500 60%, 
-                                        #FF0000 100%)`,
+                                        #90EE90 60%, 
+                                        #00FF00 100%)`,
                                     height: '25px',
                                     borderRadius: '12px',
                                     position: 'relative'
@@ -110,9 +110,9 @@ const MobileMarketSentiment = () => {
                                 />
                             </div>
                             <div className="d-flex justify-content-between mt-2">
-                                <small>Fear</small>
+                                <small>Bearish</small>
                                 <small>Neutral</small>
-                                <small>Greed</small>
+                                <small>Bullish</small>
                             </div>
                         </div>
                     </div>
