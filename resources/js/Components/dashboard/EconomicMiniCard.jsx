@@ -145,7 +145,7 @@ const EconomicMiniCard = ({
           >
             <BsInfoCircleFill 
               className="text-muted ms-1" 
-              style={{ cursor: 'help', fontSize: '0.75rem' }} 
+              style={{ cursor: 'help', fontSize: '0.875rem' }} 
             />
           </OverlayTrigger>
         </div>
@@ -157,7 +157,7 @@ const EconomicMiniCard = ({
             <TrendArrow
               angle={trend.angle}
               color={colors.color}
-              size={32}
+              size={40}
               strength={trend.strength}
               direction={trend.direction}
             />
