@@ -222,7 +222,7 @@ class FREDService
     }
 
     /**
-     * Get series data from FRED API
+     * Get series data from FRED API with historical caching
      */
     private function getSeriesData($seriesId, $startDate, $endDate)
     {
@@ -230,57 +230,70 @@ class FREDService
             return [];
         }
 
-        $cacheKey = "fred_series_{$seriesId}_{$startDate}_{$endDate}";
-
-        $result = $this->cacheService->remember($cacheKey, 3600, function () use ($seriesId, $startDate, $endDate) {
-            $params = [
-                'api_key' => $this->apiKey,
-                'file_type' => 'json',
-                'series_id' => $seriesId,
-                'observation_start' => $startDate,
-                'observation_end' => $endDate,
-                'sort_order' => 'asc',
-                'limit' => 10000
-            ];
-
-            try {
-                $response = Http::timeout(30)->get($this->baseUrl . '/series/observations', $params);
-
-                if ($response->successful()) {
-                    $data = $response->json();
-                    
-                    if (isset($data['error_code'])) {
-                        Log::error('FRED API error for series ' . $seriesId, ['error' => $data]);
-                        throw new \Exception($data['error_message'] ?? 'FRED API Error');
-                    }
-                    
-                    $observations = $data['observations'] ?? [];
-                    $formattedData = [];
-
-                    foreach ($observations as $observation) {
-                        // Skip invalid observations
-                        if ($observation['value'] === '.' || $observation['value'] === '' || !is_numeric($observation['value'])) {
-                            continue;
-                        }
-
-                        $formattedData[] = [
-                            'date' => $observation['date'],
-                            'value' => floatval($observation['value'])
-                        ];
-                    }
-
-                    return $formattedData;
-                }
-            } catch (\Exception $e) {
-                Log::error('FRED API series request failed', [
-                    'series_id' => $seriesId,
-                    'error' => $e->getMessage()
-                ]);
-            }
-
-            return [];
-        });
+        // Use historical caching pattern like other chart services
+        $cacheKey = "fred_series_{$seriesId}_historical";
+        
+        $result = $this->cacheService->rememberHistoricalForever($cacheKey, function($fromDate, $toDate) use ($seriesId, $startDate, $endDate) {
+            // Use the full requested date range if no incremental dates provided
+            $actualStartDate = $fromDate ?? $startDate;
+            $actualEndDate = $toDate ?? $endDate;
+            
+            return $this->fetchSeriesFromAPI($seriesId, $actualStartDate, $actualEndDate);
+        }, 'date');
 
         return $result['data'] ?? $result;
+    }
+
+    /**
+     * Fetch series data from FRED API
+     */
+    private function fetchSeriesFromAPI($seriesId, $startDate, $endDate)
+    {
+        $params = [
+            'api_key' => $this->apiKey,
+            'file_type' => 'json',
+            'series_id' => $seriesId,
+            'observation_start' => $startDate,
+            'observation_end' => $endDate,
+            'sort_order' => 'asc',
+            'limit' => 10000
+        ];
+
+        try {
+            $response = Http::timeout(30)->get($this->baseUrl . '/series/observations', $params);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                
+                if (isset($data['error_code'])) {
+                    Log::error('FRED API error for series ' . $seriesId, ['error' => $data]);
+                    throw new \Exception($data['error_message'] ?? 'FRED API Error');
+                }
+                
+                $observations = $data['observations'] ?? [];
+                $formattedData = [];
+
+                foreach ($observations as $observation) {
+                    // Skip invalid observations
+                    if ($observation['value'] === '.' || $observation['value'] === '' || !is_numeric($observation['value'])) {
+                        continue;
+                    }
+
+                    $formattedData[] = [
+                        'date' => $observation['date'],
+                        'value' => floatval($observation['value'])
+                    ];
+                }
+
+                return $formattedData;
+            }
+        } catch (\Exception $e) {
+            Log::error('FRED API series request failed', [
+                'series_id' => $seriesId,
+                'error' => $e->getMessage()
+            ]);
+        }
+
+        return [];
     }
 }
