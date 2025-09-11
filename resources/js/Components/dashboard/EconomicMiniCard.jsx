@@ -18,7 +18,8 @@ const EconomicMiniCard = ({
   indicatorConfig, 
   timeRange = '90',
   loading = false,
-  error = false 
+  error = false,
+  mobile = false
 }) => {
   // Calculate trend from data
   const trend = React.useMemo(() => {
@@ -159,7 +160,7 @@ const EconomicMiniCard = ({
             <TrendArrow
               angle={trend.angle}
               color={colors.color}
-              size={40}
+              size={mobile ? 50 : 40}
               strength={trend.strength}
               direction={trend.direction}
             />

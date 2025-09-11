@@ -129,6 +129,7 @@ const MobileEconomicMiniDashboard = () => {
                   timeRange={timeRange}
                   loading={loading}
                   error={error}
+                  mobile={true}
                 />
               </Col>
             ))}
